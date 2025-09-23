@@ -85,8 +85,14 @@ vec3_scale(vec3 v, f32 s) {
 }
 
 internal f32
+vec3_dot(vec3 a, vec3 b) {
+    f32 result = a.x*b.x + a.y*b.y + a.z*b.z;
+    return(result);
+}
+
+internal f32
 vec3_length_square(vec3 v) {
-    f32 result = v.x*v.x + v.y*v.y + v.z*v.z;
+    f32 result = vec3_dot(v, v);
     return(result);
 }
 
@@ -96,9 +102,19 @@ vec3_length(vec3 v) {
     return(result);
 }
 
+#define square(x) ((x)*(x))
+
 internal vec3 
 vec3_normalize(vec3 v) {
+#if 0
     vec3 result = vec3_scale(v, (1.0f / vec3_length(v)));
+#else
+    vec3 result = {0};
+    f32 length_square = vec3_length_square(v);
+    if (length_square > square(0.0001f)) {
+        result = vec3_scale(v, (1.0f / sqrt_f32(length_square)));
+    }
+#endif
     return(result);
 }
 
@@ -109,12 +125,6 @@ vec3_cross(vec3 a, vec3 b) {
         .y = a.z*b.x - a.x*b.z,
         .z = a.x*b.y - a.y*b.x,
     };
-    return(result);
-}
-
-internal f32
-vec3_dot(vec3 a, vec3 b) {
-    f32 result = a.x*b.x + a.y*b.y + a.z*b.z;
     return(result);
 }
 

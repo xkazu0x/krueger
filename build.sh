@@ -25,7 +25,7 @@ cd build
 $compile ../src/krueger.c $link $out krueger 
 if [ -v run ]; then 
     ./krueger; 
-    sxiv output.bmp;
+    sxiv krueger.bmp;
 fi
 cd ..
 
