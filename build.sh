@@ -10,10 +10,10 @@ if [ -v release ];   then echo "[release mode]"; fi
 if [ -v clang ];     then compiler="${CC:-clang}"; echo "[clang compiler]"; fi
 if [ -v gcc ];       then compiler="${CC:-gcc}"; echo "[gcc compiler]"; fi
 
-compile_common="-I../src/ -std=c99 -pedantic -Wall -Wextra -Wno-unused-function -Wno-zero-length-array"
+compile_common="-I../src/ -std=c11 -pedantic -Wall -Wextra -Wno-unused-function"
 compile_debug="$compiler -O0 -g -DBUILD_DEBUG=1 ${compile_common}"
 compile_release="$compiler -O2 -DBUILD_DEBUG=0 ${compile_common}"
-link=""
+link="-lm"
 out="-o"
 
 if [ -v debug ]; then compile="$compile_debug"; fi
@@ -23,6 +23,9 @@ mkdir -p build
 
 cd build
 $compile ../src/krueger.c $link $out krueger 
-if [ -v run ]; then ./krueger; fi
+if [ -v run ]; then 
+    ./krueger; 
+    sxiv output.bmp;
+fi
 cd ..
 
