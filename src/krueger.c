@@ -21,41 +21,40 @@ typedef struct {
     s32 y_resolution_ppm;
     u32 num_colors;
     u32 important_colors;
-} bmp_header;
+} BMP_Header;
 #pragma pack(pop)
 
 typedef struct {
     u32 width;
     u32 height;
     u32 *pixels;
-} image_u32;
-
-internal image_u32
-alloc_image(u32 width, u32 height) {
-    image_u32 result = {
-        .width = width,
-        .height = height,
-        .pixels = malloc(width*height*sizeof(u32)),
-    };
-    return(result);
-}
+} Image;
 
 internal u32
-get_image_size(image_u32 image) {
+get_image_size(Image image) {
     u32 result = image.width*image.height*sizeof(u32);
     return(result);
 }
 
+internal Image
+alloc_image(u32 width, u32 height) {
+    Image result;
+    result.width = width;
+    result.height = height;
+    result.pixels = malloc(get_image_size(result));
+    return(result);
+}
+
 internal void
-write_image(image_u32 image, char *filename) {
+write_image(Image image, char *filename) {
     u32 image_size = get_image_size(image);
-    bmp_header header = {
+    BMP_Header header = {
         .type             = 0x4D42,
-        .size             = sizeof(bmp_header) + image_size,
+        .size             = sizeof(BMP_Header) + image_size,
         .reserved1        = 0,
         .reserved2        = 0,
-        .offset           = sizeof(bmp_header),
-        .dib_header_size  = sizeof(bmp_header) - offsetof(bmp_header, dib_header_size),
+        .offset           = sizeof(BMP_Header),
+        .dib_header_size  = sizeof(BMP_Header) - offsetof(BMP_Header, dib_header_size),
         .width_px         = image.width,
         .height_px        = image.height,
         .num_planes       = 1,
@@ -79,33 +78,150 @@ write_image(image_u32 image, char *filename) {
 }
 
 typedef struct {
-    vec3 color;
-} material;
+    f32 scatter; // NOTE: 0 is pure diffuse, 1 is pure specular
+    Vector3 emit_color;
+    Vector3 refl_color;
+} Material;
 
 typedef struct {
-    vec3 n;
+    Vector3 n;
     f32 d;
-    u32 mat_id;
-} plane;
+    u32 material_index;
+} Plane;
 
 typedef struct {
-    vec3 p;
+    Vector3 p;
     f32 r;
-    u32 mat_id;
-} sphere;
+    u32 material_index;
+} Sphere;
 
 typedef struct {
     u32 material_count;
-    material *materials;
+    Material *materials;
     
     u32 plane_count;
-    plane *planes;
+    Plane *planes;
 
     u32 sphere_count;
-    sphere *spheres;
-} world;
+    Sphere *spheres;
+} World;
+
+internal f32
+rand_uni(void) {
+    f32 result = (f32)rand() / (f32)RAND_MAX;
+    return(result);
+}
+
+internal f32
+rand_bi(void) {
+    f32 result = -1.0f + 2.0f*rand_uni();
+    return(result);
+}
+
+internal Vector3
+ray_cast(World *world, Vector3 ray_origin, Vector3 ray_direction) {
+    f32 min_hit_distance = 0.001f;
+    f32 tolerance = 0.0001f;
+
+    Vector3 result = {0};
+    Vector3 attenuation = make_vector3(1.0f, 1.0f, 1.0f);
+    for (u32 ray_count = 0;
+         ray_count < 8;
+         ++ray_count) {
+        f32 hit_distance = f32_max;
+        u32 hit_material_index = 0;
+
+        Vector3 next_normal;
+
+        for (u32 plane_index = 0;
+        plane_index < world->plane_count;
+        ++plane_index) {
+            Plane plane = world->planes[plane_index]; 
+            f32 denom = vector3_dot(plane.n, ray_direction);
+            if ((denom < -tolerance) || (denom > tolerance)) {
+                f32 t = (-plane.d - vector3_dot(plane.n, ray_origin)) / denom;
+                if ((t > min_hit_distance) && (t < hit_distance)) {
+                    hit_distance = t;
+                    hit_material_index = plane.material_index;
+                    next_normal = plane.n;
+                }
+            }
+        }
+
+        for (u32 sphere_index = 0;
+        sphere_index < world->sphere_count;
+        ++sphere_index) {
+            Sphere sphere = world->spheres[sphere_index]; 
+
+            Vector3 so = vector3_sub(ray_origin, sphere.p);
+            f32 a = vector3_dot(ray_direction, ray_direction);
+            f32 b = vector3_dot(ray_direction, so)*2.0f;
+            f32 c = vector3_dot(so, so) - sphere.r*sphere.r;
+
+            f32 denom = 2.0f*a; 
+            f32 root_term = sqrt_f32(b*b - 4.0f*a*c);
+            if (root_term > tolerance) {
+                f32 tp = (-b + root_term) / denom;
+                f32 tn = (-b - root_term) / denom;
+
+                f32 t = tp;
+                if ((tn > min_hit_distance) && (tn < tp)) {
+                    t = tn;
+                }
+
+                if ((t > min_hit_distance) && (t < hit_distance)) {
+                    hit_distance = t;
+                    hit_material_index = sphere.material_index;
+                    next_normal = vector3_normalize(
+                        vector3_add(so,
+                                    vector3_scale(ray_direction, t)));
+                }
+            }
+        }
+
+        if (hit_material_index) {
+            Material material = world->materials[hit_material_index];
+            result = vector3_add(result, vector3_hadamard(attenuation, material.emit_color));
+            
+            f32 cos_attenuation = vector3_dot(vector3_scale(ray_direction, -1.0f), next_normal);
+            if (cos_attenuation < 0) cos_attenuation = 0;
+            attenuation = vector3_hadamard(attenuation, vector3_scale(material.refl_color, cos_attenuation));
+
+            ray_origin = vector3_add(ray_origin, vector3_scale(ray_direction, hit_distance));
+            Vector3 pure_bounce = vector3_sub(ray_direction, 
+                                              vector3_scale(next_normal, 
+                                                            2.0f*vector3_dot(ray_direction, next_normal)));
+            Vector3 random_bounce = vector3_normalize(vector3_add(next_normal, 
+                                                                  make_vector3(rand_bi(), 
+                                                                               rand_bi(), 
+                                                                               rand_bi())));
+            ray_direction = vector3_normalize(vector3_lerp(random_bounce, pure_bounce, material.scatter));
+        } else {
+            Material material = world->materials[hit_material_index];
+            result = vector3_add(result, 
+                                 vector3_hadamard(attenuation, material.emit_color));
+            break;
+        }
+    }
+
+    return(result);
+}
 
 #define array_count(x) (sizeof(x)/sizeof(*(x)))
+#define square(x) ((x)*(x))
+
+#define pow_f32(a, b) (f32)pow((a), (b))
+
+internal f32
+exact_linear_to_srgb(f32 l) {
+    if (l < 0.0f) l = 0.0f;
+    if (l > 1.0f) l = 1.0f;
+    f32 s = l*12.92f;
+    if (l > 0.0031308f) {
+        s = 1.055f*pow_f32(l, 1.0f/2.4f) - 0.055f;
+    }
+    return(s);
+}
 
 internal u32
 pack_rgba4x8(u8 r, u8 g, u8 b, u8 a) {
@@ -113,83 +229,57 @@ pack_rgba4x8(u8 r, u8 g, u8 b, u8 a) {
     return(result);
 }
 
-internal vec3
-ray_cast(world *w, vec3 ro, vec3 rd) {
-    vec3 color = w->materials[0].color;
-
-    f32 hit_d = f32_max;
-    f32 tolerance = 0.0001f;
-
-    for (u32 plane_id = 0;
-         plane_id < w->plane_count;
-         ++plane_id) {
-        plane p = w->planes[plane_id]; 
-        f32 denom = vec3_dot(p.n, rd);
-        if ((denom < -tolerance) > (denom > tolerance)) {
-            f32 t = (-p.d - vec3_dot(p.n, ro)) / denom;
-            if ((t > 0.0f) && (t < hit_d)) {
-                hit_d = t;
-                color = w->materials[p.mat_id].color;
-            }
-        }
-    }
-
-    for (u32 sphere_id = 0;
-         sphere_id < w->sphere_count;
-         ++sphere_id) {
-        sphere s = w->spheres[sphere_id]; 
-    
-        vec3 so = vec3_sub(ro, s.p);
-        f32 a = vec3_dot(rd, rd);
-        f32 b = 2.0f*vec3_dot(rd, so);
-        f32 c = vec3_dot(so, so) - s.r*s.r;
-
-        f32 denom = 2.0f*a; 
-        f32 root_term = sqrt_f32(b*b - 4.0f*a*c);
-        if (root_term > tolerance) {
-            f32 tp = (-b + root_term) / denom;
-            f32 tn = (-b - root_term) / denom;
-
-            f32 t = tp;
-            if ((tn > 0.0f) && (tn < tp)) {
-                t = tn;
-            }
-
-            if ((t > 0.0f) && (t < hit_d)) {
-                hit_d = t;
-                color = w->materials[s.mat_id].color;
-            }
-        }
-    }
-
-    return(color);
-}
-
 int
 main(void) {
-    material materials[] = {
-        { make_vec3(0.5f, 0.1f, 0.1f) },
-        { make_vec3(0.1f, 0.1f, 0.1f) },
-        { make_vec3(0.7f, 0.5f, 0.3f) },
+    Material materials[] = {
+        { .emit_color = make_vector3(0.3f, 0.4f, 0.5f), }, // sky
+        { .refl_color = make_vector3(0.5f, 0.5f, 0.5f), }, // floor
+        { .refl_color = make_vector3(0.7f, 0.5f, 0.3f), }, 
+        { 
+            .emit_color = make_vector3(4.0f, 0.0f, 0.0f),
+        }, 
+        { 
+            .refl_color = make_vector3(0.2f, 0.8f, 0.2f), 
+            .scatter = 0.7f,
+        }, 
+        { 
+            .refl_color = make_vector3(0.4f, 0.8f, 0.9f), 
+            .scatter = 0.85f,
+        }, 
     };
 
-    plane planes[] = {
+    Plane planes[] = {
         {
-            .n = make_vec3(0.0f, 0.0f, 1.0f),
+            .n = make_vector3(0.0f, 0.0f, 1.0f),
             .d = 0.0f,
-            .mat_id = 1,
+            .material_index = 1,
         },
     };
     
-    sphere spheres[] = {
+    Sphere spheres[] = {
         {
-            .p = make_vec3(0.0f, 0.0f, 0.0f),
+            .p = make_vector3(0.0f, 0.0f, 0.0f),
             .r = 1.0f,
-            .mat_id = 2,
+            .material_index = 2,
+        },
+        {
+            .p = make_vector3(3.0f, -2.0f, 0.0f),
+            .r = 1.0f,
+            .material_index = 3,
+        },
+        {
+            .p = make_vector3(-2.0f, -1.0f, 2.0f),
+            .r = 1.0f,
+            .material_index = 4,
+        },
+        {
+            .p = make_vector3(1.0f, -1.0f, 3.0f),
+            .r = 1.0f,
+            .material_index = 5,
         },
     };
 
-    world w = {
+    World world = {
         .material_count = array_count(materials),
         .materials = materials,
         .plane_count = array_count(planes),
@@ -198,12 +288,12 @@ main(void) {
         .spheres = spheres,
     };
 
-    image_u32 image = alloc_image(800, 600);
+    Image image = alloc_image(800, 600);
 
-    vec3 cam_p = make_vec3(0.0f, -10.0f, 1.0f);
-    vec3 cam_z = vec3_normalize(cam_p);
-    vec3 cam_x = vec3_normalize(vec3_cross(make_vec3(0.0f, 0.0f, 1.0f), cam_z));
-    vec3 cam_y = vec3_normalize(vec3_cross(cam_z, cam_x));
+    Vector3 cam_p = make_vector3(0.0f, -10.0f, 1.0f);
+    Vector3 cam_z = vector3_normalize(cam_p);
+    Vector3 cam_x = vector3_normalize(vector3_cross(make_vector3(0.0f, 0.0f, 1.0f), cam_z));
+    Vector3 cam_y = vector3_normalize(vector3_cross(cam_z, cam_x));
 
     f32 screen_d = 1.0f;
     f32 screen_w = 1.0f;
@@ -215,24 +305,38 @@ main(void) {
     }
     f32 half_screen_w = 0.5f*screen_w;
     f32 half_screen_h = 0.5f*screen_h;
-    vec3 screen_c = vec3_sub(cam_p, vec3_scale(cam_z, screen_d));
+    Vector3 screen_c = vector3_sub(cam_p, vector3_scale(cam_z, screen_d));
 
+    f32 half_pixel_w = 0.5f / image.width;
+    f32 half_pixel_h = 0.5f / image.height;
+    
+    u32 rays_per_pixel = 256;
     u32 *out = image.pixels;
     for (u32 y = 0; y < image.height; ++y) {
         f32 screen_y = -1.0f + 2.0f*((f32)y / (f32)image.height);
         for (u32 x = 0; x < image.width; ++x) {
             f32 screen_x = -1.0f + 2.0f*((f32)x / (f32)image.width);
 
-            vec3 screen_p = vec3_add(screen_c, 
-                                     vec3_add(vec3_scale(cam_x, screen_x*half_screen_w), 
-                                              vec3_scale(cam_y, screen_y*half_screen_h)));
+            Vector3 color = {0};
+            f32 contrib = 1.0f / (f32)rays_per_pixel;
+            for (u32 ray_index = 0;
+                 ray_index < rays_per_pixel;
+                 ++ray_index) {
+                f32 offset_x = screen_x + rand_bi()*half_pixel_w;
+                f32 offset_y = screen_y + rand_bi()*half_pixel_h;
+                Vector3 screen_p = vector3_add(screen_c, 
+                                               vector3_add(vector3_scale(cam_x, offset_x*half_screen_w), 
+                                                           vector3_scale(cam_y, offset_y*half_screen_h)));
+                Vector3 ray_origin = cam_p;
+                Vector3 ray_direction = vector3_normalize(vector3_sub(screen_p, cam_p));
 
-            vec3 ro = cam_p;
-            vec3 rd = vec3_normalize(vec3_sub(screen_p, cam_p));
-            
-            vec3 color = ray_cast(&w, ro, rd); 
-            color = vec3_scale(color, 255.0f);
+                Vector3 ray_cast_color = ray_cast(&world, ray_origin, ray_direction);
+                color = vector3_add(color, vector3_scale(ray_cast_color, contrib)); 
+            }
 
+            color.r = exact_linear_to_srgb(color.r)*255.0f;
+            color.g = exact_linear_to_srgb(color.g)*255.0f;
+            color.b = exact_linear_to_srgb(color.b)*255.0f;
             u32 out_color = pack_rgba4x8(color.r, color.g, color.b, 0xFF);
             *out++ = out_color;
         }
@@ -241,6 +345,6 @@ main(void) {
     }
     char *filename = "krueger.bmp";
     write_image(image, filename);
-    printf("\n[INFO]: out file: %s\n", filename);
+    printf("\n[INFO]: out: %s\n", filename);
     return(0);
 }

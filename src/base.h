@@ -42,11 +42,11 @@ typedef union {
     struct {
         f32 r, g, b;
     };
-} vec3;
+} Vector3;
 
-internal vec3
-make_vec3(f32 x, f32 y, f32 z) {
-    vec3 result = { 
+internal Vector3
+make_vector3(f32 x, f32 y, f32 z) {
+    Vector3 result = { 
         .x = x,
         .y = y,
         .z = z,
@@ -54,9 +54,9 @@ make_vec3(f32 x, f32 y, f32 z) {
     return(result);
 }
 
-internal vec3
-vec3_add(vec3 a, vec3 b) {
-    vec3 result = {
+internal Vector3
+vector3_add(Vector3 a, Vector3 b) {
+    Vector3 result = {
         .x = a.x + b.x,
         .y = a.y + b.y,
         .z = a.z + b.z,
@@ -64,9 +64,9 @@ vec3_add(vec3 a, vec3 b) {
     return(result);
 }
 
-internal vec3
-vec3_sub(vec3 a, vec3 b) {
-    vec3 result = {
+internal Vector3
+vector3_sub(Vector3 a, Vector3 b) {
+    Vector3 result = {
         .x = a.x - b.x,
         .y = a.y - b.y,
         .z = a.z - b.z,
@@ -74,9 +74,9 @@ vec3_sub(vec3 a, vec3 b) {
     return(result);
 }
 
-internal vec3
-vec3_scale(vec3 v, f32 s) {
-    vec3 result = {
+internal Vector3
+vector3_scale(Vector3 v, f32 s) {
+    Vector3 result = {
         .x = v.x*s,
         .y = v.y*s,
         .z = v.z*s,
@@ -85,45 +85,61 @@ vec3_scale(vec3 v, f32 s) {
 }
 
 internal f32
-vec3_dot(vec3 a, vec3 b) {
+vector3_dot(Vector3 a, Vector3 b) {
     f32 result = a.x*b.x + a.y*b.y + a.z*b.z;
     return(result);
 }
 
 internal f32
-vec3_length_square(vec3 v) {
-    f32 result = vec3_dot(v, v);
+vector3_length_square(Vector3 v) {
+    f32 result = vector3_dot(v, v);
     return(result);
 }
 
 internal f32 
-vec3_length(vec3 v) {
-    f32 result = sqrt_f32(vec3_length_square(v));
+vector3_length(Vector3 v) {
+    f32 result = sqrt_f32(vector3_length_square(v));
     return(result);
 }
 
-#define square(x) ((x)*(x))
-
-internal vec3 
-vec3_normalize(vec3 v) {
-#if 0
-    vec3 result = vec3_scale(v, (1.0f / vec3_length(v)));
-#else
-    vec3 result = {0};
-    f32 length_square = vec3_length_square(v);
-    if (length_square > square(0.0001f)) {
-        result = vec3_scale(v, (1.0f / sqrt_f32(length_square)));
-    }
-#endif
+internal Vector3 
+vector3_normalize(Vector3 v) {
+    Vector3 result = vector3_scale(v, (1.0f / vector3_length(v)));
     return(result);
 }
 
-internal vec3
-vec3_cross(vec3 a, vec3 b) {
-    vec3 result = {
+internal Vector3
+vector3_cross(Vector3 a, Vector3 b) {
+    Vector3 result = {
         .x = a.y*b.z - a.z*b.y,
         .y = a.z*b.x - a.x*b.z,
         .z = a.x*b.y - a.y*b.x,
+    };
+    return(result);
+}
+
+internal Vector3
+vector3_hadamard(Vector3 a, Vector3 b) {
+    Vector3 result = {
+        .x = a.x*b.x,
+        .y = a.y*b.y,
+        .z = a.z*b.z,
+    };
+    return(result);
+}
+
+internal f32
+lerp(f32 a, f32 b, f32 t) {
+    f32 result = a + (b - a)*t;
+    return(result);
+}
+
+internal Vector3
+vector3_lerp(Vector3 a, Vector3 b, f32 t) {
+    Vector3 result = {
+        .x = lerp(a.x, b.x, t),
+        .y = lerp(a.y, b.y, t),
+        .z = lerp(a.z, b.z, t),
     };
     return(result);
 }
