@@ -43,6 +43,10 @@ global f64 tau64 = 6.283185307179586;
 #define sqrt_f32(x) sqrtf(x)
 #define pow_f32(a, b) powf((a), (b))
 
+#define swap_t(T, a, b) do { T t__ = a; a = b; b = t__; } while (0)
+#define sign_t(T, x) ((T)((x) > 0) - (T)((x) < 0))
+#define abs_t(T, x) (sign_t(T, x)*(x))
+
 internal f32
 lerp_f32(f32 a, f32 b, f32 t) {
     f32 result = a + (b - a)*t;
