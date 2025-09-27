@@ -3,6 +3,13 @@
 
 #define internal static
 #define global static
+#define local static
+
+#define false 0
+#define true 1
+
+#define array_count(x) (sizeof(x)/sizeof(*(x)))
+#define square(x) ((x)*(x))
 
 #include <stdint.h>
 #include <stddef.h>
@@ -34,6 +41,13 @@ global f64 tau64 = 6.283185307179586;
 
 #include <math.h>
 #define sqrt_f32(x) sqrtf(x)
+#define pow_f32(a, b) powf((a), (b))
+
+internal f32
+lerp_f32(f32 a, f32 b, f32 t) {
+    f32 result = a + (b - a)*t;
+    return(result);
+}
 
 typedef union {
     struct {
@@ -70,6 +84,16 @@ vector3_sub(Vector3 a, Vector3 b) {
         .x = a.x - b.x,
         .y = a.y - b.y,
         .z = a.z - b.z,
+    };
+    return(result);
+}
+
+internal Vector3
+vector3_mul(Vector3 a, Vector3 b) {
+    Vector3 result = {
+        .x = a.x*b.x,
+        .y = a.y*b.y,
+        .z = a.z*b.z,
     };
     return(result);
 }
@@ -119,27 +143,11 @@ vector3_cross(Vector3 a, Vector3 b) {
 }
 
 internal Vector3
-vector3_hadamard(Vector3 a, Vector3 b) {
-    Vector3 result = {
-        .x = a.x*b.x,
-        .y = a.y*b.y,
-        .z = a.z*b.z,
-    };
-    return(result);
-}
-
-internal f32
-lerp(f32 a, f32 b, f32 t) {
-    f32 result = a + (b - a)*t;
-    return(result);
-}
-
-internal Vector3
 vector3_lerp(Vector3 a, Vector3 b, f32 t) {
     Vector3 result = {
-        .x = lerp(a.x, b.x, t),
-        .y = lerp(a.y, b.y, t),
-        .z = lerp(a.z, b.z, t),
+        .x = lerp_f32(a.x, b.x, t),
+        .y = lerp_f32(a.y, b.y, t),
+        .z = lerp_f32(a.z, b.z, t),
     };
     return(result);
 }

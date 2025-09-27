@@ -13,7 +13,7 @@ if [ -v gcc ];       then compiler="${CC:-gcc}"; echo "[gcc compiler]"; fi
 compile_common="-I../src/ -std=c11 -pedantic -Wall -Wextra -Wno-unused-function"
 compile_debug="$compiler -O0 -g -DBUILD_DEBUG=1 ${compile_common}"
 compile_release="$compiler -O2 -DBUILD_DEBUG=0 ${compile_common}"
-link="-lm"
+link="-lm -lX11"
 out="-o"
 
 if [ -v debug ]; then compile="$compile_debug"; fi
@@ -23,9 +23,5 @@ mkdir -p build
 
 cd build
 $compile ../src/krueger.c $link $out krueger 
-if [ -v run ]; then 
-    ./krueger; 
-    sxiv krueger.bmp;
-fi
+if [ -v run ]; then ./krueger; fi
 cd ..
-
