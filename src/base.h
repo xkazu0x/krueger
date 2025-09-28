@@ -11,6 +11,10 @@
 #define array_count(x) (sizeof(x)/sizeof(*(x)))
 #define square(x) ((x)*(x))
 
+#define swap_t(T, a, b) do { T t__ = a; a = b; b = t__; } while (0)
+#define sign_t(T, x) ((T)((x) > 0) - (T)((x) < 0))
+#define abs_t(T, x) (sign_t(T, x)*(x))
+
 #include <stdint.h>
 #include <stddef.h>
 typedef uint8_t  u8;
@@ -39,13 +43,14 @@ global f64 pi64 = 3.141592653589793;
 global f32 tau32 = 6.283185307179586f;
 global f64 tau64 = 6.283185307179586;
 
+#define radians_f32(x) ((x)*pi32/180.0f)
+
 #include <math.h>
 #define sqrt_f32(x) sqrtf(x)
 #define pow_f32(a, b) powf((a), (b))
-
-#define swap_t(T, a, b) do { T t__ = a; a = b; b = t__; } while (0)
-#define sign_t(T, x) ((T)((x) > 0) - (T)((x) < 0))
-#define abs_t(T, x) (sign_t(T, x)*(x))
+#define sin_f32(x) sinf(x)
+#define cos_f32(x) cosf(x)
+#define tan_f32(x) tanf(x)
 
 internal f32
 lerp_f32(f32 a, f32 b, f32 t) {
