@@ -147,6 +147,62 @@ main(void) {
                                  (char *)frame_buffer.pixels, frame_buffer.width, frame_buffer.height, 
                                  32, frame_buffer.width*sizeof(u32));
 
+    Vector3 vertices[] = {
+        // front-face
+        { { -0.5f, -0.5f, 0.0f } },
+        { { -0.5f,  0.5f, 0.0f } },
+        { {  0.5f, -0.5f, 0.0f } },
+        { { -0.5f,  0.5f, 0.0f } },
+        { {  0.5f,  0.5f, 0.0f } },
+        { {  0.5f, -0.5f, 0.0f } },
+
+        // back-face
+        { {  0.5f, -0.5f, 1.0f } },
+        { {  0.5f,  0.5f, 1.0f } },
+        { { -0.5f, -0.5f, 1.0f } },
+        { {  0.5f,  0.5f, 1.0f } },
+        { { -0.5f,  0.5f, 1.0f } },
+        { { -0.5f, -0.5f, 1.0f } },
+
+        // left-face
+        { { -0.5f, -0.5f, 1.0f } },
+        { { -0.5f,  0.5f, 1.0f } },
+        { { -0.5f, -0.5f, 0.0f } },
+
+        { { -0.5f,  0.5f, 1.0f } },
+        { { -0.5f,  0.5f, 0.0f } },
+        { { -0.5f, -0.5f, 0.0f } },
+
+        // right-face
+        { { 0.5f, -0.5f, 0.0f } },
+        { { 0.5f,  0.5f, 0.0f } },
+        { { 0.5f, -0.5f, 1.0f } },
+
+        { { 0.5f,  0.5f, 0.0f } },
+        { { 0.5f,  0.5f, 1.0f } },
+        { { 0.5f, -0.5f, 1.0f } },
+
+        // top-face
+        { { -0.5f, 0.5f, 0.0f } },
+        { { -0.5f, 0.5f, 1.0f } },
+        { {  0.5f, 0.5f, 0.0f } },
+
+        { { -0.5f, 0.5f, 1.0f } },
+        { {  0.5f, 0.5f, 1.0f } },
+        { {  0.5f, 0.5f, 0.0f } },
+
+        // bottom-face
+        { { -0.5f, -0.5f, 1.0f } },
+        { { -0.5f, -0.5f, 0.0f } },
+        { {  0.5f, -0.5f, 1.0f } },
+
+        { { -0.5f, -0.5f, 0.0f } },
+        { {  0.5f, -0.5f, 0.0f } },
+        { {  0.5f, -0.5f, 1.0f } },
+    };
+
+    Vector3 cam_p = make_vector3(0.0f, 0.0f, 0.0f);
+
     s32 tick = 0;
     for (b32 quit = false; !quit;) {
         while (XPending(display)) {
@@ -172,8 +228,6 @@ main(void) {
             }
         }
         
-        image_clear(frame_buffer, 0);
-
         f32 half_fov = 90.0f*0.5f;
         f32 fovr = 1.0f / tan_f32(radians_f32(half_fov));
         f32 aspect_ratio = (f32)frame_buffer.height/(f32)frame_buffer.width;
@@ -205,85 +259,54 @@ main(void) {
         rot_z.m[2][2] = 1.0f;
         rot_z.m[3][3] = 1.0f;
 
-        Vector3 vertices[] = {
-            // front-face
-            { { -0.5f, -0.5f, 0.0f } },
-            { { -0.5f,  0.5f, 0.0f } },
-            { {  0.5f, -0.5f, 0.0f } },
-            { { -0.5f,  0.5f, 0.0f } },
-            { {  0.5f,  0.5f, 0.0f } },
-            { {  0.5f, -0.5f, 0.0f } },
-
-            // back-face
-            { {  0.5f, -0.5f, 1.0f } },
-            { {  0.5f,  0.5f, 1.0f } },
-            { { -0.5f, -0.5f, 1.0f } },
-            { {  0.5f,  0.5f, 1.0f } },
-            { { -0.5f, -0.5f, 1.0f } },
-            { { -0.5f,  0.5f, 1.0f } },
-
-            // left-face
-            { { -0.5f, -0.5f, 1.0f } },
-            { { -0.5f,  0.5f, 1.0f } },
-            { { -0.5f, -0.5f, 0.0f } },
-
-            { { -0.5f,  0.5f, 1.0f } },
-            { { -0.5f,  0.5f, 0.0f } },
-            { { -0.5f, -0.5f, 0.0f } },
-
-            // right-face
-            { { 0.5f, -0.5f, 0.0f } },
-            { { 0.5f,  0.5f, 0.0f } },
-            { { 0.5f, -0.5f, 1.0f } },
-
-            { { 0.5f,  0.5f, 0.0f } },
-            { { 0.5f,  0.5f, 1.0f } },
-            { { 0.5f, -0.5f, 1.0f } },
-
-            // top-face
-            { { -0.5f, 0.5f, 0.0f } },
-            { { -0.5f, 0.5f, 1.0f } },
-            { {  0.5f, 0.5f, 0.0f } },
-
-            { { -0.5f, 0.5f, 1.0f } },
-            { {  0.5f, 0.5f, 1.0f } },
-            { {  0.5f, 0.5f, 0.0f } },
-
-            // bottom-face
-            { { -0.5f, -0.5f, 1.0f } },
-            { { -0.5f, -0.5f, 0.0f } },
-            { {  0.5f, -0.5f, 1.0f } },
-
-            { { -0.5f, -0.5f, 0.0f } },
-            { {  0.5f, -0.5f, 0.0f } },
-            { {  0.5f, -0.5f, 1.0f } },
-        };
-
-        for (u32 vertex_index = 0;
-             vertex_index < array_count(vertices);
-             ++vertex_index) {
-            Vector3 *vertex = vertices + vertex_index;
-            *vertex = matrix4x4_mul(rot_z, *vertex);
-            // *vertex = matrix4x4_mul(rot_y, *vertex);
-            *vertex = matrix4x4_mul(rot_x, *vertex);
-            vertex->z += 2.0f;
-            *vertex = matrix4x4_mul(proj, *vertex);
-            vertex->x = (vertex->x + 1.0f)*(f32)frame_buffer.width*0.5f;
-            vertex->y = (-vertex->y + 1.0f)*(f32)frame_buffer.height*0.5f;
-        }
-
+        image_clear(frame_buffer, 0);
         for (u32 vertex_index = 0;
              vertex_index < array_count(vertices);
              vertex_index += 3) {
             Vector3 v0 = vertices[vertex_index];
             Vector3 v1 = vertices[vertex_index + 1];
             Vector3 v2 = vertices[vertex_index + 2];
-            draw_line(frame_buffer.pixels, frame_buffer.width, frame_buffer.height,
-                      v0.x, v0.y, v1.x, v1.y, 0xc1c1c1);
-            draw_line(frame_buffer.pixels, frame_buffer.width, frame_buffer.height,
-                      v1.x, v1.y, v2.x, v2.y, 0xc1c1c1);
-            draw_line(frame_buffer.pixels, frame_buffer.width, frame_buffer.height,
-                      v2.x, v2.y, v0.x, v0.y, 0xc1c1c1);
+
+            v0 = matrix4x4_mul(rot_z, v0);
+            v1 = matrix4x4_mul(rot_z, v1);
+            v2 = matrix4x4_mul(rot_z, v2);
+
+            // v0 = matrix4x4_mul(rot_y, v0);
+            // v1 = matrix4x4_mul(rot_y, v1);
+            // v2 = matrix4x4_mul(rot_y, v2);
+
+            v0 = matrix4x4_mul(rot_x, v0);
+            v1 = matrix4x4_mul(rot_x, v1);
+            v2 = matrix4x4_mul(rot_x, v2);
+
+            v0.z += 2.0f;
+            v1.z += 2.0f;
+            v2.z += 2.0f;
+
+            Vector3 d01 = vector3_sub(v1, v0);
+            Vector3 d02 = vector3_sub(v2, v0);
+            Vector3 dc0 = vector3_sub(v0, cam_p);
+           
+            Vector3 normal = vector3_normalize(vector3_cross(d01, d02));
+            f32 scalar = vector3_dot(normal, dc0);
+
+            if (scalar < 0.0f) {
+                v0 = matrix4x4_mul(proj, v0);
+                v1 = matrix4x4_mul(proj, v1);
+                v2 = matrix4x4_mul(proj, v2);
+
+                v0.x = (v0.x + 1.0f)*(f32)frame_buffer.width*0.5f;
+                v1.x = (v1.x + 1.0f)*(f32)frame_buffer.width*0.5f;
+                v2.x = (v2.x + 1.0f)*(f32)frame_buffer.width*0.5f;
+
+                v0.y = (-v0.y + 1.0f)*(f32)frame_buffer.height*0.5f;
+                v1.y = (-v1.y + 1.0f)*(f32)frame_buffer.height*0.5f;
+                v2.y = (-v2.y + 1.0f)*(f32)frame_buffer.height*0.5f;
+
+                draw_line(frame_buffer.pixels, frame_buffer.width, frame_buffer.height, v0.x, v0.y, v1.x, v1.y, 0xc1c1c1);
+                draw_line(frame_buffer.pixels, frame_buffer.width, frame_buffer.height, v1.x, v1.y, v2.x, v2.y, 0xc1c1c1);
+                draw_line(frame_buffer.pixels, frame_buffer.width, frame_buffer.height, v2.x, v2.y, v0.x, v0.y, 0xc1c1c1);
+            }
         }
 
         GC gc = XCreateGC(display, window, 0, 0);
