@@ -89,6 +89,49 @@ draw_line(u32 *buffer, u32 width, u32 height,
     }
 }
 
+internal void
+fill_triangle(u32 *pixels, u32 width, u32 height,
+              s32 x0, s32 y0,
+              s32 x1, s32 y1,
+              s32 x2, s32 y2,
+              u32 color) {
+    s32 min_x = clamp_bot(0, min(min(x0, x1), x2));
+    s32 min_y = clamp_bot(0, min(min(y0, y1), y2));
+    s32 max_x = clamp_top(max(max(x0, x1), x2), (s32)width);
+    s32 max_y = clamp_top(max(max(y0, y1), y2), (s32)height);
+
+    s32 x01 = x1 - x0;
+    s32 y01 = y1 - y0;
+
+    s32 x12 = x2 - x1;
+    s32 y12 = y2 - y1;
+
+    s32 x20 = x0 - x2;
+    s32 y20 = y0 - y2;
+
+    for (s32 y = min_y; y < max_y; ++y) {
+        for (s32 x = min_x; x < max_x; ++x) {
+            s32 dx0 = x - x0;
+            s32 dy0 = y - y0;
+            s32 w0 = x01*dy0 - y01*dx0;
+
+            s32 dx1 = x - x1;
+            s32 dy1 = y - y1;
+            s32 w1 = x12*dy1 - y12*dx1;
+
+            s32 dx2 = x - x2;
+            s32 dy2 = y - y2;
+            s32 w2 = x20*dy2 - y20*dx2;
+
+            if ((w0 >= 0) &&
+                (w1 >= 0) &&
+                (w2 >= 0)) {
+                pixels[y*width + x] = color;
+            }
+        }
+    }
+}
+
 typedef struct {
     f32 m[4][4];
 } Matrix4x4;
@@ -286,7 +329,7 @@ main(void) {
             Vector3 d01 = vector3_sub(v1, v0);
             Vector3 d02 = vector3_sub(v2, v0);
             Vector3 dc0 = vector3_sub(v0, cam_p);
-           
+
             Vector3 normal = vector3_normalize(vector3_cross(d01, d02));
             f32 scalar = vector3_dot(normal, dc0);
 
@@ -303,9 +346,15 @@ main(void) {
                 v1.y = (-v1.y + 1.0f)*(f32)frame_buffer.height*0.5f;
                 v2.y = (-v2.y + 1.0f)*(f32)frame_buffer.height*0.5f;
 
-                draw_line(frame_buffer.pixels, frame_buffer.width, frame_buffer.height, v0.x, v0.y, v1.x, v1.y, 0xc1c1c1);
-                draw_line(frame_buffer.pixels, frame_buffer.width, frame_buffer.height, v1.x, v1.y, v2.x, v2.y, 0xc1c1c1);
-                draw_line(frame_buffer.pixels, frame_buffer.width, frame_buffer.height, v2.x, v2.y, v0.x, v0.y, 0xc1c1c1);
+                fill_triangle(frame_buffer.pixels, frame_buffer.width, frame_buffer.height,
+                              v0.x, v0.y, v1.x, v1.y, v2.x, v2.y, 0xc1c1c1);
+
+                draw_line(frame_buffer.pixels, frame_buffer.width, frame_buffer.height, 
+                          v0.x, v0.y, v1.x, v1.y, 0x79241f);
+                draw_line(frame_buffer.pixels, frame_buffer.width, frame_buffer.height, 
+                          v1.x, v1.y, v2.x, v2.y, 0x79241f);
+                draw_line(frame_buffer.pixels, frame_buffer.width, frame_buffer.height, 
+                          v2.x, v2.y, v0.x, v0.y, 0x79241f);
             }
         }
 

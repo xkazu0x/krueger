@@ -8,8 +8,13 @@
 #define false 0
 #define true 1
 
-#define array_count(x) (sizeof(x)/sizeof(*(x)))
 #define square(x) ((x)*(x))
+#define array_count(x) (sizeof(x)/sizeof(*(x)))
+
+#define min(a, b) ((a)<(b)?(a):(b))
+#define max(a, b) ((a)>(b)?(a):(b))
+#define clamp_top(a, x) min(a, x);
+#define clamp_bot(x, b) max(x, b);
 
 #define swap_t(T, a, b) do { T t__ = a; a = b; b = t__; } while (0)
 #define sign_t(T, x) ((T)((x) > 0) - (T)((x) < 0))
@@ -43,8 +48,6 @@ global f64 pi64 = 3.141592653589793;
 global f32 tau32 = 6.283185307179586f;
 global f64 tau64 = 6.283185307179586;
 
-#define radians_f32(x) ((x)*pi32/180.0f)
-
 #include <math.h>
 #define sqrt_f32(x) sqrtf(x)
 #define pow_f32(a, b) powf((a), (b))
@@ -52,9 +55,11 @@ global f64 tau64 = 6.283185307179586;
 #define cos_f32(x) cosf(x)
 #define tan_f32(x) tanf(x)
 
+#define radians_f32(x) ((x)*pi32/180.0f)
+
 internal f32
 lerp_f32(f32 a, f32 b, f32 t) {
-    f32 result = a + (b - a)*t;
+    f32 result = a + t*(b - a);
     return(result);
 }
 
