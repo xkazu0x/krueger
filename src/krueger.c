@@ -1,8 +1,6 @@
 #include "base.h"
 
 #include <stdio.h>
-#include <stdlib.h>
-
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 
@@ -99,33 +97,24 @@ fill_triangle(u32 *pixels, u32 width, u32 height,
     s32 min_y = clamp_bot(0, min(min(y0, y1), y2));
     s32 max_x = clamp_top(max(max(x0, x1), x2), (s32)width);
     s32 max_y = clamp_top(max(max(y0, y1), y2), (s32)height);
-
     s32 x01 = x1 - x0;
     s32 y01 = y1 - y0;
-
     s32 x12 = x2 - x1;
     s32 y12 = y2 - y1;
-
     s32 x20 = x0 - x2;
     s32 y20 = y0 - y2;
-
     for (s32 y = min_y; y < max_y; ++y) {
+        s32 dy0 = y - y0;
+        s32 dy1 = y - y1;
+        s32 dy2 = y - y2;
         for (s32 x = min_x; x < max_x; ++x) {
             s32 dx0 = x - x0;
-            s32 dy0 = y - y0;
-            s32 w0 = x01*dy0 - y01*dx0;
-
             s32 dx1 = x - x1;
-            s32 dy1 = y - y1;
-            s32 w1 = x12*dy1 - y12*dx1;
-
             s32 dx2 = x - x2;
-            s32 dy2 = y - y2;
+            s32 w0 = x01*dy0 - y01*dx0;
+            s32 w1 = x12*dy1 - y12*dx1;
             s32 w2 = x20*dy2 - y20*dx2;
-
-            if ((w0 >= 0) &&
-                (w1 >= 0) &&
-                (w2 >= 0)) {
+            if ((w0 >= 0) && (w1 >= 0) && (w2 >= 0)) {
                 pixels[y*width + x] = color;
             }
         }

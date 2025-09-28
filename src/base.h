@@ -1,6 +1,16 @@
 #ifndef BASE_H
 #define BASE_H
 
+#if !defined(BUILD_DEBUG)
+# define BUILD_DEBUG 1
+#endif
+
+#if BUILD_DEBUG
+#include <assert.h>
+#else
+#define assert(x) (void)(x)
+#endif
+
 #define internal static
 #define global static
 #define local static
@@ -164,6 +174,40 @@ vector3_lerp(Vector3 a, Vector3 b, f32 t) {
         .z = lerp_f32(a.z, b.z, t),
     };
     return(result);
+}
+
+typedef struct {
+    uxx len;
+    uxx cap;
+    u8 *ptr[0];
+} Buffer_Header;
+
+#define buf__hdr(b) ((Buffer_Header *)((u8 *)(b) - offsetof(Buffer_Header, ptr)))
+#define buf__fits(b, n) (buf_len(b) + (n) <= buf_cap(b))
+#define buf__fit(b, n) (buf__fits((b), (n)) ? 0 : ((b) = buf__grow((b), (n) + buf_len(b), sizeof(*(b)))))
+
+#define buf_len(b) ((b) ? buf__hdr(b)->len : 0)
+#define buf_cap(b) ((b) ? buf__hdr(b)->cap : 0)
+#define buf_push(b, x) (buf__fit((b), 1), (b)[buf__hdr(b)->len++] = (x))
+#define buf_free(b) ((b) ? (free(buf__hdr(b)), (b) = 0) : 0)
+#define buf_clear(b) ((b) ? buf__hdr(b)->len = 0 : 0)
+
+// TODO: change malloc to os specific malloc
+#include <stdlib.h>
+internal void *
+buf__grow(const void *buf, uxx new_len, uxx elem_size) {
+    uxx new_cap = max(1 + 2*buf_cap(buf), new_len);
+    assert(new_len <= new_cap);
+    uxx new_size = offsetof(Buffer_Header, ptr) + new_cap*elem_size;
+    Buffer_Header *header;
+    if (buf) {
+        header = realloc(buf__hdr(buf), new_size);
+    } else {
+        header = malloc(new_size);
+        header->len = 0;
+    }
+    header->cap = new_cap;
+    return(header->ptr);
 }
 
 #endif // BASE_H
