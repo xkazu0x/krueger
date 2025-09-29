@@ -152,6 +152,45 @@ matrix4x4_mul(Matrix4x4 m, Vector3 v) {
     return(result);
 }
 
+typedef struct {
+    Vector3 *vert_buf;
+    u32 *vert_index_buf;
+} Mesh;
+
+#include <string.h>
+internal Mesh
+load_obj(const char *filename) {
+    Mesh mesh = {0};
+    Vector3 *tmp_vert_buf = 0;
+    FILE *file = fopen(filename, "r");
+    if (file) {
+        char line[1<<8];
+        while (fscanf(file, "%s", line) != EOF) {
+            if (!strcmp(line, "v")) {
+                Vector3 v;
+                fscanf(file, "%f %f %f\n", &v.x, &v.y, &v.z);
+                buf_push(tmp_vert_buf, v);
+            } else if (!strcmp(line, "f")) {
+                u32 f[3];
+                fscanf(file, "%d %d %d\n", &f[0], &f[1], &f[2]);
+                buf_push(mesh.vert_index_buf, f[0]);
+                buf_push(mesh.vert_index_buf, f[1]);
+                buf_push(mesh.vert_index_buf, f[2]);
+            }
+        }
+        fclose(file);
+        for (u32 i = 0; i < buf_len(mesh.vert_index_buf); ++i) {
+            u32 vert_index = mesh.vert_index_buf[i];
+            Vector3 vert = tmp_vert_buf[vert_index-1];
+            buf_push(mesh.vert_buf, vert);
+        }
+        buf_free(tmp_vert_buf);
+    } else {
+        printf("[ERROR]: Failed to open file: %s\n", filename);
+    }
+    return(mesh);
+}
+
 int
 main(void) {
     char *window_title = "krueger";
@@ -179,6 +218,7 @@ main(void) {
                                  (char *)frame_buffer.pixels, frame_buffer.width, frame_buffer.height, 
                                  32, frame_buffer.width*sizeof(u32));
 
+#if 0
     Vector3 vertices[] = {
         // front-face
         { { -0.5f, -0.5f, 0.0f } },
@@ -232,7 +272,9 @@ main(void) {
         { {  0.5f, -0.5f, 0.0f } },
         { {  0.5f, -0.5f, 1.0f } },
     };
+#endif
 
+    Mesh monkey_mesh = load_obj("../res/monkey.obj");
     Vector3 cam_p = make_vector3(0.0f, 0.0f, 0.0f);
 
     s32 tick = 0;
@@ -292,12 +334,13 @@ main(void) {
         rot_z.m[3][3] = 1.0f;
 
         image_clear(frame_buffer, 0);
-        for (u32 vertex_index = 0;
-             vertex_index < array_count(vertices);
-             vertex_index += 3) {
-            Vector3 v0 = vertices[vertex_index];
-            Vector3 v1 = vertices[vertex_index + 1];
-            Vector3 v2 = vertices[vertex_index + 2];
+
+        for (u32 vert_index = 0;
+        vert_index < buf_len(monkey_mesh.vert_buf);
+        vert_index += 3) {
+            Vector3 v0 = monkey_mesh.vert_buf[vert_index];
+            Vector3 v1 = monkey_mesh.vert_buf[vert_index+1];
+            Vector3 v2 = monkey_mesh.vert_buf[vert_index+2];
 
             v0 = matrix4x4_mul(rot_z, v0);
             v1 = matrix4x4_mul(rot_z, v1);
@@ -311,9 +354,9 @@ main(void) {
             v1 = matrix4x4_mul(rot_x, v1);
             v2 = matrix4x4_mul(rot_x, v2);
 
-            v0.z += 2.0f;
-            v1.z += 2.0f;
-            v2.z += 2.0f;
+            v0.z += 3.0f;
+            v1.z += 3.0f;
+            v2.z += 3.0f;
 
             Vector3 d01 = vector3_sub(v1, v0);
             Vector3 d02 = vector3_sub(v2, v0);
