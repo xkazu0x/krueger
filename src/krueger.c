@@ -1,8 +1,10 @@
 #include "base.h"
+#include "platform.h"
+
+#include "base.c"
+#include "platform.c"
 
 #include <stdio.h>
-#include <X11/Xlib.h>
-#include <X11/Xutil.h>
 
 typedef struct {
     u32 width;
@@ -121,6 +123,15 @@ fill_triangle(u32 *pixels, u32 width, u32 height,
     }
 }
 
+internal Vector2
+project_to_screen(Vector2 p, f32 w, f32 h) {
+    Vector2 result = {
+        .x = (p.x + 1.0f)*(f32)w*0.5f,
+        .y = (-p.y + 1.0f)*(f32)h*0.5f,
+    };
+    return(result);
+}
+
 typedef struct {
     Vector3 *vert_buf;
     u32 *vert_index_buf;
@@ -160,66 +171,37 @@ load_obj(const char *filename) {
     return(mesh);
 }
 
-internal Vector2
-project_to_screen(Vector2 p, f32 w, f32 h) {
-    Vector2 result = {
-        .x = (p.x + 1.0f)*(f32)w*0.5f,
-        .y = (-p.y + 1.0f)*(f32)h*0.5f,
-    };
-    return(result);
-}
-
 int
 main(void) {
     char *window_title = "krueger";
     u32 window_width = 800;
     u32 window_height = 600;
-
+    
     Image frame_buffer = alloc_image(window_width, window_height);
 
-    Display *display = XOpenDisplay(0);
-    Window window = XCreateSimpleWindow(display, XDefaultRootWindow(display), 0, 0, window_width, window_height, 0, 0, 0);
-
-    Atom wm_delete_window = XInternAtom(display, "WM_DELETE_WINDOW", False);
-    XSetWMProtocols(display, window, &wm_delete_window, 1);
-
-    u32 event_masks = StructureNotifyMask;
-    XSelectInput(display, window, event_masks);
-
-    XStoreName(display, window, window_title);
-    XMapWindow(display, window);
-    XFlush(display);
-
-    XWindowAttributes attributes = {0};
-    XGetWindowAttributes(display, window, &attributes);
-    XImage *image = XCreateImage(display, attributes.visual, attributes.depth, ZPixmap, 0, 
-                                 (char *)frame_buffer.pixels, frame_buffer.width, frame_buffer.height, 
-                                 32, frame_buffer.width*sizeof(u32));
+    platform_create_window(window_title, window_width, window_height);
+    platform_create_window_buffer(frame_buffer.pixels, frame_buffer.width, frame_buffer.height);
 
     Mesh monkey_mesh = load_obj("../res/monkey.obj");
     Vector3 cam_p = make_vector3(0.0f, 0.0f, 0.0f);
 
     s32 tick = 0;
     for (b32 quit = false; !quit;) {
-        while (XPending(display)) {
-            XEvent base_event = {0};
-            XNextEvent(display, &base_event);
-            switch (base_event.type) {
-                case ClientMessage: {
-                    XClientMessageEvent *event = (XClientMessageEvent *)&base_event;
-                    if ((Atom)event->data.l[0] == wm_delete_window) {
-                        quit = true;
-                    }
+        platform_update_window_events();
+        for (u32 event_index = 0; 
+             event_index < buf_len(event_buf); 
+             ++event_index) {
+            Event *event = event_buf + event_index;
+            switch (event->type) {
+                case EVENT_QUIT: {
+                    quit = true;
                 } break;
-                case ConfigureNotify: {
-                    XConfigureEvent *event = (XConfigureEvent *)&base_event;
+                case EVENT_WINDOW_RESIZED: {
                     window_width = event->width;
                     window_height = event->height;
-                    XDestroyImage(image);
+                    platform_destroy_window_buffer();
                     frame_buffer = alloc_image(window_width, window_height);
-                    image = XCreateImage(display, attributes.visual, attributes.depth, ZPixmap, 0, 
-                                         (char *)frame_buffer.pixels, frame_buffer.width, frame_buffer.height, 
-                                         32, frame_buffer.width*sizeof(u32));
+                    platform_create_window_buffer(frame_buffer.pixels, frame_buffer.width, frame_buffer.height);
                 } break;
             }
         }
@@ -281,14 +263,9 @@ main(void) {
             }
         }
 
-        GC gc = XCreateGC(display, window, 0, 0);
-        XPutImage(display, window, gc, image, 0, 0, 0, 0, window_width, window_height);
-        XFreeGC(display, gc);
+        platform_display_window_buffer(frame_buffer.width, frame_buffer.height);
         tick++;
     }
-
-    XUnmapWindow(display, window);
-    XDestroyWindow(display, window);
-    XCloseDisplay(display);
+    platform_destroy_window();
     return(0);
 }
