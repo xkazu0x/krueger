@@ -122,37 +122,6 @@ fill_triangle(u32 *pixels, u32 width, u32 height,
 }
 
 typedef struct {
-    f32 m[4][4];
-} Matrix4x4;
-
-internal Matrix4x4
-matrix4x4_perspective(f32 fov, f32 aspect_ratio, f32 z_near, f32 z_far) {
-    Matrix4x4 result = {0};
-    result.m[0][0] = fov*aspect_ratio;
-    result.m[1][1] = fov;
-    result.m[2][2] = z_far / (z_far - z_near);
-    result.m[3][2] = (-z_far*z_near) / (z_far - z_near);
-    result.m[2][3] = 1.0f;
-    return(result);
-}
-
-internal Vector3
-matrix4x4_mul(Matrix4x4 m, Vector3 v) {
-    Vector3 result = {
-        .x = v.x*m.m[0][0] + v.y*m.m[1][0] + v.z*m.m[2][0] + m.m[3][0],
-        .y = v.x*m.m[0][1] + v.y*m.m[1][1] + v.z*m.m[2][1] + m.m[3][1],
-        .z = v.x*m.m[0][2] + v.y*m.m[1][2] + v.z*m.m[2][2] + m.m[3][2],
-    };
-    float w = v.x*m.m[0][3] + v.y*m.m[1][3] + v.z*m.m[2][3] + m.m[3][3];
-    if (w != 0.0f) {
-        result.x /= w;
-        result.y /= w;
-        result.z /= w;
-    }
-    return(result);
-}
-
-typedef struct {
     Vector3 *vert_buf;
     u32 *vert_index_buf;
 } Mesh;
@@ -191,6 +160,15 @@ load_obj(const char *filename) {
     return(mesh);
 }
 
+internal Vector2
+project_to_screen(Vector2 p, f32 w, f32 h) {
+    Vector2 result = {
+        .x = (p.x + 1.0f)*(f32)w*0.5f,
+        .y = (-p.y + 1.0f)*(f32)h*0.5f,
+    };
+    return(result);
+}
+
 int
 main(void) {
     char *window_title = "krueger";
@@ -217,62 +195,6 @@ main(void) {
     XImage *image = XCreateImage(display, attributes.visual, attributes.depth, ZPixmap, 0, 
                                  (char *)frame_buffer.pixels, frame_buffer.width, frame_buffer.height, 
                                  32, frame_buffer.width*sizeof(u32));
-
-#if 0
-    Vector3 vertices[] = {
-        // front-face
-        { { -0.5f, -0.5f, 0.0f } },
-        { { -0.5f,  0.5f, 0.0f } },
-        { {  0.5f, -0.5f, 0.0f } },
-        { { -0.5f,  0.5f, 0.0f } },
-        { {  0.5f,  0.5f, 0.0f } },
-        { {  0.5f, -0.5f, 0.0f } },
-
-        // back-face
-        { {  0.5f, -0.5f, 1.0f } },
-        { {  0.5f,  0.5f, 1.0f } },
-        { { -0.5f, -0.5f, 1.0f } },
-        { {  0.5f,  0.5f, 1.0f } },
-        { { -0.5f,  0.5f, 1.0f } },
-        { { -0.5f, -0.5f, 1.0f } },
-
-        // left-face
-        { { -0.5f, -0.5f, 1.0f } },
-        { { -0.5f,  0.5f, 1.0f } },
-        { { -0.5f, -0.5f, 0.0f } },
-
-        { { -0.5f,  0.5f, 1.0f } },
-        { { -0.5f,  0.5f, 0.0f } },
-        { { -0.5f, -0.5f, 0.0f } },
-
-        // right-face
-        { { 0.5f, -0.5f, 0.0f } },
-        { { 0.5f,  0.5f, 0.0f } },
-        { { 0.5f, -0.5f, 1.0f } },
-
-        { { 0.5f,  0.5f, 0.0f } },
-        { { 0.5f,  0.5f, 1.0f } },
-        { { 0.5f, -0.5f, 1.0f } },
-
-        // top-face
-        { { -0.5f, 0.5f, 0.0f } },
-        { { -0.5f, 0.5f, 1.0f } },
-        { {  0.5f, 0.5f, 0.0f } },
-
-        { { -0.5f, 0.5f, 1.0f } },
-        { {  0.5f, 0.5f, 1.0f } },
-        { {  0.5f, 0.5f, 0.0f } },
-
-        // bottom-face
-        { { -0.5f, -0.5f, 1.0f } },
-        { { -0.5f, -0.5f, 0.0f } },
-        { {  0.5f, -0.5f, 1.0f } },
-
-        { { -0.5f, -0.5f, 0.0f } },
-        { {  0.5f, -0.5f, 0.0f } },
-        { {  0.5f, -0.5f, 1.0f } },
-    };
-#endif
 
     Mesh monkey_mesh = load_obj("../res/monkey.obj");
     Vector3 cam_p = make_vector3(0.0f, 0.0f, 0.0f);
@@ -302,91 +224,60 @@ main(void) {
             }
         }
         
-        f32 half_fov = 90.0f*0.5f;
-        f32 fovr = 1.0f / tan_f32(radians_f32(half_fov));
         f32 aspect_ratio = (f32)frame_buffer.height/(f32)frame_buffer.width;
-        f32 z_near = 0.1f;
-        f32 z_far = 1000.0f;
-        Matrix4x4 proj = matrix4x4_perspective(fovr, aspect_ratio, z_near, z_far);
-    
-        Matrix4x4 rot_x = {0};
-        rot_x.m[0][0] = 1.0f;
-        rot_x.m[1][1] = cos_f32(radians_f32(tick));
-        rot_x.m[1][2] = sin_f32(radians_f32(tick));
-        rot_x.m[2][1] = -sin_f32(radians_f32(tick));
-        rot_x.m[2][2] = cos_f32(radians_f32(tick));
-        rot_x.m[3][3] = 1.0f;
+        Matrix4x4 proj = matrix4x4_perspective(90.0f, aspect_ratio, 0.1f, 100.0f);
 
-        Matrix4x4 rot_y = {0};
-        rot_y.m[0][0] =  cos_f32(radians_f32(tick));
-        rot_y.m[0][2] = -sin_f32(radians_f32(tick));
-        rot_y.m[1][1] = 1.0f;
-        rot_y.m[2][0] = sin_f32(radians_f32(tick));
-        rot_y.m[2][2] = cos_f32(radians_f32(tick));
-        rot_x.m[3][3] = 1.0f;
-
-        Matrix4x4 rot_z = {0};
-        rot_z.m[0][0] = cos_f32(radians_f32(tick));
-        rot_z.m[0][1] = sin_f32(radians_f32(tick));
-        rot_z.m[1][0] = -sin_f32(radians_f32(tick));
-        rot_z.m[1][1] = cos_f32(radians_f32(tick));
-        rot_z.m[2][2] = 1.0f;
-        rot_z.m[3][3] = 1.0f;
+        Matrix4x4 scale = matrix4x4_scale(make_vector3(1.0f, 1.0f, 1.0f));
+        Matrix4x4 rotate = matrix4x4_rotate(make_vector3(1.0f, 1.0f, 0.0f), radians_f32(tick));
+        Matrix4x4 translate = matrix4x4_translate(0.0f, 0.0f, 4.0f);
+        
+        Matrix4x4 model = make_matrix4x4(1.0f);
+        model = matrix4x4_mul(scale, model);
+        model = matrix4x4_mul(rotate, model);
+        model = matrix4x4_mul(translate, model);
 
         image_clear(frame_buffer, 0);
-
+        
         for (u32 vert_index = 0;
-        vert_index < buf_len(monkey_mesh.vert_buf);
-        vert_index += 3) {
-            Vector3 v0 = monkey_mesh.vert_buf[vert_index];
-            Vector3 v1 = monkey_mesh.vert_buf[vert_index+1];
-            Vector3 v2 = monkey_mesh.vert_buf[vert_index+2];
+             vert_index < buf_len(monkey_mesh.vert_buf);
+             vert_index += 3) {
+            Vector4 v0 = vector4_from_vector3(monkey_mesh.vert_buf[vert_index], 1.0f);
+            Vector4 v1 = vector4_from_vector3(monkey_mesh.vert_buf[vert_index+1], 1.0f);
+            Vector4 v2 = vector4_from_vector3(monkey_mesh.vert_buf[vert_index+2], 1.0f);
 
-            v0 = matrix4x4_mul(rot_z, v0);
-            v1 = matrix4x4_mul(rot_z, v1);
-            v2 = matrix4x4_mul(rot_z, v2);
+            v0 = matrix4x4_mul_vector4(model, v0);
+            v1 = matrix4x4_mul_vector4(model, v1);
+            v2 = matrix4x4_mul_vector4(model, v2);
 
-            // v0 = matrix4x4_mul(rot_y, v0);
-            // v1 = matrix4x4_mul(rot_y, v1);
-            // v2 = matrix4x4_mul(rot_y, v2);
-
-            v0 = matrix4x4_mul(rot_x, v0);
-            v1 = matrix4x4_mul(rot_x, v1);
-            v2 = matrix4x4_mul(rot_x, v2);
-
-            v0.z += 3.0f;
-            v1.z += 3.0f;
-            v2.z += 3.0f;
-
-            Vector3 d01 = vector3_sub(v1, v0);
-            Vector3 d02 = vector3_sub(v2, v0);
-            Vector3 dc0 = vector3_sub(v0, cam_p);
+            Vector3 d01 = vector3_sub(v1.xyz, v0.xyz);
+            Vector3 d02 = vector3_sub(v2.xyz, v0.xyz);
 
             Vector3 normal = vector3_normalize(vector3_cross(d01, d02));
-            f32 scalar = vector3_dot(normal, dc0);
+            Vector3 cam_ray = vector3_sub(v0.xyz, cam_p);
+
+            f32 scalar = vector3_dot(normal, cam_ray);
 
             if (scalar < 0.0f) {
-                v0 = matrix4x4_mul(proj, v0);
-                v1 = matrix4x4_mul(proj, v1);
-                v2 = matrix4x4_mul(proj, v2);
+                u32 w = frame_buffer.width;
+                u32 h = frame_buffer.height;
+                u32 *px = frame_buffer.pixels;
 
-                v0.x = (v0.x + 1.0f)*(f32)frame_buffer.width*0.5f;
-                v1.x = (v1.x + 1.0f)*(f32)frame_buffer.width*0.5f;
-                v2.x = (v2.x + 1.0f)*(f32)frame_buffer.width*0.5f;
+                v0 = matrix4x4_mul_vector4(proj, v0);
+                v1 = matrix4x4_mul_vector4(proj, v1);
+                v2 = matrix4x4_mul_vector4(proj, v2);
 
-                v0.y = (-v0.y + 1.0f)*(f32)frame_buffer.height*0.5f;
-                v1.y = (-v1.y + 1.0f)*(f32)frame_buffer.height*0.5f;
-                v2.y = (-v2.y + 1.0f)*(f32)frame_buffer.height*0.5f;
+                v0 = vector4_div(v0, v0.w);
+                v1 = vector4_div(v1, v1.w);
+                v2 = vector4_div(v2, v2.w);
 
-                fill_triangle(frame_buffer.pixels, frame_buffer.width, frame_buffer.height,
-                              v0.x, v0.y, v1.x, v1.y, v2.x, v2.y, 0xc1c1c1);
+                v0.xy = project_to_screen(v0.xy, w, h);
+                v1.xy = project_to_screen(v1.xy, w, h);
+                v2.xy = project_to_screen(v2.xy, w, h);
 
-                draw_line(frame_buffer.pixels, frame_buffer.width, frame_buffer.height, 
-                          v0.x, v0.y, v1.x, v1.y, 0x79241f);
-                draw_line(frame_buffer.pixels, frame_buffer.width, frame_buffer.height, 
-                          v1.x, v1.y, v2.x, v2.y, 0x79241f);
-                draw_line(frame_buffer.pixels, frame_buffer.width, frame_buffer.height, 
-                          v2.x, v2.y, v0.x, v0.y, 0x79241f);
+                fill_triangle(px, w, h, v0.x, v0.y, v1.x, v1.y, v2.x, v2.y, 0xc1c1c1);
+                draw_line(px, w, h, v0.x, v0.y, v1.x, v1.y, 0x79241f);
+                draw_line(px, w, h, v1.x, v1.y, v2.x, v2.y, 0x79241f);
+                draw_line(px, w, h, v2.x, v2.y, v0.x, v0.y, 0x79241f);
             }
         }
 
