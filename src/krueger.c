@@ -5,6 +5,7 @@
 #include "platform.c"
 
 #include <stdio.h>
+#include <string.h>
 
 typedef struct {
     u32 width;
@@ -137,7 +138,6 @@ typedef struct {
     u32 *vert_index_buf;
 } Mesh;
 
-#include <string.h>
 internal Mesh
 load_obj(const char *filename) {
     Mesh mesh = {0};
@@ -182,7 +182,7 @@ main(void) {
     platform_create_window(window_title, window_width, window_height);
     platform_create_window_buffer(frame_buffer.pixels, frame_buffer.width, frame_buffer.height);
 
-    Mesh monkey_mesh = load_obj("../res/monkey.obj");
+    Mesh mesh = load_obj("../res/monkey.obj");
     Vector3 cam_p = make_vector3(0.0f, 0.0f, 0.0f);
 
     s32 tick = 0;
@@ -221,11 +221,11 @@ main(void) {
         image_clear(frame_buffer, 0);
         
         for (u32 vert_index = 0;
-             vert_index < buf_len(monkey_mesh.vert_buf);
+             vert_index < buf_len(mesh.vert_buf);
              vert_index += 3) {
-            Vector4 v0 = vector4_from_vector3(monkey_mesh.vert_buf[vert_index], 1.0f);
-            Vector4 v1 = vector4_from_vector3(monkey_mesh.vert_buf[vert_index+1], 1.0f);
-            Vector4 v2 = vector4_from_vector3(monkey_mesh.vert_buf[vert_index+2], 1.0f);
+            Vector4 v0 = vector4_from_vector3(mesh.vert_buf[vert_index], 1.0f);
+            Vector4 v1 = vector4_from_vector3(mesh.vert_buf[vert_index+1], 1.0f);
+            Vector4 v2 = vector4_from_vector3(mesh.vert_buf[vert_index+2], 1.0f);
 
             v0 = matrix4x4_mul_vector4(model, v0);
             v1 = matrix4x4_mul_vector4(model, v1);

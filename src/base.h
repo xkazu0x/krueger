@@ -1,6 +1,15 @@
 #ifndef BASE_H
 #define BASE_H
 
+//////////////////////////////////
+// NOTE: Standard Library Includes
+
+#include <stdlib.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <float.h>
+#include <math.h>
+
 ///////////////////////////////
 // NOTE: Clang Context Cracking
 
@@ -13,7 +22,19 @@
 #define PLATFORM_LINUX 1
 #elif defined(__APPLE__) && defined(__MACH__)
 #define PLATFORM_MAC 1
-#error this compiler/platform is not supported
+#error compiler/platform is not supported
+#endif
+
+#if defined(__amd64__) || defined(__amd64) || defined(__x86_64__) || defined(__x86_64)
+#define ARCH_X64 1
+#elif defined(i386) || defined(__i386) || defined(__i386__)
+#define ARCH_X86 1
+#elif defined(__aarch64__)
+#define ARCH_ARM64 1
+#elif defined(__arm__)
+#define ARCH_ARM32 1
+#else
+#error architecture is not supported
 #endif
 
 //////////////////////////////
@@ -25,7 +46,19 @@
 #if defined(_WIN32)
 #define PLATFORM_WINDOWS 1
 #else
-#error this compiler/platform is not supported
+#error compiler/platform is not supported
+#endif
+
+#if defined(_M_AMD64)
+#define ARCH_X64 1
+#elif defined(_M_IX86)
+#define ARCH_X86 1
+#elif defined(_M_ARM64)
+#define ARCH_ARM64 1
+#elif defined(_M_ARM)
+#define ARCH_ARM32 1
+#else
+#error architecture is not supported
 #endif
 
 /////////////////////////////
@@ -37,9 +70,23 @@
 #if defined(__gnu_linux__) || defined(__linux__)
 #define PLATFORM_LINUX 1
 #else
-#error this compiler/platform combo is not supported
+#error compiler/platform is not supported
 #endif
 
+#if defined(__amd64__) || defined(__amd64) || defined(__x86_64__) || defined(__x86_64)
+#define ARCH_X64 1
+#elif defined(i386) || defined(__i386) || defined(__i386__)
+#define ARCH_X86 1
+#elif defined(__aarch64__)
+#define ARCH_ARM64 1
+#elif defined(__arm__)
+#define ARCH_ARM32 1
+#else
+#error architecture is not supported
+#endif
+
+#else
+#error compiler is not supported
 #endif
 
 //////////////////////////////
@@ -55,35 +102,54 @@
 #if !defined(COMPILER_CLANG)
 #define COMPILER_CLANG 0
 #endif
-
 #if !defined(COMPILER_MSVC)
 #define COMPILER_MSVC 0
 #endif
-
 #if !defined(COMPILER_GCC)
 #define COMPILER_GCC 0
 #endif
-
 #if !defined(PLATFORM_WINDOWS)
 #define PLATFORM_WINDOWS 0
 #endif
-
 #if !defined(PLATFORM_LINUX)
 #define PLATFORM_LINUX 0
 #endif
-
 #if !defined(PLATFORM_MAC)
 #define PLATFORM_MAC 0
 #endif
+#if !defined(ARCH_X64)
+#define ARCH_X64 0
+#endif
+#if !defined(ARCH_X86)
+#define ARCH_X86 0
+#endif
+#if !defined(ARCH_ARM64)
+#define ARCH_ARM64 0
+#endif
+#if !defined(ARCH_ARM32)
+#define ARCH_ARM32 0
+#endif
 
-/////////////
-// NOTE: Core
+////////////////
+// NOTE: Asserts
 
+#if COMPILER_MSVC
+#define trap() __debugbreak()
+#elif COMPILER_CLANG || COMPILER_GCC
+#define trap() __builtin_trap()
+#else
+#error unknown trap intrinsic for this compiler
+#endif
+
+#define assert_always(x) do { if (!(x)) { trap(); } } while(0)
 #if BUILD_DEBUG
-#include <assert.h>
+#define assert(x) assert_always(x)
 #else
 #define assert(x) (void)(x)
 #endif
+
+//////////////////////
+// NOTE: Base Keywords
 
 #define internal static
 #define global static
@@ -92,8 +158,13 @@
 #define false 0
 #define true 1
 
-#define square(x) ((x)*(x))
-#define array_count(x) (sizeof(x)/sizeof(*(x)))
+//////////////////////
+// NOTE: Helper Macros
+
+#define kb(n) (((u64)(n))<<10)
+#define mb(n) (((u64)(n))<<20)
+#define gb(n) (((u64)(n))<<30)
+#define tb(n) (((u64)(n))<<40)
 
 #define min(a, b) ((a)<(b)?(a):(b))
 #define max(a, b) ((a)>(b)?(a):(b))
@@ -104,8 +175,14 @@
 #define sign_t(T, x) ((T)((x) > 0) - (T)((x) < 0))
 #define abs_t(T, x) (sign_t(T, x)*(x))
 
-#include <stdint.h>
-#include <stddef.h>
+#define square(x) ((x)*(x))
+#define array_count(x) (sizeof(x)/sizeof(*(x)))
+
+#define radians_f32(x) ((x)*pi32/180.0f)
+
+///////////////////
+// NOTE: Base Types
+
 typedef uint8_t  u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
@@ -122,9 +199,28 @@ typedef s64      b64;
 typedef float    f32;
 typedef double   f64;
 
-#include <float.h>
+////////////////////////
+// NOTE: Basic Constants
+
+global u8  u8_max  = 0xff;
+global u16 u16_max = 0xffff;
+global u32 u32_max = 0xffffffff;
+global u64 u64_max = 0xffffffffffffffffull;
+
+global s8  s8_max  =  (s8)0x7f;
+global s16 s16_max = (s16)0x7fff;
+global s32 s32_max = (s32)0x7fffffff;
+global s64 s64_max = (s64)0x7fffffffffffffffll;
+
+global s8  s8_min  =  (s8)0x80;
+global s16 s16_min = (s16)0x8000;
+global s32 s32_min = (s32)0x80000000;
+global s64 s64_min = (s64)0x8000000000000000ll;
+
 global f32 f32_max = FLT_MAX;
 global f32 f32_min = -FLT_MAX;
+
+global uxx uxx_max = SIZE_MAX;
 
 global f32 pi32 = 3.141592653589793f;
 global f64 pi64 = 3.141592653589793;
@@ -132,12 +228,9 @@ global f64 pi64 = 3.141592653589793;
 global f32 tau32 = 6.283185307179586f;
 global f64 tau64 = 6.283185307179586;
 
-#define radians_f32(x) ((x)*pi32/180.0f)
-
 /////////////
 // NOTE: Math
 
-#include <math.h>
 #define sqrt_f32(x) sqrtf(x)
 #define pow_f32(a, b) powf((a), (b))
 #define sin_f32(x) sinf(x)
