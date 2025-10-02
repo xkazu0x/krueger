@@ -25,11 +25,8 @@ alloc_image(u32 width, u32 height) {
 
 internal void
 image_clear(Image image, u32 color) {
-    u32 *out = image.pixels;
-    for (u32 y = 0; y < image.height; ++y) {
-        for (u32 x = 0; x < image.width; ++x) {
-            *out++ = color;
-        }
+    for (u32 i = 0; i < (image.width*image.height); ++i) {
+        image.pixels[i] = color;
     }
 }
 
@@ -37,12 +34,14 @@ internal void
 draw_rect(u32 *pixels, u32 width, u32 height,
           s32 x0, s32 y0, s32 x1, s32 y1,
           u32 color) {
-    x0 = clamp_bot(0, x0);
-    y0 = clamp_bot(0, y0);
-    x1 = clamp_top(x1, (s32)width);
-    y1 = clamp_top(y1, (s32)height);
-    for (s32 y = y0; y < y1; ++y) {
-        for (s32 x = x0; x < x1; ++x) {
+    if (x0 > x1) swap_t(s32, x0, x1);
+    if (y0 > y1) swap_t(s32, y0, y1);
+    s32 min_x = clamp_bot(0, x0);
+    s32 min_y = clamp_bot(0, y0);
+    s32 max_x = clamp_top(x1, (s32)width);
+    s32 max_y = clamp_top(y1, (s32)height);
+    for (s32 y = min_y; y < max_y; ++y) {
+        for (s32 x = min_x; x < max_x; ++x) {
             pixels[y*width + x] = color;
         }
     }
@@ -186,9 +185,10 @@ load_obj(const char *filename) {
     return(mesh);
 }
 
-#define FONT_HEIGHT 8
-#define FONT_WIDTH 8
-global const char default_font_glyphs[128][FONT_HEIGHT][FONT_WIDTH] = {
+#define DEFAULT_FONT_WIDTH 8
+#define DEFAULT_FONT_HEIGHT 8
+
+global const u8 default_font_glyphs[128][DEFAULT_FONT_HEIGHT][DEFAULT_FONT_WIDTH] = {
     [' '] = {
         { 0, 0, 0, 0, 0, 0, 0, 0 },
         { 0, 0, 0, 0, 0, 0, 0, 0 },
@@ -471,21 +471,22 @@ global const char default_font_glyphs[128][FONT_HEIGHT][FONT_WIDTH] = {
     },
 };
 
-global const char *font_glyphs = (const char *)default_font_glyphs;
-
 internal void
-draw_text(u32 *pixels, u32 width, u32 height, const char *text, s32 x, s32 y, u32 size, u32 color) {
+draw_text(u32 *pixels, u32 width, u32 height, 
+          const char *text, s32 x, s32 y, 
+          const u8 *font_glyphs, u32 glyph_width, u32 glyph_height, 
+          u32 font_size, u32 color) {
     uxx text_len = strlen(text);
     for (uxx i = 0; i < text_len; ++i) {
-        s32 gx = x + i*FONT_WIDTH*size;
+        s32 gx = x + i*glyph_width*font_size;
         s32 gy = y;
-        const char *glyphs = font_glyphs + text[i]*sizeof(char)*FONT_WIDTH*FONT_HEIGHT;
-        for (s32 dy = 0; dy < FONT_HEIGHT; ++dy) {
-            for (s32 dx = 0; dx < FONT_WIDTH; ++dx) {
-                s32 px = gx + dx*size;
-                s32 py = gy + dy*size;
-                if (glyphs[dy*FONT_WIDTH + dx]) {
-                    draw_rect(pixels, width, height, px, py, px + size, py + size, color);
+        const u8 *glyph = font_glyphs + text[i]*glyph_width*glyph_height*sizeof(u8);
+        for (u32 dy = 0; dy < glyph_height; ++dy) {
+            for (u32 dx = 0; dx < glyph_width; ++dx) {
+                s32 px = gx + dx*font_size;
+                s32 py = gy + dy*font_size;
+                if (glyph[dy*glyph_width + dx]) {
+                    draw_rect(pixels, width, height, px, py, px + font_size, py + font_size, color);
                 }
             }
         }
@@ -505,6 +506,13 @@ main(void) {
 
     Mesh mesh = load_obj("../res/monkey.obj");
     Vector3 cam_p = make_vector3(0.0f, 0.0f, 0.0f);
+            
+    char *text = "KRUEGER!        KRUEGER!        KRUEGER!";
+    u32 text_size = 2;
+    u32 text_color = 0xc1c1c1;
+    b32 text_color_switch = false;
+    s32 text_len = strlen(text)*text_size*DEFAULT_FONT_WIDTH;
+    s32 text_margin = (DEFAULT_FONT_HEIGHT*text_size)/2;
 
     s32 tick = 0;
     for (b32 quit = false; !quit;) {
@@ -582,29 +590,28 @@ main(void) {
                 draw_line(px, w, h, v1.x, v1.y, v2.x, v2.y, 0x79241f);
                 draw_line(px, w, h, v2.x, v2.y, v0.x, v0.y, 0x79241f);
             }
+
+            if (!(tick % 15)) text_color_switch = !text_color_switch;
+            if (text_color_switch) {
+                text_color = 0x79241f;
+            } else {
+                text_color = 0xc1c1c1;
+            }
             
-            char *text = "KRUEGER!";
-            u32 text_size = 2;
-            s32 text_len = strlen(text)*text_size*FONT_WIDTH;
-            s32 text_y = FONT_HEIGHT + FONT_HEIGHT*text_size;
-            u32 text_color = 0xc1c1c1;
-            s32 offset_y = FONT_HEIGHT*text_size*4;
-
-            local b32 color_change = false;
-            if (!(tick % 15)) color_change = !color_change;
-            if (color_change) text_color = 0x79241f;
-
             draw_text(frame_buffer.pixels, frame_buffer.width, frame_buffer.height, text,
-                      -text_len + ((tick*5) % (frame_buffer.width + text_len)), 
-                      offset_y + text_y, 
+                      -text_len + ((tick*7) % (frame_buffer.width + text_len)), 
+                      frame_buffer.height/2 - DEFAULT_FONT_HEIGHT*text_size - text_margin*2,
+                      (u8 *)default_font_glyphs, DEFAULT_FONT_WIDTH, DEFAULT_FONT_HEIGHT,
                       text_size, text_color);
             draw_text(frame_buffer.pixels, frame_buffer.width, frame_buffer.height, text,
                       -text_len + ((tick*8) % (frame_buffer.width + text_len)), 
-                      offset_y + text_y*2, 
+                      frame_buffer.height/2 - text_margin, 
+                      (u8 *)default_font_glyphs, DEFAULT_FONT_WIDTH, DEFAULT_FONT_HEIGHT,
                       text_size, text_color);
             draw_text(frame_buffer.pixels, frame_buffer.width, frame_buffer.height, text,
                       -text_len + ((tick*6) % (frame_buffer.width + text_len)), 
-                      offset_y + text_y*3, 
+                      frame_buffer.height/2 + DEFAULT_FONT_HEIGHT*text_size, 
+                      (u8 *)default_font_glyphs, DEFAULT_FONT_WIDTH, DEFAULT_FONT_HEIGHT,
                       text_size, text_color);
         }
 
@@ -616,6 +623,7 @@ main(void) {
 }
 
 // TODO:
+// - Fixed Frame Rate
 // - Benchmark
 // - Rainbow Triangle
 // - Texture Mapping
