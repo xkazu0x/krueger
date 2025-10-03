@@ -493,20 +493,95 @@ draw_text(u32 *pixels, u32 width, u32 height,
     }
 }
 
+internal Matrix4x4
+matrix4x4_point_at(Vector3 eye, Vector3 center, Vector3 up) {
+    Matrix4x4 result = make_matrix4x4(1.0f);
+    center = vector3_normalize(vector3_sub(center, eye));
+    up = vector3_normalize(vector3_sub(up, vector3_mul(center, vector3_dot(up, center))));
+    Vector3 right = vector3_cross(up, center);
+    result.m[0][0] = right.x;
+    result.m[0][1] = right.y;
+    result.m[0][2] = right.z;
+    result.m[1][0] = up.x;
+    result.m[1][1] = up.y;
+    result.m[1][2] = up.z;
+    result.m[2][0] = center.x;
+    result.m[2][1] = center.y;
+    result.m[2][2] = center.z;
+    result.m[3][0] = eye.x;
+    result.m[3][1] = eye.y;
+    result.m[3][2] = eye.z;
+    return(result);
+}
+
+internal Matrix4x4
+matrix4x4_quick_inverse(Matrix4x4 m) {
+    Matrix4x4 result = make_matrix4x4(1.0f);
+    result.m[0][0] = m.m[0][0];
+    result.m[1][0] = m.m[0][1];
+    result.m[2][0] = m.m[0][2];
+    result.m[0][1] = m.m[1][0];
+    result.m[1][1] = m.m[1][1];
+    result.m[2][1] = m.m[1][2];
+    result.m[0][2] = m.m[2][0];
+    result.m[1][2] = m.m[2][1];
+    result.m[2][2] = m.m[2][2];
+    result.m[3][0] = -(m.m[3][0]*result.m[0][0] +
+                       m.m[3][1]*result.m[1][0] +
+                       m.m[3][2]*result.m[2][0]);
+    result.m[3][1] = -(m.m[3][0]*result.m[0][1] +
+                       m.m[3][1]*result.m[1][1] +
+                       m.m[3][2]*result.m[2][1]);
+    result.m[3][2] = -(m.m[3][0]*result.m[0][2] +
+                       m.m[3][1]*result.m[1][2] +
+                       m.m[3][2]*result.m[2][2]);
+    return(result);
+}
+
+typedef struct {
+    b32 is_down;
+    b32 pressed;
+    b32 released;
+} Digital_Button;
+
+global Digital_Button kbd[KEY_MAX];
+
+internal void
+process_digital_button(Digital_Button *db, b32 is_down) {
+    b32 was_down = db->is_down;
+    db->pressed = !was_down && is_down; 
+    db->released = was_down && !is_down;
+    db->is_down = is_down;
+}
+
+internal void
+keyboard_reset(void) {
+    for (u32 key = 0; key < KEY_MAX; ++key) {
+        kbd[key].pressed = false;
+        kbd[key].released = false;
+    }
+}
+
 int
 main(void) {
     char *window_title = "krueger";
     u32 window_width = 800;
     u32 window_height = 600;
-    
-    Image frame_buffer = alloc_image(window_width, window_height);
+
+    Image image = alloc_image(window_width, window_height);
 
     platform_create_window(window_title, window_width, window_height);
-    platform_create_window_buffer(frame_buffer.pixels, frame_buffer.width, frame_buffer.height);
+    platform_create_window_buffer(image.pixels, image.width, image.height);
 
     Mesh mesh = load_obj("../res/monkey.obj");
-    Vector3 cam_p = make_vector3(0.0f, 0.0f, 0.0f);
-            
+
+    Vector3 cam_p   = make_vector3(0.0f, 0.0f, 0.0f);
+    Vector3 cam_up  = make_vector3(0.0f, 1.0f, 0.0f);
+    Vector3 cam_dir = make_vector3(0.0f, 0.0f, 1.0f);
+
+    Vector3 cam_vel = make_vector3(0.0f, 0.0f, 0.0f);
+    f32 cam_yaw = 0.0f;
+
     char *text = "KRUEGER!        KRUEGER!        KRUEGER!";
     u32 text_size = 2;
     u32 text_color = 0xc1c1c1;
@@ -517,6 +592,8 @@ main(void) {
     s32 tick = 0;
     for (b32 quit = false; !quit;) {
         platform_update_window_events();
+
+        keyboard_reset();
         for (u32 event_index = 0; 
              event_index < buf_len(event_buf); 
              ++event_index) {
@@ -525,30 +602,54 @@ main(void) {
                 case EVENT_QUIT: {
                     quit = true;
                 } break;
-                case EVENT_WINDOW_RESIZED: {
+                case EVENT_RESIZE: {
                     window_width = event->width;
                     window_height = event->height;
                     platform_destroy_window_buffer();
-                    frame_buffer = alloc_image(window_width, window_height);
-                    platform_create_window_buffer(frame_buffer.pixels, frame_buffer.width, frame_buffer.height);
+                    image = alloc_image(window_width, window_height);
+                    platform_create_window_buffer(image.pixels, image.width, image.height);
                 } break;
+                case EVENT_KEY_PRESS:
+                case EVENT_KEY_RELEASE: {
+                    Keycode keycode = event->keycode;
+                    b32 is_down = (event->type == EVENT_KEY_PRESS);
+                    process_digital_button(kbd + keycode, is_down);
+                }
             }
         }
-        
-        f32 aspect_ratio = (f32)frame_buffer.height/(f32)frame_buffer.width;
+
+        if (kbd[KEY_Q].pressed) quit = true;
+
+        cam_vel = make_vector3(0.0f, 0.0f, 0.0f);
+        if (kbd[KEY_H].is_down) cam_vel.x--;
+        if (kbd[KEY_J].is_down) cam_vel = vector3_sub(cam_vel, cam_dir);
+        if (kbd[KEY_K].is_down) cam_vel = vector3_add(cam_vel, cam_dir);
+        if (kbd[KEY_L].is_down) cam_vel.x++;
+        cam_p = vector3_add(cam_p, cam_vel);        
+
+        if (kbd[KEY_A].is_down) cam_yaw--;
+        if (kbd[KEY_F].is_down) cam_yaw++;
+
+        Vector3 cam_target = make_vector3(0.0f, 0.0f, 1.0f);
+        Matrix4x4 cam_rotate = matrix4x4_rotate(make_vector3(0.0f, 1.0f, 0.0f), radians_f32(cam_yaw));
+        cam_dir = matrix4x4_mul_vector4(cam_rotate, vector4_from_vector3(cam_target, 1.0f)).xyz;
+        cam_target = vector3_add(cam_p, cam_dir);
+
+        f32 aspect_ratio = (f32)image.height/(f32)image.width;
         Matrix4x4 proj = matrix4x4_perspective(90.0f, aspect_ratio, 0.1f, 100.0f);
+        Matrix4x4 view = matrix4x4_quick_inverse(matrix4x4_point_at(cam_p, cam_target, cam_up));
 
         Matrix4x4 scale = matrix4x4_scale(make_vector3(1.0f, 1.0f, 1.0f));
         Matrix4x4 rotate = matrix4x4_rotate(make_vector3(1.0f, 1.0f, 0.0f), radians_f32(tick));
         Matrix4x4 translate = matrix4x4_translate(0.0f, 0.0f, 4.0f);
-        
+
         Matrix4x4 model = make_matrix4x4(1.0f);
         model = matrix4x4_mul(scale, model);
         model = matrix4x4_mul(rotate, model);
         model = matrix4x4_mul(translate, model);
 
-        image_clear(frame_buffer, 0);
-        
+        image_clear(image, 0);
+
         for (u32 vert_index = 0;
              vert_index < buf_len(mesh.vert_buf);
              vert_index += 3) {
@@ -569,9 +670,13 @@ main(void) {
             f32 scalar = vector3_dot(normal, cam_ray);
 
             if (scalar < 0.0f) {
-                u32 w = frame_buffer.width;
-                u32 h = frame_buffer.height;
-                u32 *px = frame_buffer.pixels;
+                u32 w = image.width;
+                u32 h = image.height;
+                u32 *px = image.pixels;
+
+                v0 = matrix4x4_mul_vector4(view, v0);
+                v1 = matrix4x4_mul_vector4(view, v1);
+                v2 = matrix4x4_mul_vector4(view, v2);
 
                 v0 = matrix4x4_mul_vector4(proj, v0);
                 v1 = matrix4x4_mul_vector4(proj, v1);
@@ -590,43 +695,40 @@ main(void) {
                 draw_line(px, w, h, v1.x, v1.y, v2.x, v2.y, 0x79241f);
                 draw_line(px, w, h, v2.x, v2.y, v0.x, v0.y, 0x79241f);
             }
-
-            if (!(tick % 15)) text_color_switch = !text_color_switch;
-            if (text_color_switch) {
-                text_color = 0x79241f;
-            } else {
-                text_color = 0xc1c1c1;
-            }
-            
-            draw_text(frame_buffer.pixels, frame_buffer.width, frame_buffer.height, text,
-                      -text_len + ((tick*7) % (frame_buffer.width + text_len)), 
-                      frame_buffer.height/2 - DEFAULT_FONT_HEIGHT*text_size - text_margin*2,
-                      (u8 *)default_font_glyphs, DEFAULT_FONT_WIDTH, DEFAULT_FONT_HEIGHT,
-                      text_size, text_color);
-            draw_text(frame_buffer.pixels, frame_buffer.width, frame_buffer.height, text,
-                      -text_len + ((tick*8) % (frame_buffer.width + text_len)), 
-                      frame_buffer.height/2 - text_margin, 
-                      (u8 *)default_font_glyphs, DEFAULT_FONT_WIDTH, DEFAULT_FONT_HEIGHT,
-                      text_size, text_color);
-            draw_text(frame_buffer.pixels, frame_buffer.width, frame_buffer.height, text,
-                      -text_len + ((tick*6) % (frame_buffer.width + text_len)), 
-                      frame_buffer.height/2 + DEFAULT_FONT_HEIGHT*text_size, 
-                      (u8 *)default_font_glyphs, DEFAULT_FONT_WIDTH, DEFAULT_FONT_HEIGHT,
-                      text_size, text_color);
         }
 
-        platform_display_window_buffer(frame_buffer.width, frame_buffer.height);
+        if (!(tick % 15)) text_color_switch = !text_color_switch;
+        if (text_color_switch) text_color = 0x79241f; else text_color = 0xc1c1c1;
+
+        draw_text(image.pixels, image.width, image.height, text,
+                  -text_len + ((tick*7) % (image.width + text_len)), 
+                  image.height/2 - DEFAULT_FONT_HEIGHT*text_size - text_margin*2,
+                  (u8 *)default_font_glyphs, DEFAULT_FONT_WIDTH, DEFAULT_FONT_HEIGHT,
+                  text_size, text_color);
+        draw_text(image.pixels, image.width, image.height, text,
+                  -text_len + ((tick*8) % (image.width + text_len)), 
+                  image.height/2 - text_margin, 
+                  (u8 *)default_font_glyphs, DEFAULT_FONT_WIDTH, DEFAULT_FONT_HEIGHT,
+                  text_size, text_color);
+        draw_text(image.pixels, image.width, image.height, text,
+                  -text_len + ((tick*6) % (image.width + text_len)), 
+                  image.height/2 + DEFAULT_FONT_HEIGHT*text_size, 
+                  (u8 *)default_font_glyphs, DEFAULT_FONT_WIDTH, DEFAULT_FONT_HEIGHT,
+                  text_size, text_color);
+
+        platform_display_window_buffer(image.width, image.height);
         tick++;
     }
+
     platform_destroy_window();
     return(0);
 }
 
 // TODO:
+// - Clipping
 // - Fixed Frame Rate
 // - Benchmark
 // - Rainbow Triangle
 // - Texture Mapping
-// - Camera View Matrix
 // - Depth Buffer
 // - Render Text
