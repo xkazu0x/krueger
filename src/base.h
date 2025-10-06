@@ -171,23 +171,23 @@
 #define clamp_top(a, x) min(a, x);
 #define clamp_bot(x, b) max(x, b);
 
+#define array_count(x) (sizeof(x)/sizeof(*(x)))
+#define square(x) ((x)*(x))
+
 #define swap_t(T, a, b) do { T t__ = a; a = b; b = t__; } while (0)
 #define sign_t(T, x) ((T)((x) > 0) - (T)((x) < 0))
 #define abs_t(T, x) (sign_t(T, x)*(x))
-
-#define square(x) ((x)*(x))
-#define array_count(x) (sizeof(x)/sizeof(*(x)))
 
 #define radians_f32(x) ((x)*pi32/180.0f)
 
 ///////////////////
 // NOTE: Base Types
 
+typedef size_t   uxx;
 typedef uint8_t  u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
-typedef size_t   uxx;
 typedef int8_t   s8;
 typedef int16_t  s16;
 typedef int32_t  s32;
@@ -201,6 +201,8 @@ typedef double   f64;
 
 ////////////////////////
 // NOTE: Basic Constants
+
+global uxx uxx_max = SIZE_MAX;
 
 global u8  u8_max  = 0xff;
 global u16 u16_max = 0xffff;
@@ -219,8 +221,6 @@ global s64 s64_min = (s64)0x8000000000000000ll;
 
 global f32 f32_max = FLT_MAX;
 global f32 f32_min = -FLT_MAX;
-
-global uxx uxx_max = SIZE_MAX;
 
 global f32 pi32 = 3.141592653589793f;
 global f64 pi64 = 3.141592653589793;
@@ -243,7 +243,7 @@ internal f32 lerp_f32(f32 a, f32 b, f32 t);
 // NOTE: Vector2
 
 typedef struct {
-    f32 x, y;
+  f32 x, y;
 } Vector2;
 
 internal Vector2 make_vector2(f32 x, f32 y);
@@ -262,20 +262,20 @@ internal Vector2 vector2_lerp(Vector2 a, Vector2 b, f32 t);
 // NOTE: Vector3
 
 typedef union {
-    struct {
-        f32 x, y, z;
-    };
-    struct {
-        f32 r, g, b;
-    };
-    struct {
-        Vector2 xy;
-        f32 _z0;
-    };
-    struct {
-        Vector2 rg;
-        f32 _b0;
-    };
+  struct {
+    f32 x, y, z;
+  };
+  struct {
+    f32 r, g, b;
+  };
+  struct {
+    Vector2 xy;
+    f32 _z0;
+  };
+  struct {
+    Vector2 rg;
+    f32 _b0;
+  };
 } Vector3;
 
 internal Vector3 make_vector3(f32 x, f32 y, f32 z);
@@ -295,28 +295,28 @@ internal Vector3 vector3_lerp(Vector3 a, Vector3 b, f32 t);
 // NOTE: Vector4
 
 typedef union {
-    struct {
-        f32 x, y, z, w;
-    };
-    struct {
-        f32 r, g, b, a;
-    };
-    struct {
-        Vector3 xyz;
-        f32 _w0;
-    };
-    struct {
-        Vector3 rgb;
-        f32 _a0;
-    };
-    struct {
-        Vector2 xy;
-        Vector2 zw;
-    };
-    struct {
-        Vector2 rg;
-        Vector2 ba;
-    };
+  struct {
+    f32 x, y, z, w;
+  };
+  struct {
+    f32 r, g, b, a;
+  };
+  struct {
+    Vector3 xyz;
+    f32 _w0;
+  };
+  struct {
+    Vector3 rgb;
+    f32 _a0;
+  };
+  struct {
+    Vector2 xy;
+    Vector2 zw;
+  };
+  struct {
+    Vector2 rg;
+    Vector2 ba;
+  };
 } Vector4;
 
 internal Vector4 make_vector4(f32 x, f32 y, f32 z, f32 w);
@@ -336,7 +336,7 @@ internal Vector4 vector4_lerp(Vector4 a, Vector4 b, f32 t);
 // NOTE: Matrix4x4
 
 typedef struct {
-    f32 m[4][4]; // NOTE: Column Major
+  f32 m[4][4]; // NOTE: Column Major
 } Matrix4x4;
 
 internal Matrix4x4 make_matrix4x4(f32 d);
@@ -351,9 +351,9 @@ internal Vector4 matrix4x4_mul_vector4(Matrix4x4 m, Vector4 v);
 // NOTE: Stretchy Buffer
 
 typedef struct {
-    uxx len;
-    uxx cap;
-    u8 *ptr[0];
+  uxx len;
+  uxx cap;
+  u8 *ptr[0];
 } Buffer_Header;
 
 #define buf__hdr(b) ((Buffer_Header *)((u8 *)(b) - offsetof(Buffer_Header, ptr)))

@@ -13,7 +13,7 @@ if [ -v gcc ];       then compiler="${CC:-gcc}"; echo "[gcc compiler]"; fi
 compile_common="-I../src/ -std=c11 -pedantic -Wall -Wextra -Wno-unused-function -Wno-zero-length-array"
 compile_debug="$compiler -O0 -g -DBUILD_DEBUG=1 ${compile_common}"
 compile_release="$compiler -O2 -DBUILD_DEBUG=0 ${compile_common}"
-link="-lm -lX11"
+link="-lm -lX11 -lGL"
 out="-o"
 
 if [ -v debug ]; then compile="$compile_debug"; fi

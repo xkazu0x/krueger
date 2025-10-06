@@ -53,17 +53,17 @@ enum {
 
 typedef u32 Event_Type;
 enum {
-    EVENT_QUIT,
-    EVENT_RESIZE,
-    EVENT_KEY_PRESS,
-    EVENT_KEY_RELEASE,
+  EVENT_QUIT,
+  EVENT_RESIZE,
+  EVENT_KEY_PRESS,
+  EVENT_KEY_RELEASE,
 };
 
 typedef struct {
-    Event_Type type;
-    Keycode keycode;
-    u32 width;
-    u32 height;
+  Event_Type type;
+  Keycode keycode;
+  u32 width;
+  u32 height;
 } Event;
 
 global Event *event_buf;
