@@ -1,6 +1,10 @@
 #ifndef PLATFORM_H
 #define PLATFORM_H
 
+#define MILI_SEC  (1000)
+#define MICRO_SEC (1000*1000)
+#define NANO_SEC  (1000*1000*1000)
+
 typedef u32 Keycode;
 enum {
   KEY_NULL,
@@ -76,5 +80,7 @@ internal void platform_display_window_buffer(u32 width, u32 height);
 internal void platform_destroy_window_buffer(void);
 
 internal void platform_update_window_events(void);
+
+internal s64 platform_clock(void);
 
 #endif // PLATFORM_H

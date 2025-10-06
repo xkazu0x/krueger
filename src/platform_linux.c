@@ -4,6 +4,8 @@
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 
+#include <time.h>
+
 typedef struct {
   Display *display;
   Window window;
@@ -62,6 +64,7 @@ linux_translate_keycode(KeySym keycode) {
   }
   return(result);
 }
+
 internal void
 platform_create_window(const char *title, u32 width, u32 height) {
   linux_state.display = XOpenDisplay(0);
@@ -150,6 +153,14 @@ platform_update_window_events(void) {
       } break;
     }
   }
+}
+
+internal s64
+platform_clock(void) {
+  struct timespec clock;
+  clock_gettime(CLOCK_MONOTONIC, &clock);
+  s64 result = (s64)clock.tv_sec*NANO_SEC + (s64)clock.tv_nsec; 
+  return(result);
 }
 
 #endif // PLATFORM_LINUX_C
