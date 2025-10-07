@@ -233,6 +233,8 @@ global f64 tau64 = 6.283185307179586;
 
 #define sqrt_f32(x) sqrtf(x)
 #define pow_f32(a, b) powf((a), (b))
+#define floor_f32(x) floorf(x)
+#define ceil_f32(x) ceilf(x)
 #define sin_f32(x) sinf(x)
 #define cos_f32(x) cosf(x)
 #define tan_f32(x) tanf(x)

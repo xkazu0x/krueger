@@ -1010,12 +1010,224 @@ free_image(Image *image) {
 }
 #else
 
+internal void
+draw_triangle(u32 *pixels, u32 width, u32 height,
+              s32 x0, s32 y0,
+              s32 x1, s32 y1,
+              s32 x2, s32 y2,
+              u32 color) {
+  s32 min_x = clamp_bot(0, min(min(x0, x1), x2));
+  s32 min_y = clamp_bot(0, min(min(y0, y1), y2));
+  s32 max_x = clamp_top(max(max(x0, x1), x2), (s32)width);
+  s32 max_y = clamp_top(max(max(y0, y1), y2), (s32)height);
+  s32 x01 = x1 - x0;
+  s32 y01 = y1 - y0;
+  s32 x12 = x2 - x1;
+  s32 y12 = y2 - y1;
+  s32 x20 = x0 - x2;
+  s32 y20 = y0 - y2;
+  s32 bias0 = (((y01 == 0) && (x01 > 0)) || (y01 < 0)) ? 0 : -1;
+  s32 bias1 = (((y12 == 0) && (x12 > 0)) || (y12 < 0)) ? 0 : -1;
+  s32 bias2 = (((y20 == 0) && (x20 > 0)) || (y20 < 0)) ? 0 : -1;
+  for (s32 y = min_y; y < max_y; ++y) {
+    s32 dy0 = y - y0;
+    s32 dy1 = y - y1;
+    s32 dy2 = y - y2;
+    for (s32 x = min_x; x < max_x; ++x) {
+      s32 dx0 = x - x0;
+      s32 dx1 = x - x1;
+      s32 dx2 = x - x2;
+      s32 w0 = x01*dy0 - y01*dx0 + bias0;
+      s32 w1 = x12*dy1 - y12*dx1 + bias1;
+      s32 w2 = x20*dy2 - y20*dx2 + bias2;
+      if ((w0 >= 0) && (w1 >= 0) && (w2 >= 0)) {
+        pixels[y*width + x] = color;
+      }
+    }
+  }
+}
+
+internal void
+draw_triangle_f32(u32 *pixels, u32 width, u32 height,
+                  f32 x0, f32 y0,
+                  f32 x1, f32 y1,
+                  f32 x2, f32 y2,
+                  u32 color) {
+  u32 min_x = clamp_bot(0, floor_f32(min(min(x0, x1), x2)));
+  u32 min_y = clamp_bot(0, floor_f32(min(min(y0, y1), y2)));
+  u32 max_x = clamp_top(ceil_f32(max(max(x0, x1), x2)), width);
+  u32 max_y = clamp_top(ceil_f32(max(max(y0, y1), y2)), height);
+  f32 x01 = x1 - x0;
+  f32 y01 = y1 - y0;
+  f32 x12 = x2 - x1;
+  f32 y12 = y2 - y1;
+  f32 x20 = x0 - x2;
+  f32 y20 = y0 - y2;
+  f32 bias0 = (((y01 == 0.0f) && (x01 > 0.0f)) || (y01 < 0.0f)) ? 0.0f : -0.0001;
+  f32 bias1 = (((y12 == 0.0f) && (x12 > 0.0f)) || (y12 < 0.0f)) ? 0.0f : -0.0001;
+  f32 bias2 = (((y20 == 0.0f) && (x20 > 0.0f)) || (y20 < 0.0f)) ? 0.0f : -0.0001;
+  for (u32 y = min_y; y < max_y; ++y) {
+    f32 dy0 = ((f32)y + 0.5f) - y0;
+    f32 dy1 = ((f32)y + 0.5f) - y1;
+    f32 dy2 = ((f32)y + 0.5f) - y2;
+    for (u32 x = min_x; x < max_x; ++x) {
+      f32 dx0 = ((f32)x + 0.5f) - x0;
+      f32 dx1 = ((f32)x + 0.5f) - x1;
+      f32 dx2 = ((f32)x + 0.5f) - x2;
+      f32 w0 = x01*dy0 - y01*dx0 + bias0;
+      f32 w1 = x12*dy1 - y12*dx1 + bias1;
+      f32 w2 = x20*dy2 - y20*dx2 + bias2;
+      if ((w0 >= 0.0f) && (w1 >= 0.0f) && (w2 >= 0.0f)) {
+        pixels[y*width + x] = color;
+      }
+    }
+  }
+}
+
+internal void
+test_draw_mesh(Image back_buffer, Mesh mesh, 
+               Vector3 cam_p, Vector3 cam_dir, Vector3 cam_up,
+               u32 tick, b32 line) {
+  Matrix4x4 scale = matrix4x4_scale(make_vector3(1.0f, 1.0f, 1.0f));
+  Matrix4x4 rotate = matrix4x4_rotate(make_vector3(1.0f, 1.0f, 0.0f), radians_f32(tick));
+  Matrix4x4 translate = matrix4x4_translate(-2.0f, 0.0f, 4.0f);
+
+  Matrix4x4 model = make_matrix4x4(1.0f);
+  model = matrix4x4_mul(scale, model);
+  model = matrix4x4_mul(rotate, model);
+  model = matrix4x4_mul(translate, model);
+
+  Matrix4x4 view = matrix4x4_quick_inverse(matrix4x4_point_at(cam_p, cam_dir, cam_up));
+
+  f32 aspect_ratio = (f32)back_buffer.height/(f32)back_buffer.width;
+  Matrix4x4 proj = matrix4x4_perspective(90.0f, aspect_ratio, 0.1f, 100.0f);
+
+  for (u32 vertex_index = 0;
+  vertex_index < buf_len(mesh.vertex_buf);
+  vertex_index += 3) {
+    Vector4 v0 = vector4_from_vector3(mesh.vertex_buf[vertex_index], 1.0f);
+    Vector4 v1 = vector4_from_vector3(mesh.vertex_buf[vertex_index+1], 1.0f);
+    Vector4 v2 = vector4_from_vector3(mesh.vertex_buf[vertex_index+2], 1.0f);
+
+    v0 = matrix4x4_mul_vector4(model, v0);
+    v1 = matrix4x4_mul_vector4(model, v1);
+    v2 = matrix4x4_mul_vector4(model, v2);
+
+    Vector3 d01 = vector3_sub(v1.xyz, v0.xyz);
+    Vector3 d02 = vector3_sub(v2.xyz, v0.xyz);
+
+    Vector3 normal = vector3_normalize(vector3_cross(d01, d02));
+    Vector3 cam_ray = vector3_sub(v0.xyz, cam_p);
+
+    f32 scalar = vector3_dot(normal, cam_ray);
+
+    if (scalar < 0.0f) {
+      u32 w = back_buffer.width;
+      u32 h = back_buffer.height;
+      u32 *px = back_buffer.pixels;
+
+      v0 = matrix4x4_mul_vector4(view, v0);
+      v1 = matrix4x4_mul_vector4(view, v1);
+      v2 = matrix4x4_mul_vector4(view, v2);
+
+      v0 = matrix4x4_mul_vector4(proj, v0);
+      v1 = matrix4x4_mul_vector4(proj, v1);
+      v2 = matrix4x4_mul_vector4(proj, v2);
+
+      v0 = vector4_div(v0, v0.w);
+      v1 = vector4_div(v1, v1.w);
+      v2 = vector4_div(v2, v2.w);
+
+      v0.xy = project_to_screen(v0.xy, w, h);
+      v1.xy = project_to_screen(v1.xy, w, h);
+      v2.xy = project_to_screen(v2.xy, w, h);
+
+      draw_triangle(px, w, h, v0.x, v0.y, v1.x, v1.y, v2.x, v2.y, 0xc1c1c1);
+
+      if (line) {
+        draw_line(px, w, h, v0.x, v0.y, v1.x, v1.y, 0x79241f);
+        draw_line(px, w, h, v1.x, v1.y, v2.x, v2.y, 0x79241f);
+        draw_line(px, w, h, v2.x, v2.y, v0.x, v0.y, 0x79241f);
+      }
+    }
+  }
+}
+
+
+internal void
+test_draw_mesh_f32(Image back_buffer, Mesh mesh, 
+                Vector3 cam_p, Vector3 cam_dir, Vector3 cam_up,
+                u32 tick, b32 line) {
+  Matrix4x4 scale = matrix4x4_scale(make_vector3(1.0f, 1.0f, 1.0f));
+  Matrix4x4 rotate = matrix4x4_rotate(make_vector3(1.0f, 1.0f, 0.0f), radians_f32(tick));
+  Matrix4x4 translate = matrix4x4_translate(2.0f, 0.0f, 4.0f);
+
+  Matrix4x4 model = make_matrix4x4(1.0f);
+  model = matrix4x4_mul(scale, model);
+  model = matrix4x4_mul(rotate, model);
+  model = matrix4x4_mul(translate, model);
+
+  Matrix4x4 view = matrix4x4_quick_inverse(matrix4x4_point_at(cam_p, cam_dir, cam_up));
+
+  f32 aspect_ratio = (f32)back_buffer.height/(f32)back_buffer.width;
+  Matrix4x4 proj = matrix4x4_perspective(90.0f, aspect_ratio, 0.1f, 100.0f);
+
+  for (u32 vertex_index = 0;
+  vertex_index < buf_len(mesh.vertex_buf);
+  vertex_index += 3) {
+    Vector4 v0 = vector4_from_vector3(mesh.vertex_buf[vertex_index], 1.0f);
+    Vector4 v1 = vector4_from_vector3(mesh.vertex_buf[vertex_index+1], 1.0f);
+    Vector4 v2 = vector4_from_vector3(mesh.vertex_buf[vertex_index+2], 1.0f);
+
+    v0 = matrix4x4_mul_vector4(model, v0);
+    v1 = matrix4x4_mul_vector4(model, v1);
+    v2 = matrix4x4_mul_vector4(model, v2);
+
+    Vector3 d01 = vector3_sub(v1.xyz, v0.xyz);
+    Vector3 d02 = vector3_sub(v2.xyz, v0.xyz);
+
+    Vector3 normal = vector3_normalize(vector3_cross(d01, d02));
+    Vector3 cam_ray = vector3_sub(v0.xyz, cam_p);
+
+    f32 scalar = vector3_dot(normal, cam_ray);
+
+    if (scalar < 0.0f) {
+      u32 w = back_buffer.width;
+      u32 h = back_buffer.height;
+      u32 *px = back_buffer.pixels;
+
+      v0 = matrix4x4_mul_vector4(view, v0);
+      v1 = matrix4x4_mul_vector4(view, v1);
+      v2 = matrix4x4_mul_vector4(view, v2);
+
+      v0 = matrix4x4_mul_vector4(proj, v0);
+      v1 = matrix4x4_mul_vector4(proj, v1);
+      v2 = matrix4x4_mul_vector4(proj, v2);
+
+      v0 = vector4_div(v0, v0.w);
+      v1 = vector4_div(v1, v1.w);
+      v2 = vector4_div(v2, v2.w);
+
+      v0.xy = project_to_screen(v0.xy, w, h);
+      v1.xy = project_to_screen(v1.xy, w, h);
+      v2.xy = project_to_screen(v2.xy, w, h);
+
+      draw_triangle_f32(px, w, h, v0.x, v0.y, v1.x, v1.y, v2.x, v2.y, 0xc1c1c1);
+      if (line) {
+        draw_line(px, w, h, v0.x, v0.y, v1.x, v1.y, 0x79241f);
+        draw_line(px, w, h, v1.x, v1.y, v2.x, v2.y, 0x79241f);
+        draw_line(px, w, h, v2.x, v2.y, v0.x, v0.y, 0x79241f);
+      }
+    }
+  }
+}
+
 int
 main(void) {
   char *window_title = "krueger";
 
-  s32 window_width = 960;
-  s32 window_height = 720;
+  s32 window_width = 800;
+  s32 window_height = 600;
 
   s32 back_buffer_width = 320;
   s32 back_buffer_height = 240;
@@ -1085,69 +1297,11 @@ main(void) {
         } break;
       }
     }
-   
-    Matrix4x4 scale = matrix4x4_scale(make_vector3(1.0f, 1.0f, 1.0f));
-    Matrix4x4 rotate = matrix4x4_rotate(make_vector3(1.0f, 1.0f, 0.0f), radians_f32(tick));
-    Matrix4x4 translate = matrix4x4_translate(0.0f, 0.0f, 4.0f);
-
-    Matrix4x4 model = make_matrix4x4(1.0f);
-    model = matrix4x4_mul(scale, model);
-    model = matrix4x4_mul(rotate, model);
-    model = matrix4x4_mul(translate, model);
-
-    Matrix4x4 view = matrix4x4_quick_inverse(matrix4x4_point_at(cam_p, cam_dir, cam_up));
-
-    f32 aspect_ratio = (f32)back_buffer.height/(f32)back_buffer.width;
-    Matrix4x4 proj = matrix4x4_perspective(90.0f, aspect_ratio, 0.1f, 100.0f);
-
-    image_clear(back_buffer, 0x000000);
     
-    for (u32 vertex_index = 0;
-         vertex_index < buf_len(mesh.vertex_buf);
-         vertex_index += 3) {
-      Vector4 v0 = vector4_from_vector3(mesh.vertex_buf[vertex_index], 1.0f);
-      Vector4 v1 = vector4_from_vector3(mesh.vertex_buf[vertex_index+1], 1.0f);
-      Vector4 v2 = vector4_from_vector3(mesh.vertex_buf[vertex_index+2], 1.0f);
+    image_clear(back_buffer, 0x000000);
 
-      v0 = matrix4x4_mul_vector4(model, v0);
-      v1 = matrix4x4_mul_vector4(model, v1);
-      v2 = matrix4x4_mul_vector4(model, v2);
-
-      Vector3 d01 = vector3_sub(v1.xyz, v0.xyz);
-      Vector3 d02 = vector3_sub(v2.xyz, v0.xyz);
-
-      Vector3 normal = vector3_normalize(vector3_cross(d01, d02));
-      Vector3 cam_ray = vector3_sub(v0.xyz, cam_p);
-
-      f32 scalar = vector3_dot(normal, cam_ray);
-
-      if (scalar < 0.0f) {
-        u32 w = back_buffer.width;
-        u32 h = back_buffer.height;
-        u32 *px = back_buffer.pixels;
-
-        v0 = matrix4x4_mul_vector4(view, v0);
-        v1 = matrix4x4_mul_vector4(view, v1);
-        v2 = matrix4x4_mul_vector4(view, v2);
-
-        v0 = matrix4x4_mul_vector4(proj, v0);
-        v1 = matrix4x4_mul_vector4(proj, v1);
-        v2 = matrix4x4_mul_vector4(proj, v2);
-
-        v0 = vector4_div(v0, v0.w);
-        v1 = vector4_div(v1, v1.w);
-        v2 = vector4_div(v2, v2.w);
-
-        v0.xy = project_to_screen(v0.xy, w, h);
-        v1.xy = project_to_screen(v1.xy, w, h);
-        v2.xy = project_to_screen(v2.xy, w, h);
-
-        fill_triangle(px, w, h, v0.x, v0.y, v1.x, v1.y, v2.x, v2.y, 0xc1c1c1);
-        draw_line(px, w, h, v0.x, v0.y, v1.x, v1.y, 0x79241f);
-        draw_line(px, w, h, v1.x, v1.y, v2.x, v2.y, 0x79241f);
-        draw_line(px, w, h, v2.x, v2.y, v0.x, v0.y, 0x79241f);
-      }
-    }
+    test_draw_mesh(back_buffer, mesh, cam_p, cam_dir, cam_up, tick, false);
+    test_draw_mesh_f32(back_buffer, mesh, cam_p, cam_dir, cam_up, tick, false);
 
     u64 clock_end = platform_clock();
     u64 clock_delta = clock_end - clock_start;
@@ -1156,12 +1310,12 @@ main(void) {
     f32 ms_per_frame = (f32)clock_delta/(f32)MICRO_SEC;
     f32 frames_per_sec = (f32)NANO_SEC/(f32)clock_delta;
     
-    if (!(tick % 10)) {
+    if (!(tick % 5)) {
       sprintf(fps_str, "%.2f FPS", frames_per_sec);
       sprintf(ms_str,  "%.2f MS", ms_per_frame);
     }
 
-    s32 offset = 8;
+    s32 offset = 0;
     draw_text(back_buffer.pixels, back_buffer.width, back_buffer.height,
               fps_str, offset, offset,
               (u8 *)default_font_glyphs, DEFAULT_FONT_WIDTH, DEFAULT_FONT_HEIGHT,
@@ -1170,14 +1324,15 @@ main(void) {
               ms_str, offset, offset + DEFAULT_FONT_HEIGHT*text_size,
               (u8 *)default_font_glyphs, DEFAULT_FONT_WIDTH, DEFAULT_FONT_HEIGHT,
               text_size, text_color);
-
-    f32 px_width = (f32)back_buffer.width/(f32)front_buffer.width;
-    f32 px_height = (f32)back_buffer.height/(f32)front_buffer.height;
-    
+  
+    // NOTE: nearest-neighbor interpolation
+    f32 scale_x = (f32)back_buffer.width/(f32)front_buffer.width;
+    f32 scale_y = (f32)back_buffer.height/(f32)front_buffer.height;
     for (u32 y = 0; y < front_buffer.height; ++y) {
       for (u32 x = 0; x < front_buffer.width; ++x) {
-        u32 back_buffer_index = ((u32)(y*px_height + 0.5f))*back_buffer.width + (u32)(x*px_width + 0.5f);
-        front_buffer.pixels[y*front_buffer.width + x] = back_buffer.pixels[back_buffer_index];
+        u32 nearest_x = (u32)(x*scale_x);
+        u32 nearest_y = (u32)(y*scale_y);
+        front_buffer.pixels[y*front_buffer.width + x] = back_buffer.pixels[nearest_y*back_buffer.width + nearest_x];
       }
     }
 
