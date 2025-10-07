@@ -73,14 +73,13 @@ typedef struct {
 global Event *event_buf;
 
 internal void platform_create_window(const char *title, u32 width, u32 height);
+internal void platform_update_window_events(void);
 internal void platform_destroy_window(void);
 
 internal void platform_create_window_buffer(u32 *buffer, u32 width, u32 height);
 internal void platform_display_window_buffer(u32 width, u32 height);
 internal void platform_destroy_window_buffer(void);
 
-internal void platform_update_window_events(void);
-
-internal s64 platform_clock(void);
+internal u64 platform_clock(void);
 
 #endif // PLATFORM_H

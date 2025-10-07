@@ -209,6 +209,126 @@ global const u8 default_font_glyphs[128][DEFAULT_FONT_HEIGHT][DEFAULT_FONT_WIDTH
     { 0, 0, 1, 1, 0, 0, 0, 0 },
     { 0, 0, 0, 0, 0, 0, 0, 0 },
   },
+  ['\"'] = {
+    { 1, 1, 0, 1, 1, 0, 0, 0 },
+    { 1, 1, 0, 1, 1, 0, 0, 0 },
+    { 1, 1, 0, 1, 1, 0, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+  },
+  ['#'] = {
+    { 0, 1, 1, 0, 1, 1, 0, 0 },
+    { 0, 1, 1, 0, 1, 1, 0, 0 },
+    { 1, 1, 1, 1, 1, 1, 1, 0 },
+    { 0, 1, 1, 0, 1, 1, 0, 0 },
+    { 1, 1, 1, 1, 1, 1, 1, 0 },
+    { 0, 1, 1, 0, 1, 1, 0, 0 },
+    { 0, 1, 1, 0, 1, 1, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+  },
+  ['$'] = {
+    { 0, 0, 0, 1, 1, 0, 0, 0 },
+    { 0, 1, 1, 1, 1, 1, 1, 0 },
+    { 1, 1, 0, 1, 0, 0, 0, 0 },
+    { 0, 1, 1, 1, 1, 1, 0, 0 },
+    { 0, 0, 0, 1, 0, 1, 1, 0 },
+    { 1, 1, 1, 1, 1, 1, 0, 0 },
+    { 0, 0, 1, 1, 0, 0, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+  },
+  ['%'] = {
+    { 1, 1, 0, 0, 0, 0, 0, 0 },
+    { 1, 1, 0, 0, 1, 1, 0, 0 },
+    { 0, 0, 0, 1, 1, 0, 0, 0 },
+    { 0, 0, 1, 1, 0, 0, 0, 0 },
+    { 0, 1, 1, 0, 0, 0, 0, 0 },
+    { 1, 1, 0, 0, 1, 1, 0, 0 },
+    { 0, 0, 0, 0, 1, 1, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+  },
+  ['&'] = {
+    { 0, 1, 1, 1, 0, 0, 0, 0 },
+    { 1, 1, 0, 1, 1, 0, 0, 0 },
+    { 1, 1, 0, 1, 1, 0, 0, 0 },
+    { 0, 1, 1, 1, 0, 0, 0, 0 },
+    { 1, 1, 0, 1, 1, 0, 1, 0 },
+    { 1, 1, 0, 0, 1, 1, 0, 0 },
+    { 0, 1, 1, 1, 0, 1, 1, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+  },
+  ['\''] = {
+    { 1, 1, 0, 0, 0, 0, 0, 0 },
+    { 1, 1, 0, 0, 0, 0, 0, 0 },
+    { 1, 1, 0, 0, 0, 0, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+  },
+  ['('] = {
+    { 0, 0, 0, 1, 1, 0, 0, 0 },
+    { 0, 0, 1, 1, 0, 0, 0, 0 },
+    { 0, 1, 1, 0, 0, 0, 0, 0 },
+    { 0, 1, 1, 0, 0, 0, 0, 0 },
+    { 0, 1, 1, 0, 0, 0, 0, 0 },
+    { 0, 0, 1, 1, 0, 0, 0, 0 },
+    { 0, 0, 0, 1, 1, 0, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+  },
+  [')'] = {
+    { 0, 1, 1, 0, 0, 0, 0, 0 },
+    { 0, 0, 1, 1, 0, 0, 0, 0 },
+    { 0, 0, 0, 1, 1, 0, 0, 0 },
+    { 0, 0, 0, 1, 1, 0, 0, 0 },
+    { 0, 0, 0, 1, 1, 0, 0, 0 },
+    { 0, 0, 1, 1, 0, 0, 0, 0 },
+    { 0, 1, 1, 0, 0, 0, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+  },
+  ['*'] = {
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 0, 0, 1, 1, 0, 0, 0, 0 },
+    { 1, 1, 1, 1, 1, 1, 0, 0 },
+    { 0, 1, 1, 1, 1, 0, 0, 0 },
+    { 1, 1, 1, 1, 1, 1, 0, 0 },
+    { 0, 0, 1, 1, 0, 0, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+  },
+  ['+'] = {
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 0, 0, 1, 1, 0, 0, 0, 0 },
+    { 0, 0, 1, 1, 0, 0, 0, 0 },
+    { 1, 1, 1, 1, 1, 1, 0, 0 },
+    { 0, 0, 1, 1, 0, 0, 0, 0 },
+    { 0, 0, 1, 1, 0, 0, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+  },
+  [','] = {
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 0, 0, 1, 1, 0, 0, 0, 0 },
+    { 0, 0, 1, 1, 0, 0, 0, 0 },
+    { 0, 1, 1, 0, 0, 0, 0, 0 },
+  },
+  ['-'] = {
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 1, 1, 1, 1, 1, 1, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+  },
   ['.'] = {
     { 0, 0, 0, 0, 0, 0, 0, 0 },
     { 0, 0, 0, 0, 0, 0, 0, 0 },
@@ -217,6 +337,16 @@ global const u8 default_font_glyphs[128][DEFAULT_FONT_HEIGHT][DEFAULT_FONT_WIDTH
     { 0, 0, 0, 0, 0, 0, 0, 0 },
     { 0, 0, 1, 1, 0, 0, 0, 0 },
     { 0, 0, 1, 1, 0, 0, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+  },
+  ['/'] = {
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 0, 0, 0, 0, 1, 1, 0, 0 },
+    { 0, 0, 0, 1, 1, 0, 0, 0 },
+    { 0, 0, 1, 1, 0, 0, 0, 0 },
+    { 0, 1, 1, 0, 0, 0, 0, 0 },
+    { 1, 1, 0, 0, 0, 0, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
     { 0, 0, 0, 0, 0, 0, 0, 0 },
   },
   ['0'] = {
@@ -317,6 +447,16 @@ global const u8 default_font_glyphs[128][DEFAULT_FONT_HEIGHT][DEFAULT_FONT_WIDTH
     { 0, 0, 0, 0, 1, 1, 0, 0 },
     { 0, 0, 0, 1, 1, 0, 0, 0 },
     { 0, 1, 1, 1, 0, 0, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+  },
+  [':'] = {
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 0, 0, 1, 1, 0, 0, 0, 0 },
+    { 0, 0, 1, 1, 0, 0, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 0, 0, 1, 1, 0, 0, 0, 0 },
+    { 0, 0, 1, 1, 0, 0, 0, 0 },
     { 0, 0, 0, 0, 0, 0, 0, 0 },
   },
   ['A'] = {
@@ -666,11 +806,12 @@ keyboard_reset(void) {
   }
 }
 
+#if 0
 int
 main(void) {
   char *window_title = "krueger";
-  u32 window_width = 800;
-  u32 window_height = 600;
+  u32 window_width = 960;
+  u32 window_height = 720;
 
   Image image = alloc_image(window_width, window_height);
 
@@ -693,7 +834,14 @@ main(void) {
   s32 text_len = strlen(text)*text_size*DEFAULT_FONT_WIDTH;
   s32 text_margin = (DEFAULT_FONT_HEIGHT*text_size)/2;
   
-  s64 clock_start = platform_clock();
+  char fps_str[256];
+  char ms_str[256];
+  for (uxx i = 0; i < array_count(fps_str); ++i) {
+    fps_str[i] = 0;
+    ms_str[i] = 0;
+  }
+
+  u64 clock_start = platform_clock();
 
   s32 tick = 0;
   for (b32 quit = false; !quit;) {
@@ -822,18 +970,17 @@ main(void) {
               (u8 *)default_font_glyphs, DEFAULT_FONT_WIDTH, DEFAULT_FONT_HEIGHT,
               text_size, text_color);
 
-    s64 clock_end = platform_clock();
-    s64 clock_delta = clock_start - clock_end;
+    u64 clock_end = platform_clock();
+    u64 clock_delta = clock_end - clock_start;
     clock_start = clock_end;
 
     f32 ms_per_frame = (f32)clock_delta/(f32)MICRO_SEC;
     f32 frames_per_sec = (f32)NANO_SEC/(f32)clock_delta;
-
-    char fps_str[256];
-    char ms_str[256];
-
-    sprintf(fps_str, "%.2fFPS", frames_per_sec);
-    sprintf(ms_str, "%.2fMS", ms_per_frame);
+    
+    if (!(tick % 10)) {
+      sprintf(fps_str, "%.2f FPS", frames_per_sec);
+      sprintf(ms_str,  "%.2f MS", ms_per_frame);
+    }
 
     s32 offset = 16;
     draw_text(image.pixels, image.width, image.height,
@@ -853,9 +1000,204 @@ main(void) {
   return(0);
 }
 
+internal void
+free_image(Image *image) {
+  image->width = 0;
+  image->height = 0;
+  if (image->pixels) {
+    free(image->pixels);
+  }
+}
+#else
+
+int
+main(void) {
+  char *window_title = "krueger";
+
+  s32 window_width = 960;
+  s32 window_height = 720;
+
+  s32 back_buffer_width = 320;
+  s32 back_buffer_height = 240;
+
+  Image front_buffer = alloc_image(window_width, window_height);
+  Image back_buffer = alloc_image(back_buffer_width, back_buffer_height);
+
+  Display *display = XOpenDisplay(0);
+  Window root = XDefaultRootWindow(display);
+  Window window = XCreateSimpleWindow(display, root, 0, 0, window_width, window_height, 0, 0, 0);
+
+  XStoreName(display, window, window_title);
+  XMapWindow(display, window);
+
+  u32 event_masks = StructureNotifyMask | FocusChangeMask | KeyPressMask | KeyReleaseMask;
+  XSelectInput(display, window, event_masks);
+
+  Atom wm_delete_window = XInternAtom(display, "WM_DELETE_WINDOW", false);
+  XSetWMProtocols(display, window, &wm_delete_window, 1);
+  
+  XWindowAttributes attributes = {0};
+  XGetWindowAttributes(display, window, &attributes);
+
+  XImage *image = XCreateImage(display, attributes.visual, attributes.depth, ZPixmap, 0, 
+                               (char *)front_buffer.pixels, front_buffer.width, front_buffer.height, 
+                               32, front_buffer.width*sizeof(u32));
+
+  Mesh mesh = load_obj("../res/monkey.obj");
+
+  Vector3 cam_p   = make_vector3(0.0f, 0.0f, 0.0f);
+  Vector3 cam_up  = make_vector3(0.0f, 1.0f, 0.0f);
+  Vector3 cam_dir = make_vector3(0.0f, 0.0f, 1.0f);
+
+  u32 text_size = 1;
+  u32 text_color = 0xc1c1c1;
+  
+  char fps_str[256];
+  char ms_str[256];
+  for (uxx i = 0; i < array_count(fps_str); ++i) {
+    fps_str[i] = 0;
+    ms_str[i] = 0;
+  }
+
+  u64 clock_start = platform_clock();
+
+  u32 tick = 0;
+  for (b32 quit = false; !quit;) {
+    while (XPending(display)) {
+      XEvent base_event = {0};
+      XNextEvent(display, &base_event);
+      switch (base_event.type) {
+        case ClientMessage: {
+          XClientMessageEvent *event = (XClientMessageEvent *)&base_event;
+          if ((Atom)event->data.l[0] == wm_delete_window) {
+            quit = true;
+          }
+        } break;
+        case ConfigureNotify: {
+          XConfigureEvent *event = (XConfigureEvent *)&base_event;
+          window_width = event->width;
+          window_height = event->height;
+          XDestroyImage(image);
+          front_buffer = alloc_image(window_width, window_height);
+          image = XCreateImage(display, attributes.visual, attributes.depth, ZPixmap, 0, 
+                               (char *)front_buffer.pixels, front_buffer.width, front_buffer.height, 
+                               32, front_buffer.width*sizeof(u32));
+        } break;
+      }
+    }
+   
+    Matrix4x4 scale = matrix4x4_scale(make_vector3(1.0f, 1.0f, 1.0f));
+    Matrix4x4 rotate = matrix4x4_rotate(make_vector3(1.0f, 1.0f, 0.0f), radians_f32(tick));
+    Matrix4x4 translate = matrix4x4_translate(0.0f, 0.0f, 4.0f);
+
+    Matrix4x4 model = make_matrix4x4(1.0f);
+    model = matrix4x4_mul(scale, model);
+    model = matrix4x4_mul(rotate, model);
+    model = matrix4x4_mul(translate, model);
+
+    Matrix4x4 view = matrix4x4_quick_inverse(matrix4x4_point_at(cam_p, cam_dir, cam_up));
+
+    f32 aspect_ratio = (f32)back_buffer.height/(f32)back_buffer.width;
+    Matrix4x4 proj = matrix4x4_perspective(90.0f, aspect_ratio, 0.1f, 100.0f);
+
+    image_clear(back_buffer, 0x000000);
+    
+    for (u32 vertex_index = 0;
+         vertex_index < buf_len(mesh.vertex_buf);
+         vertex_index += 3) {
+      Vector4 v0 = vector4_from_vector3(mesh.vertex_buf[vertex_index], 1.0f);
+      Vector4 v1 = vector4_from_vector3(mesh.vertex_buf[vertex_index+1], 1.0f);
+      Vector4 v2 = vector4_from_vector3(mesh.vertex_buf[vertex_index+2], 1.0f);
+
+      v0 = matrix4x4_mul_vector4(model, v0);
+      v1 = matrix4x4_mul_vector4(model, v1);
+      v2 = matrix4x4_mul_vector4(model, v2);
+
+      Vector3 d01 = vector3_sub(v1.xyz, v0.xyz);
+      Vector3 d02 = vector3_sub(v2.xyz, v0.xyz);
+
+      Vector3 normal = vector3_normalize(vector3_cross(d01, d02));
+      Vector3 cam_ray = vector3_sub(v0.xyz, cam_p);
+
+      f32 scalar = vector3_dot(normal, cam_ray);
+
+      if (scalar < 0.0f) {
+        u32 w = back_buffer.width;
+        u32 h = back_buffer.height;
+        u32 *px = back_buffer.pixels;
+
+        v0 = matrix4x4_mul_vector4(view, v0);
+        v1 = matrix4x4_mul_vector4(view, v1);
+        v2 = matrix4x4_mul_vector4(view, v2);
+
+        v0 = matrix4x4_mul_vector4(proj, v0);
+        v1 = matrix4x4_mul_vector4(proj, v1);
+        v2 = matrix4x4_mul_vector4(proj, v2);
+
+        v0 = vector4_div(v0, v0.w);
+        v1 = vector4_div(v1, v1.w);
+        v2 = vector4_div(v2, v2.w);
+
+        v0.xy = project_to_screen(v0.xy, w, h);
+        v1.xy = project_to_screen(v1.xy, w, h);
+        v2.xy = project_to_screen(v2.xy, w, h);
+
+        fill_triangle(px, w, h, v0.x, v0.y, v1.x, v1.y, v2.x, v2.y, 0xc1c1c1);
+        draw_line(px, w, h, v0.x, v0.y, v1.x, v1.y, 0x79241f);
+        draw_line(px, w, h, v1.x, v1.y, v2.x, v2.y, 0x79241f);
+        draw_line(px, w, h, v2.x, v2.y, v0.x, v0.y, 0x79241f);
+      }
+    }
+
+    u64 clock_end = platform_clock();
+    u64 clock_delta = clock_end - clock_start;
+    clock_start = clock_end;
+
+    f32 ms_per_frame = (f32)clock_delta/(f32)MICRO_SEC;
+    f32 frames_per_sec = (f32)NANO_SEC/(f32)clock_delta;
+    
+    if (!(tick % 10)) {
+      sprintf(fps_str, "%.2f FPS", frames_per_sec);
+      sprintf(ms_str,  "%.2f MS", ms_per_frame);
+    }
+
+    s32 offset = 8;
+    draw_text(back_buffer.pixels, back_buffer.width, back_buffer.height,
+              fps_str, offset, offset,
+              (u8 *)default_font_glyphs, DEFAULT_FONT_WIDTH, DEFAULT_FONT_HEIGHT,
+              text_size, text_color);
+    draw_text(back_buffer.pixels, back_buffer.width, back_buffer.height,
+              ms_str, offset, offset + DEFAULT_FONT_HEIGHT*text_size,
+              (u8 *)default_font_glyphs, DEFAULT_FONT_WIDTH, DEFAULT_FONT_HEIGHT,
+              text_size, text_color);
+
+    f32 px_width = (f32)back_buffer.width/(f32)front_buffer.width;
+    f32 px_height = (f32)back_buffer.height/(f32)front_buffer.height;
+    
+    for (u32 y = 0; y < front_buffer.height; ++y) {
+      for (u32 x = 0; x < front_buffer.width; ++x) {
+        u32 back_buffer_index = ((u32)(y*px_height + 0.5f))*back_buffer.width + (u32)(x*px_width + 0.5f);
+        front_buffer.pixels[y*front_buffer.width + x] = back_buffer.pixels[back_buffer_index];
+      }
+    }
+
+    GC context = XCreateGC(display, window, 0, 0);
+    XPutImage(display, window, context, image, 0, 0, 0, 0, window_width, window_height);
+    XFreeGC(display, context);
+    ++tick;
+  }
+
+  XUnmapWindow(display, window);
+  XDestroyWindow(display, window);
+  XCloseDisplay(display);
+
+  return(0);
+}
+#endif
+
 // TODO:
 // - Clipping
+// - Depth Buffer
+// - Texture Mapping
 // - Fixed Frame Rate
 // - Rainbow Triangle
-// - Texture Mapping
-// - Depth Buffer

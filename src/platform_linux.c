@@ -82,34 +82,6 @@ platform_create_window(const char *title, u32 width, u32 height) {
 }
 
 internal void
-platform_destroy_window(void) {
-  XAutoRepeatOn(linux_state.display);
-  XUnmapWindow(linux_state.display, linux_state.window);
-  XDestroyWindow(linux_state.display, linux_state.window);
-  XCloseDisplay(linux_state.display);
-}
-
-internal void
-platform_create_window_buffer(u32 *buffer, u32 width, u32 height) {
-  XWindowAttributes attributes = {0};
-  XGetWindowAttributes(linux_state.display, linux_state.window, &attributes);
-  linux_state.image = XCreateImage(linux_state.display, attributes.visual, attributes.depth, ZPixmap, 0, 
-                                   (char *)buffer, width, height, 32, width*sizeof(u32));
-}
-
-internal void
-platform_display_window_buffer(u32 width, u32 height) {
-  GC gc = XCreateGC(linux_state.display, linux_state.window, 0, 0);
-  XPutImage(linux_state.display, linux_state.window, gc, linux_state.image, 0, 0, 0, 0, width, height);
-  XFreeGC(linux_state.display, gc);
-}
-
-internal void
-platform_destroy_window_buffer(void) {
-  XDestroyImage(linux_state.image);
-}
-
-internal void
 platform_update_window_events(void) {
   buf_clear(event_buf);
   while (XPending(linux_state.display)) {
@@ -155,11 +127,39 @@ platform_update_window_events(void) {
   }
 }
 
-internal s64
+internal void
+platform_destroy_window(void) {
+  XAutoRepeatOn(linux_state.display);
+  XUnmapWindow(linux_state.display, linux_state.window);
+  XDestroyWindow(linux_state.display, linux_state.window);
+  XCloseDisplay(linux_state.display);
+}
+
+internal void
+platform_create_window_buffer(u32 *buffer, u32 width, u32 height) {
+  XWindowAttributes attributes = {0};
+  XGetWindowAttributes(linux_state.display, linux_state.window, &attributes);
+  linux_state.image = XCreateImage(linux_state.display, attributes.visual, attributes.depth, ZPixmap, 0, 
+                                   (char *)buffer, width, height, 32, width*sizeof(u32));
+}
+
+internal void
+platform_display_window_buffer(u32 width, u32 height) {
+  GC gc = XCreateGC(linux_state.display, linux_state.window, 0, 0);
+  XPutImage(linux_state.display, linux_state.window, gc, linux_state.image, 0, 0, 0, 0, width, height);
+  XFreeGC(linux_state.display, gc);
+}
+
+internal void
+platform_destroy_window_buffer(void) {
+  XDestroyImage(linux_state.image);
+}
+
+internal u64
 platform_clock(void) {
   struct timespec clock;
   clock_gettime(CLOCK_MONOTONIC, &clock);
-  s64 result = (s64)clock.tv_sec*NANO_SEC + (s64)clock.tv_nsec; 
+  u64 result = clock.tv_sec*NANO_SEC + clock.tv_nsec; 
   return(result);
 }
 
