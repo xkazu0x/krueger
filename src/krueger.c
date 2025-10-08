@@ -1,5 +1,6 @@
 #include "base.h"
 #include "platform.h"
+#include "krueger_font.h"
 
 #include "base.c"
 #include "platform.c"
@@ -25,14 +26,15 @@ alloc_image(u32 width, u32 height) {
 
 internal void
 image_clear(Image image, u32 color) {
-  for (u32 px = 0; px < (image.width*image.height); ++px) {
+  for (uxx px = 0; px < (image.width*image.height); ++px) {
     image.pixels[px] = color;
   }
 }
 
 internal void
-draw_rect(u32 *pixels, u32 width, u32 height,
-          s32 x0, s32 y0, s32 x1, s32 y1,
+fill_rect(u32 *pixels, u32 width, u32 height,
+          s32 x0, s32 y0, 
+          s32 x1, s32 y1,
           u32 color) {
   if (x0 > x1) swap_t(s32, x0, x1);
   if (y0 > y1) swap_t(s32, y0, y1);
@@ -49,7 +51,8 @@ draw_rect(u32 *pixels, u32 width, u32 height,
 
 internal void
 draw_line(u32 *buffer, u32 width, u32 height,
-          s32 x0, s32 y0, s32 x1, s32 y1,
+          s32 x0, s32 y0, 
+          s32 x1, s32 y1,
           u32 color) {
   if (abs_t(s32, x1 - x0) > abs_t(s32, y1 - y0)) {
     if (x0 > x1) {
@@ -105,46 +108,25 @@ draw_line(u32 *buffer, u32 width, u32 height,
 }
 
 internal void
-fill_triangle(u32 *pixels, u32 width, u32 height,
-              s32 x0, s32 y0,
-              s32 x1, s32 y1,
-              s32 x2, s32 y2,
-              u32 color) {
-  s32 min_x = clamp_bot(0, min(min(x0, x1), x2));
-  s32 min_y = clamp_bot(0, min(min(y0, y1), y2));
-  s32 max_x = clamp_top(max(max(x0, x1), x2), (s32)width);
-  s32 max_y = clamp_top(max(max(y0, y1), y2), (s32)height);
-  s32 x01 = x1 - x0;
-  s32 y01 = y1 - y0;
-  s32 x12 = x2 - x1;
-  s32 y12 = y2 - y1;
-  s32 x20 = x0 - x2;
-  s32 y20 = y0 - y2;
-  for (s32 y = min_y; y < max_y; ++y) {
-    s32 dy0 = y - y0;
-    s32 dy1 = y - y1;
-    s32 dy2 = y - y2;
-    for (s32 x = min_x; x < max_x; ++x) {
-      s32 dx0 = x - x0;
-      s32 dx1 = x - x1;
-      s32 dx2 = x - x2;
-      s32 w0 = x01*dy0 - y01*dx0;
-      s32 w1 = x12*dy1 - y12*dx1;
-      s32 w2 = x20*dy2 - y20*dx2;
-      if ((w0 >= 0) && (w1 >= 0) && (w2 >= 0)) {
-        pixels[y*width + x] = color;
+draw_text(u32 *pixels, u32 width, u32 height, 
+          const char *text, s32 x, s32 y, 
+          const u8 *glyphs, u32 glyph_width, u32 glyph_height, 
+          u32 font_size, u32 color) {
+  uxx text_len = strlen(text);
+  for (uxx i = 0; i < text_len; ++i) {
+    s32 gx = x + i*glyph_width*font_size;
+    s32 gy = y;
+    const u8 *glyph = glyphs + text[i]*glyph_width*glyph_height*sizeof(u8);
+    for (u32 dy = 0; dy < glyph_height; ++dy) {
+      for (u32 dx = 0; dx < glyph_width; ++dx) {
+        s32 px = gx + dx*font_size;
+        s32 py = gy + dy*font_size;
+        if (glyph[dy*glyph_width + dx]) {
+          fill_rect(pixels, width, height, px, py, px + font_size, py + font_size, color);
+        }
       }
     }
   }
-}
-
-internal Vector2
-project_to_screen(Vector2 p, f32 w, f32 h) {
-  Vector2 result = {
-    .x = (p.x + 1.0f)*(f32)w*0.5f,
-    .y = (-p.y + 1.0f)*(f32)h*0.5f,
-  };
-  return(result);
 }
 
 typedef struct {
@@ -183,564 +165,6 @@ load_obj(const char *filename) {
     printf("[ERROR]: Failed to open file: %s\n", filename);
   }
   return(mesh);
-}
-
-#define DEFAULT_FONT_WIDTH 8
-#define DEFAULT_FONT_HEIGHT 8
-
-global const u8 default_font_glyphs[128][DEFAULT_FONT_HEIGHT][DEFAULT_FONT_WIDTH] = {
-  [' '] = {
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['!'] = {
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 1, 1, 1, 1, 0, 0, 0 },
-    { 0, 1, 1, 1, 1, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['\"'] = {
-    { 1, 1, 0, 1, 1, 0, 0, 0 },
-    { 1, 1, 0, 1, 1, 0, 0, 0 },
-    { 1, 1, 0, 1, 1, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['#'] = {
-    { 0, 1, 1, 0, 1, 1, 0, 0 },
-    { 0, 1, 1, 0, 1, 1, 0, 0 },
-    { 1, 1, 1, 1, 1, 1, 1, 0 },
-    { 0, 1, 1, 0, 1, 1, 0, 0 },
-    { 1, 1, 1, 1, 1, 1, 1, 0 },
-    { 0, 1, 1, 0, 1, 1, 0, 0 },
-    { 0, 1, 1, 0, 1, 1, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['$'] = {
-    { 0, 0, 0, 1, 1, 0, 0, 0 },
-    { 0, 1, 1, 1, 1, 1, 1, 0 },
-    { 1, 1, 0, 1, 0, 0, 0, 0 },
-    { 0, 1, 1, 1, 1, 1, 0, 0 },
-    { 0, 0, 0, 1, 0, 1, 1, 0 },
-    { 1, 1, 1, 1, 1, 1, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['%'] = {
-    { 1, 1, 0, 0, 0, 0, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 0, 0, 0, 1, 1, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 1, 1, 0, 0, 0, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 0, 0, 0, 0, 1, 1, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['&'] = {
-    { 0, 1, 1, 1, 0, 0, 0, 0 },
-    { 1, 1, 0, 1, 1, 0, 0, 0 },
-    { 1, 1, 0, 1, 1, 0, 0, 0 },
-    { 0, 1, 1, 1, 0, 0, 0, 0 },
-    { 1, 1, 0, 1, 1, 0, 1, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 0, 1, 1, 1, 0, 1, 1, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['\''] = {
-    { 1, 1, 0, 0, 0, 0, 0, 0 },
-    { 1, 1, 0, 0, 0, 0, 0, 0 },
-    { 1, 1, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['('] = {
-    { 0, 0, 0, 1, 1, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 1, 1, 0, 0, 0, 0, 0 },
-    { 0, 1, 1, 0, 0, 0, 0, 0 },
-    { 0, 1, 1, 0, 0, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 0, 0, 1, 1, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  [')'] = {
-    { 0, 1, 1, 0, 0, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 0, 0, 1, 1, 0, 0, 0 },
-    { 0, 0, 0, 1, 1, 0, 0, 0 },
-    { 0, 0, 0, 1, 1, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 1, 1, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['*'] = {
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 1, 1, 1, 1, 1, 1, 0, 0 },
-    { 0, 1, 1, 1, 1, 0, 0, 0 },
-    { 1, 1, 1, 1, 1, 1, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['+'] = {
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 1, 1, 1, 1, 1, 1, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  [','] = {
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 1, 1, 0, 0, 0, 0, 0 },
-  },
-  ['-'] = {
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 1, 1, 1, 1, 1, 1, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['.'] = {
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['/'] = {
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 1, 1, 0, 0 },
-    { 0, 0, 0, 1, 1, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 1, 1, 0, 0, 0, 0, 0 },
-    { 1, 1, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['0'] = {
-    { 0, 1, 1, 1, 1, 0, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 1, 1, 1, 0, 0 },
-    { 1, 1, 1, 1, 1, 1, 0, 0 },
-    { 1, 1, 1, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 0, 1, 1, 1, 1, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['1'] = {
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 1, 1, 1, 0, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 1, 1, 1, 1, 1, 1, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['2'] = {
-    { 0, 1, 1, 1, 1, 0, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 0, 0, 0, 0, 1, 1, 0, 0 },
-    { 0, 0, 0, 1, 1, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 1, 1, 0, 0, 0, 0, 0 },
-    { 1, 1, 1, 1, 1, 1, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['3'] = {
-    { 0, 1, 1, 1, 1, 0, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 0, 0, 0, 0, 1, 1, 0, 0 },
-    { 0, 0, 1, 1, 1, 0, 0, 0 },
-    { 0, 0, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 0, 1, 1, 1, 1, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['4'] = {
-    { 0, 0, 0, 0, 1, 1, 0, 0 },
-    { 0, 0, 0, 1, 1, 1, 0, 0 },
-    { 0, 0, 1, 1, 1, 1, 0, 0 },
-    { 0, 1, 1, 0, 1, 1, 0, 0 },
-    { 0, 1, 1, 1, 1, 1, 1, 0 },
-    { 0, 0, 0, 0, 1, 1, 0, 0 },
-    { 0, 0, 0, 0, 1, 1, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['5'] = {
-    { 1, 1, 1, 1, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 0, 0, 0, 0 },
-    { 1, 1, 1, 1, 1, 0, 0, 0 },
-    { 0, 0, 0, 0, 1, 1, 0, 0 },
-    { 0, 0, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 0, 1, 1, 1, 1, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['6'] = {
-    { 0, 0, 1, 1, 1, 0, 0, 0 },
-    { 0, 1, 1, 0, 0, 0, 0, 0 },
-    { 1, 1, 0, 0, 0, 0, 0, 0 },
-    { 1, 1, 1, 1, 1, 0, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 0, 1, 1, 1, 1, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['7'] = {
-    { 1, 1, 1, 1, 1, 1, 0, 0 },
-    { 0, 0, 0, 0, 1, 1, 0, 0 },
-    { 0, 0, 0, 1, 1, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 1, 1, 0, 0, 0, 0, 0 },
-    { 0, 1, 1, 0, 0, 0, 0, 0 },
-    { 0, 1, 1, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['8'] = {
-    { 0, 1, 1, 1, 1, 0, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 0, 1, 1, 1, 1, 0, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 0, 1, 1, 1, 1, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['9'] = {
-    { 0, 1, 1, 1, 1, 0, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 0, 1, 1, 1, 1, 1, 0, 0 },
-    { 0, 0, 0, 0, 1, 1, 0, 0 },
-    { 0, 0, 0, 1, 1, 0, 0, 0 },
-    { 0, 1, 1, 1, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  [':'] = {
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['A'] = {
-    { 0, 1, 1, 1, 1, 0, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 1, 1, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['B'] = {
-    { 1, 1, 1, 1, 1, 0, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 1, 1, 1, 0, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 1, 1, 1, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['C'] = {
-    { 0, 1, 1, 1, 1, 0, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 0, 0, 0, 0 },
-    { 1, 1, 0, 0, 0, 0, 0, 0 },
-    { 1, 1, 0, 0, 0, 0, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 0, 1, 1, 1, 1, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['D'] = {
-    { 1, 1, 1, 1, 0, 0, 0, 0 },
-    { 1, 1, 0, 1, 1, 0, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 1, 1, 0, 0, 0 },
-    { 1, 1, 1, 1, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['E'] = {
-    { 1, 1, 1, 1, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 0, 0, 0, 0 },
-    { 1, 1, 0, 0, 0, 0, 0, 0 },
-    { 1, 1, 1, 1, 1, 0, 0, 0 },
-    { 1, 1, 0, 0, 0, 0, 0, 0 },
-    { 1, 1, 0, 0, 0, 0, 0, 0 },
-    { 1, 1, 1, 1, 1, 1, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['F'] = {
-    { 1, 1, 1, 1, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 0, 0, 0, 0 },
-    { 1, 1, 0, 0, 0, 0, 0, 0 },
-    { 1, 1, 1, 1, 1, 0, 0, 0 },
-    { 1, 1, 0, 0, 0, 0, 0, 0 },
-    { 1, 1, 0, 0, 0, 0, 0, 0 },
-    { 1, 1, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['G'] = {
-    { 0, 1, 1, 1, 1, 0, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 0, 0, 0, 0 },
-    { 1, 1, 0, 1, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 0, 1, 1, 1, 1, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['H'] = {
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 1, 1, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['I'] = {
-    { 1, 1, 1, 1, 1, 1, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 1, 1, 1, 1, 1, 1, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['J'] = {
-    { 0, 1, 1, 1, 1, 1, 0, 0 },
-    { 0, 0, 0, 1, 1, 0, 0, 0 },
-    { 0, 0, 0, 1, 1, 0, 0, 0 },
-    { 0, 0, 0, 1, 1, 0, 0, 0 },
-    { 0, 0, 0, 1, 1, 0, 0, 0 },
-    { 1, 1, 0, 1, 1, 0, 0, 0 },
-    { 0, 1, 1, 1, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['K'] = {
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 1, 1, 0, 0, 0 },
-    { 1, 1, 1, 1, 0, 0, 0, 0 },
-    { 1, 1, 1, 0, 0, 0, 0, 0 },
-    { 1, 1, 1, 1, 0, 0, 0, 0 },
-    { 1, 1, 0, 1, 1, 0, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['L'] = {
-    { 1, 1, 0, 0, 0, 0, 0, 0 },
-    { 1, 1, 0, 0, 0, 0, 0, 0 },
-    { 1, 1, 0, 0, 0, 0, 0, 0 },
-    { 1, 1, 0, 0, 0, 0, 0, 0 },
-    { 1, 1, 0, 0, 0, 0, 0, 0 },
-    { 1, 1, 0, 0, 0, 0, 0, 0 },
-    { 1, 1, 1, 1, 1, 1, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['M'] = {
-    { 1, 1, 0, 0, 0, 1, 1, 0 },
-    { 1, 1, 1, 0, 1, 1, 1, 0 },
-    { 1, 1, 1, 1, 1, 1, 1, 0 },
-    { 1, 1, 0, 1, 0, 1, 1, 0 },
-    { 1, 1, 0, 1, 0, 1, 1, 0 },
-    { 1, 1, 0, 0, 0, 1, 1, 0 },
-    { 1, 1, 0, 0, 0, 1, 1, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['N'] = {
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 1, 0, 1, 1, 0, 0 },
-    { 1, 1, 1, 1, 1, 1, 0, 0 },
-    { 1, 1, 0, 1, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['O'] = {
-    { 0, 1, 1, 1, 1, 0, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 0, 1, 1, 1, 1, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['P'] = {
-    { 1, 1, 1, 1, 1, 0, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 1, 1, 1, 0, 0, 0 },
-    { 1, 1, 0, 0, 0, 0, 0, 0 },
-    { 1, 1, 0, 0, 0, 0, 0, 0 },
-    { 1, 1, 0, 0, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['Q'] = {
-    { 0, 1, 1, 1, 1, 0, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 1, 0, 1, 0, 0 },
-    { 1, 1, 0, 1, 1, 0, 0, 0 },
-    { 0, 1, 1, 0, 1, 1, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['R'] = {
-    { 1, 1, 1, 1, 1, 0, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 1, 1, 1, 0, 0, 0 },
-    { 1, 1, 0, 1, 1, 0, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['S'] = {
-    { 0, 1, 1, 1, 1, 0, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 0, 0, 0, 0 },
-    { 0, 1, 1, 1, 1, 0, 0, 0 },
-    { 0, 0, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 0, 1, 1, 1, 1, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['T'] = {
-    { 1, 1, 1, 1, 1, 1, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['U'] = {
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 0, 1, 1, 1, 1, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['V'] = {
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 0, 1, 1, 1, 1, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['W'] = {
-    { 1, 1, 0, 0, 0, 1, 1, 0 },
-    { 1, 1, 0, 0, 0, 1, 1, 0 },
-    { 1, 1, 0, 1, 0, 1, 1, 0 },
-    { 1, 1, 0, 1, 0, 1, 1, 0 },
-    { 1, 1, 1, 1, 1, 1, 1, 0 },
-    { 1, 1, 1, 0, 1, 1, 1, 0 },
-    { 1, 1, 0, 0, 0, 1, 1, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['X'] = {
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 0, 1, 1, 1, 1, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 1, 1, 1, 1, 0, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['Y'] = {
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 1, 1, 0, 0, 1, 1, 0, 0 },
-    { 0, 1, 1, 1, 1, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-  ['Z'] = {
-    { 1, 1, 1, 1, 1, 1, 0, 0 },
-    { 0, 0, 0, 0, 1, 1, 0, 0 },
-    { 0, 0, 0, 1, 1, 0, 0, 0 },
-    { 0, 0, 1, 1, 0, 0, 0, 0 },
-    { 0, 1, 1, 0, 0, 0, 0, 0 },
-    { 1, 1, 0, 0, 0, 0, 0, 0 },
-    { 1, 1, 1, 1, 1, 1, 0, 0 },
-    { 0, 0, 0, 0, 0, 0, 0, 0 },
-  },
-};
-
-internal void
-draw_text(u32 *pixels, u32 width, u32 height, 
-          const char *text, s32 x, s32 y, 
-          const u8 *font_glyphs, u32 glyph_width, u32 glyph_height, 
-          u32 font_size, u32 color) {
-  uxx text_len = strlen(text);
-  for (uxx i = 0; i < text_len; ++i) {
-    s32 gx = x + i*glyph_width*font_size;
-    s32 gy = y;
-    const u8 *glyph = font_glyphs + text[i]*glyph_width*glyph_height*sizeof(u8);
-    for (u32 dy = 0; dy < glyph_height; ++dy) {
-      for (u32 dx = 0; dx < glyph_width; ++dx) {
-        s32 px = gx + dx*font_size;
-        s32 py = gy + dy*font_size;
-        if (glyph[dy*glyph_width + dx]) {
-          draw_rect(pixels, width, height, px, py, px + font_size, py + font_size, color);
-        }
-      }
-    }
-  }
 }
 
 internal Matrix4x4
@@ -806,6 +230,15 @@ keyboard_reset(void) {
   }
 }
 
+internal Vector2
+project_to_screen(Vector2 p, f32 w, f32 h) {
+  Vector2 result = {
+    .x = (p.x + 1.0f)*(f32)w*0.5f,
+    .y = (-p.y + 1.0f)*(f32)h*0.5f,
+  };
+  return(result);
+}
+
 #if 0
 int
 main(void) {
@@ -831,8 +264,8 @@ main(void) {
   u32 text_size = 2;
   u32 text_color = 0xc1c1c1;
   b32 text_color_switch = false;
-  s32 text_len = strlen(text)*text_size*DEFAULT_FONT_WIDTH;
-  s32 text_margin = (DEFAULT_FONT_HEIGHT*text_size)/2;
+  s32 text_len = strlen(text)*text_size*KRUEGER_FONT_WIDTH;
+  s32 text_margin = (KRUEGER_FONT_HEIGHT*text_size)/2;
   
   char fps_str[256];
   char ms_str[256];
@@ -956,18 +389,18 @@ main(void) {
 
     draw_text(image.pixels, image.width, image.height, text,
               -text_len + ((tick*7) % (image.width + text_len)), 
-              image.height/2 - DEFAULT_FONT_HEIGHT*text_size - text_margin*2,
-              (u8 *)default_font_glyphs, DEFAULT_FONT_WIDTH, DEFAULT_FONT_HEIGHT,
+              image.height/2 - KRUEGER_FONT_HEIGHT*text_size - text_margin*2,
+              (u8 *)default_font_glyphs, KRUEGER_FONT_WIDTH, KRUEGER_FONT_HEIGHT,
               text_size, text_color);
     draw_text(image.pixels, image.width, image.height, text,
               -text_len + ((tick*8) % (image.width + text_len)), 
               image.height/2 - text_margin, 
-              (u8 *)default_font_glyphs, DEFAULT_FONT_WIDTH, DEFAULT_FONT_HEIGHT,
+              (u8 *)default_font_glyphs, KRUEGER_FONT_WIDTH, KRUEGER_FONT_HEIGHT,
               text_size, text_color);
     draw_text(image.pixels, image.width, image.height, text,
               -text_len + ((tick*6) % (image.width + text_len)), 
-              image.height/2 + DEFAULT_FONT_HEIGHT*text_size, 
-              (u8 *)default_font_glyphs, DEFAULT_FONT_WIDTH, DEFAULT_FONT_HEIGHT,
+              image.height/2 + KRUEGER_FONT_HEIGHT*text_size, 
+              (u8 *)default_font_glyphs, KRUEGER_FONT_WIDTH, KRUEGER_FONT_HEIGHT,
               text_size, text_color);
 
     u64 clock_end = platform_clock();
@@ -985,11 +418,11 @@ main(void) {
     s32 offset = 16;
     draw_text(image.pixels, image.width, image.height,
               fps_str, offset, offset,
-              (u8 *)default_font_glyphs, DEFAULT_FONT_WIDTH, DEFAULT_FONT_HEIGHT,
+              (u8 *)default_font_glyphs, KRUEGER_FONT_WIDTH, KRUEGER_FONT_HEIGHT,
               text_size, 0xc1c1c1);
     draw_text(image.pixels, image.width, image.height,
-              ms_str, offset, offset + DEFAULT_FONT_HEIGHT*text_size,
-              (u8 *)default_font_glyphs, DEFAULT_FONT_WIDTH, DEFAULT_FONT_HEIGHT,
+              ms_str, offset, offset + KRUEGER_FONT_HEIGHT*text_size,
+              (u8 *)default_font_glyphs, KRUEGER_FONT_WIDTH, KRUEGER_FONT_HEIGHT,
               text_size, 0xc1c1c1);
 
     platform_display_window_buffer(image.width, image.height);
@@ -999,23 +432,14 @@ main(void) {
   platform_destroy_window();
   return(0);
 }
-
-internal void
-free_image(Image *image) {
-  image->width = 0;
-  image->height = 0;
-  if (image->pixels) {
-    free(image->pixels);
-  }
-}
 #else
 
 internal void
-draw_triangle(u32 *pixels, u32 width, u32 height,
-              s32 x0, s32 y0,
-              s32 x1, s32 y1,
-              s32 x2, s32 y2,
-              u32 color) {
+fill_triangle_s32(u32 *pixels, u32 width, u32 height,
+                  s32 x0, s32 y0,
+                  s32 x1, s32 y1,
+                  s32 x2, s32 y2,
+                  u32 color) {
   s32 min_x = clamp_bot(0, min(min(x0, x1), x2));
   s32 min_y = clamp_bot(0, min(min(y0, y1), y2));
   s32 max_x = clamp_top(max(max(x0, x1), x2), (s32)width);
@@ -1048,7 +472,7 @@ draw_triangle(u32 *pixels, u32 width, u32 height,
 }
 
 internal void
-draw_triangle_f32(u32 *pixels, u32 width, u32 height,
+fill_triangle_f32(u32 *pixels, u32 width, u32 height,
                   f32 x0, f32 y0,
                   f32 x1, f32 y1,
                   f32 x2, f32 y2,
@@ -1084,8 +508,107 @@ draw_triangle_f32(u32 *pixels, u32 width, u32 height,
   }
 }
 
+#define ALPHA_MASK(x) ((x >> 24) & 0xFF)
+#define RED_MASK(x)   ((x >> 16) & 0xFF)
+#define GREEN_MASK(x) ((x >>  8) & 0xFF)
+#define BLUE_MASK(x)  ((x >>  0) & 0xFF)
+
 internal void
-test_draw_mesh(Image back_buffer, Mesh mesh, 
+fill_triangle3_s32(u32 *pixels, u32 width, u32 height,
+                   s32 x0, s32 y0, u32 c0,
+                   s32 x1, s32 y1, u32 c1,
+                   s32 x2, s32 y2, u32 c2) {
+  s32 min_x = clamp_bot(0, min(min(x0, x1), x2));
+  s32 min_y = clamp_bot(0, min(min(y0, y1), y2));
+  s32 max_x = clamp_top(max(max(x0, x1), x2), (s32)width);
+  s32 max_y = clamp_top(max(max(y0, y1), y2), (s32)height);
+  s32 x01 = x1 - x0;
+  s32 y01 = y1 - y0;
+  s32 x02 = x2 - x0;
+  s32 y02 = y2 - y0;
+  s32 x12 = x2 - x1;
+  s32 y12 = y2 - y1;
+  s32 x20 = x0 - x2;
+  s32 y20 = y0 - y2;
+  f32 det = x01*y02 - y01*x02;
+  s32 bias0 = (((y01 == 0) && (x01 > 0)) || (y01 < 0)) ? 0 : -1;
+  s32 bias1 = (((y12 == 0) && (x12 > 0)) || (y12 < 0)) ? 0 : -1;
+  s32 bias2 = (((y20 == 0) && (x20 > 0)) || (y20 < 0)) ? 0 : -1;
+  for (s32 y = min_y; y < max_y; ++y) {
+    s32 dy0 = y - y0;
+    s32 dy1 = y - y1;
+    s32 dy2 = y - y2;
+    for (s32 x = min_x; x < max_x; ++x) {
+      s32 dx0 = x - x0;
+      s32 dx1 = x - x1;
+      s32 dx2 = x - x2;
+      f32 w0 = x01*dy0 - y01*dx0 + bias0;
+      f32 w1 = x12*dy1 - y12*dx1 + bias1;
+      f32 w2 = x20*dy2 - y20*dx2 + bias2;
+      if ((w0 >= 0.0f) && (w1 >= 0.0f) && (w2 >= 0.0f)) {
+        f32 alpha = w0/det;
+        f32 beta = w1/det;
+        f32 gamma = w2/det;
+        u32 a = 0xFF;
+        u32 r = RED_MASK(c0)*alpha + RED_MASK(c1)*beta + RED_MASK(c2)*gamma;
+        u32 g = GREEN_MASK(c0)*alpha + GREEN_MASK(c1)*beta + GREEN_MASK(c2)*gamma;
+        u32 b = BLUE_MASK(c0)*alpha + BLUE_MASK(c1)*beta + BLUE_MASK(c2)*gamma;
+        u32 color = ((a << 24) | (r << 16) | (g << 8) | (b << 0));
+        pixels[y*width + x] = color;
+      }
+    }
+  }
+}
+
+internal void
+fill_triangle3_f32(u32 *pixels, u32 width, u32 height,
+                   f32 x0, f32 y0, u32 c0,
+                   f32 x1, f32 y1, u32 c1,
+                   f32 x2, f32 y2, u32 c2) {
+  u32 min_x = clamp_bot(0, floor_f32(min(min(x0, x1), x2)));
+  u32 min_y = clamp_bot(0, floor_f32(min(min(y0, y1), y2)));
+  u32 max_x = clamp_top(ceil_f32(max(max(x0, x1), x2)), width);
+  u32 max_y = clamp_top(ceil_f32(max(max(y0, y1), y2)), height);
+  f32 x01 = x1 - x0;
+  f32 y01 = y1 - y0;
+  f32 x02 = x2 - x0;
+  f32 y02 = y2 - y0;
+  f32 x12 = x2 - x1;
+  f32 y12 = y2 - y1;
+  f32 x20 = x0 - x2;
+  f32 y20 = y0 - y2;
+  f32 det = x01*y02 - y01*x02;
+  f32 bias0 = (((y01 == 0.0f) && (x01 > 0.0f)) || (y01 < 0.0f)) ? 0.0f : -0.0001;
+  f32 bias1 = (((y12 == 0.0f) && (x12 > 0.0f)) || (y12 < 0.0f)) ? 0.0f : -0.0001;
+  f32 bias2 = (((y20 == 0.0f) && (x20 > 0.0f)) || (y20 < 0.0f)) ? 0.0f : -0.0001;
+  for (u32 y = min_y; y < max_y; ++y) {
+    f32 dy0 = ((f32)y + 0.5f) - y0;
+    f32 dy1 = ((f32)y + 0.5f) - y1;
+    f32 dy2 = ((f32)y + 0.5f) - y2;
+    for (u32 x = min_x; x < max_x; ++x) {
+      f32 dx0 = ((f32)x + 0.5f) - x0;
+      f32 dx1 = ((f32)x + 0.5f) - x1;
+      f32 dx2 = ((f32)x + 0.5f) - x2;
+      f32 w0 = x01*dy0 - y01*dx0 + bias0;
+      f32 w1 = x12*dy1 - y12*dx1 + bias1;
+      f32 w2 = x20*dy2 - y20*dx2 + bias2;
+      if ((w0 >= 0.0f) && (w1 >= 0.0f) && (w2 >= 0.0f)) {
+        f32 alpha = w0/det;
+        f32 beta = w1/det;
+        f32 gamma = w2/det;
+        u32 a = 0xFF;
+        u32 r = RED_MASK(c0)*alpha + RED_MASK(c1)*beta + RED_MASK(c2)*gamma;
+        u32 g = GREEN_MASK(c0)*alpha + GREEN_MASK(c1)*beta + GREEN_MASK(c2)*gamma;
+        u32 b = BLUE_MASK(c0)*alpha + BLUE_MASK(c1)*beta + BLUE_MASK(c2)*gamma;
+        u32 color = ((a << 24) | (r << 16) | (g << 8) | (b << 0));
+        pixels[y*width + x] = color;
+      }
+    }
+  }
+}
+
+internal void
+test_draw_mesh_s32(Image back_buffer, Mesh mesh, 
                Vector3 cam_p, Vector3 cam_dir, Vector3 cam_up,
                u32 tick, b32 line) {
   Matrix4x4 scale = matrix4x4_scale(make_vector3(1.0f, 1.0f, 1.0f));
@@ -1142,7 +665,10 @@ test_draw_mesh(Image back_buffer, Mesh mesh,
       v1.xy = project_to_screen(v1.xy, w, h);
       v2.xy = project_to_screen(v2.xy, w, h);
 
-      draw_triangle(px, w, h, v0.x, v0.y, v1.x, v1.y, v2.x, v2.y, 0xc1c1c1);
+      fill_triangle3_s32(px, w, h, 
+                         v0.x, v0.y, 0xFF0000,
+                         v1.x, v1.y, 0x00FF00,
+                         v2.x, v2.y, 0x0000FF);
 
       if (line) {
         draw_line(px, w, h, v0.x, v0.y, v1.x, v1.y, 0x79241f);
@@ -1153,11 +679,10 @@ test_draw_mesh(Image back_buffer, Mesh mesh,
   }
 }
 
-
 internal void
 test_draw_mesh_f32(Image back_buffer, Mesh mesh, 
-                Vector3 cam_p, Vector3 cam_dir, Vector3 cam_up,
-                u32 tick, b32 line) {
+                   Vector3 cam_p, Vector3 cam_dir, Vector3 cam_up,
+                   u32 tick, b32 line) {
   Matrix4x4 scale = matrix4x4_scale(make_vector3(1.0f, 1.0f, 1.0f));
   Matrix4x4 rotate = matrix4x4_rotate(make_vector3(1.0f, 1.0f, 0.0f), radians_f32(tick));
   Matrix4x4 translate = matrix4x4_translate(2.0f, 0.0f, 4.0f);
@@ -1212,7 +737,11 @@ test_draw_mesh_f32(Image back_buffer, Mesh mesh,
       v1.xy = project_to_screen(v1.xy, w, h);
       v2.xy = project_to_screen(v2.xy, w, h);
 
-      draw_triangle_f32(px, w, h, v0.x, v0.y, v1.x, v1.y, v2.x, v2.y, 0xc1c1c1);
+      fill_triangle3_f32(px, w, h, 
+                         v0.x, v0.y, 0xFF0000,
+                         v1.x, v1.y, 0x00FF00,
+                         v2.x, v2.y, 0x0000FF);
+
       if (line) {
         draw_line(px, w, h, v0.x, v0.y, v1.x, v1.y, 0x79241f);
         draw_line(px, w, h, v1.x, v1.y, v2.x, v2.y, 0x79241f);
@@ -1266,7 +795,7 @@ main(void) {
   
   char fps_str[256];
   char ms_str[256];
-  for (uxx i = 0; i < array_count(fps_str); ++i) {
+  for (uxx i = 0; i < 256; ++i) {
     fps_str[i] = 0;
     ms_str[i] = 0;
   }
@@ -1300,7 +829,7 @@ main(void) {
     
     image_clear(back_buffer, 0x000000);
 
-    test_draw_mesh(back_buffer, mesh, cam_p, cam_dir, cam_up, tick, false);
+    test_draw_mesh_s32(back_buffer, mesh, cam_p, cam_dir, cam_up, tick, false);
     test_draw_mesh_f32(back_buffer, mesh, cam_p, cam_dir, cam_up, tick, false);
 
     u64 clock_end = platform_clock();
@@ -1318,11 +847,11 @@ main(void) {
     s32 offset = 0;
     draw_text(back_buffer.pixels, back_buffer.width, back_buffer.height,
               fps_str, offset, offset,
-              (u8 *)default_font_glyphs, DEFAULT_FONT_WIDTH, DEFAULT_FONT_HEIGHT,
+              (u8 *)default_font_glyphs, KRUEGER_FONT_WIDTH, KRUEGER_FONT_HEIGHT,
               text_size, text_color);
     draw_text(back_buffer.pixels, back_buffer.width, back_buffer.height,
-              ms_str, offset, offset + DEFAULT_FONT_HEIGHT*text_size,
-              (u8 *)default_font_glyphs, DEFAULT_FONT_WIDTH, DEFAULT_FONT_HEIGHT,
+              ms_str, offset, offset + KRUEGER_FONT_HEIGHT*text_size,
+              (u8 *)default_font_glyphs, KRUEGER_FONT_WIDTH, KRUEGER_FONT_HEIGHT,
               text_size, text_color);
   
     // NOTE: nearest-neighbor interpolation
@@ -1351,8 +880,7 @@ main(void) {
 #endif
 
 // TODO:
+// - Texture Mapping
 // - Clipping
 // - Depth Buffer
-// - Texture Mapping
 // - Fixed Frame Rate
-// - Rainbow Triangle
