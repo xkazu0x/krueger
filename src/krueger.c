@@ -6,28 +6,35 @@
 #include "platform.c"
 
 #include <stdio.h>
-#include <string.h>
+
+#define BITS_PER_PIXEL 32
+#define BYTES_PER_PIXEL 4
+
+#define ALPHA_MASK(x) ((x >> 24) & 0xFF)
+#define RED_MASK(x)   ((x >> 16) & 0xFF)
+#define GREEN_MASK(x) ((x >>  8) & 0xFF)
+#define BLUE_MASK(x)  ((x >>  0) & 0xFF)
 
 typedef struct {
-  u32 width;
-  u32 height;
+  uxx width;
+  uxx height;
   u32 *pixels;
 } Image;
 
 internal Image
-alloc_image(u32 width, u32 height) {
+alloc_image(uxx width, uxx height) {
   Image result = {
     .width = width,
     .height = height,
-    .pixels = malloc(width*height*sizeof(u32)),
+    .pixels = malloc(width*height*BYTES_PER_PIXEL),
   };
   return(result);
 }
 
 internal void
 image_clear(Image image, u32 color) {
-  for (uxx px = 0; px < (image.width*image.height); ++px) {
-    image.pixels[px] = color;
+  for (uxx i = 0; i < (image.width*image.height); ++i) {
+    image.pixels[i] = color;
   }
 }
 
@@ -108,331 +115,45 @@ draw_line(u32 *buffer, u32 width, u32 height,
 }
 
 internal void
-draw_text(u32 *pixels, u32 width, u32 height, 
-          const char *text, s32 x, s32 y, 
-          const u8 *glyphs, u32 glyph_width, u32 glyph_height, 
+draw_char(u32 *pixels, u32 width, u32 height, 
+          char c, s32 x, s32 y, 
+          u8 *glyphs, u32 glyph_width, u32 glyph_height, 
           u32 font_size, u32 color) {
-  uxx text_len = strlen(text);
+  u8 *glyph = glyphs + c*glyph_width*glyph_height*sizeof(u8);
+  for (u32 gy = 0; gy < glyph_height; ++gy) {
+    s32 py = y + gy*font_size;
+    for (u32 gx = 0; gx < glyph_width; ++gx) {
+      s32 px = x + gx*font_size;
+      if (glyph[gy*glyph_width + gx]) {
+        fill_rect(pixels, width, height, px, py, px + font_size, py + font_size, color);
+      }
+    }
+  }
+}
+
+internal void
+draw_text(u32 *pixels, u32 width, u32 height, 
+          char *text, s32 x, s32 y, 
+          u8 *glyphs, u32 glyph_width, u32 glyph_height, 
+          u32 font_size, u32 color) {
+  s32 gx = x;
+  s32 gy = y;
+  uxx text_len = cstr_len(text);
   for (uxx i = 0; i < text_len; ++i) {
-    s32 gx = x + i*glyph_width*font_size;
-    s32 gy = y;
-    const u8 *glyph = glyphs + text[i]*glyph_width*glyph_height*sizeof(u8);
-    for (u32 dy = 0; dy < glyph_height; ++dy) {
-      for (u32 dx = 0; dx < glyph_width; ++dx) {
-        s32 px = gx + dx*font_size;
-        s32 py = gy + dy*font_size;
-        if (glyph[dy*glyph_width + dx]) {
-          fill_rect(pixels, width, height, px, py, px + font_size, py + font_size, color);
-        }
-      }
+    char c = text[i];
+    switch (c) {
+      case '\n': {
+        gx = x;
+        gy += glyph_height*font_size;
+      } continue;
+      case '\t': {
+        gx += 2*glyph_width*font_size;
+      } continue;
     }
+    draw_char(pixels, width, height, c, gx, gy, glyphs, glyph_width, glyph_height, font_size, color);
+    gx += glyph_width*font_size;
   }
 }
-
-typedef struct {
-  Vector3 *vertex_buf;
-  u32 *vertex_index_buf;
-} Mesh;
-
-internal Mesh
-load_obj(const char *filename) {
-  Mesh mesh = {0};
-  Vector3 *tmp_vertex_buf = 0;
-  FILE *file = fopen(filename, "r");
-  if (file) {
-    char line[1<<8];
-    while (fscanf(file, "%s", line) != EOF) {
-      if (!strcmp(line, "v")) {
-        Vector3 v;
-        fscanf(file, "%f %f %f\n", &v.x, &v.y, &v.z);
-        buf_push(tmp_vertex_buf, v);
-      } else if (!strcmp(line, "f")) {
-        u32 f[3];
-        fscanf(file, "%d %d %d\n", &f[0], &f[1], &f[2]);
-        buf_push(mesh.vertex_index_buf, f[0]);
-        buf_push(mesh.vertex_index_buf, f[1]);
-        buf_push(mesh.vertex_index_buf, f[2]);
-      }
-    }
-    fclose(file);
-    for (u32 i = 0; i < buf_len(mesh.vertex_index_buf); ++i) {
-      u32 vertex_index = mesh.vertex_index_buf[i];
-      Vector3 v = tmp_vertex_buf[vertex_index-1];
-      buf_push(mesh.vertex_buf, v);
-    }
-    buf_free(tmp_vertex_buf);
-  } else {
-    printf("[ERROR]: Failed to open file: %s\n", filename);
-  }
-  return(mesh);
-}
-
-internal Matrix4x4
-matrix4x4_point_at(Vector3 eye, Vector3 center, Vector3 up) {
-  Matrix4x4 result = make_matrix4x4(1.0f);
-  center = vector3_normalize(vector3_sub(center, eye));
-  up = vector3_normalize(vector3_sub(up, vector3_mul(center, vector3_dot(up, center))));
-  Vector3 right = vector3_cross(up, center);
-  result.m[0][0] = right.x;
-  result.m[0][1] = right.y;
-  result.m[0][2] = right.z;
-  result.m[1][0] = up.x;
-  result.m[1][1] = up.y;
-  result.m[1][2] = up.z;
-  result.m[2][0] = center.x;
-  result.m[2][1] = center.y;
-  result.m[2][2] = center.z;
-  result.m[3][0] = eye.x;
-  result.m[3][1] = eye.y;
-  result.m[3][2] = eye.z;
-  return(result);
-}
-
-internal Matrix4x4
-matrix4x4_quick_inverse(Matrix4x4 m) {
-  Matrix4x4 result = make_matrix4x4(1.0f);
-  result.m[0][0] = m.m[0][0];
-  result.m[0][1] = m.m[1][0];
-  result.m[0][2] = m.m[2][0];
-  result.m[1][0] = m.m[0][1];
-  result.m[1][1] = m.m[1][1];
-  result.m[1][2] = m.m[2][1];
-  result.m[2][0] = m.m[0][2];
-  result.m[2][1] = m.m[1][2];
-  result.m[2][2] = m.m[2][2];
-  result.m[3][0] = -(m.m[3][0]*result.m[0][0] + m.m[3][1]*result.m[1][0] + m.m[3][2]*result.m[2][0]);
-  result.m[3][1] = -(m.m[3][0]*result.m[0][1] + m.m[3][1]*result.m[1][1] + m.m[3][2]*result.m[2][1]);
-  result.m[3][2] = -(m.m[3][0]*result.m[0][2] + m.m[3][1]*result.m[1][2] + m.m[3][2]*result.m[2][2]);
-  return(result);
-}
-
-typedef struct {
-  b32 is_down;
-  b32 pressed;
-  b32 released;
-} Digital_Button;
-
-global Digital_Button kbd[KEY_MAX];
-
-internal void
-process_digital_button(Digital_Button *db, b32 is_down) {
-  b32 was_down = db->is_down;
-  db->pressed = !was_down && is_down; 
-  db->released = was_down && !is_down;
-  db->is_down = is_down;
-}
-
-internal void
-keyboard_reset(void) {
-  for (u32 key = 0; key < KEY_MAX; ++key) {
-    kbd[key].pressed = false;
-    kbd[key].released = false;
-  }
-}
-
-internal Vector2
-project_to_screen(Vector2 p, f32 w, f32 h) {
-  Vector2 result = {
-    .x = (p.x + 1.0f)*(f32)w*0.5f,
-    .y = (-p.y + 1.0f)*(f32)h*0.5f,
-  };
-  return(result);
-}
-
-#if 0
-int
-main(void) {
-  char *window_title = "krueger";
-  u32 window_width = 960;
-  u32 window_height = 720;
-
-  Image image = alloc_image(window_width, window_height);
-
-  platform_create_window(window_title, window_width, window_height);
-  platform_create_window_buffer(image.pixels, image.width, image.height);
-
-  Mesh mesh = load_obj("../res/monkey.obj");
-
-  Vector3 cam_p   = make_vector3(0.0f, 0.0f, 0.0f);
-  Vector3 cam_up  = make_vector3(0.0f, 1.0f, 0.0f);
-  Vector3 cam_dir = make_vector3(0.0f, 0.0f, 1.0f);
-
-  Vector3 cam_vel = make_vector3(0.0f, 0.0f, 0.0f);
-  f32 cam_yaw = 0.0f;
-
-  char *text = "KRUEGER!        KRUEGER!        KRUEGER!";
-  u32 text_size = 2;
-  u32 text_color = 0xc1c1c1;
-  b32 text_color_switch = false;
-  s32 text_len = strlen(text)*text_size*KRUEGER_FONT_WIDTH;
-  s32 text_margin = (KRUEGER_FONT_HEIGHT*text_size)/2;
-  
-  char fps_str[256];
-  char ms_str[256];
-  for (uxx i = 0; i < array_count(fps_str); ++i) {
-    fps_str[i] = 0;
-    ms_str[i] = 0;
-  }
-
-  u64 clock_start = platform_clock();
-
-  s32 tick = 0;
-  for (b32 quit = false; !quit;) {
-    platform_update_window_events();
-
-    keyboard_reset();
-    for (u32 event_index = 0; 
-         event_index < buf_len(event_buf); 
-         ++event_index) {
-      Event *event = event_buf + event_index;
-      switch (event->type) {
-        case EVENT_QUIT: {
-          quit = true;
-        } break;
-        case EVENT_RESIZE: {
-          window_width = event->width;
-          window_height = event->height;
-          platform_destroy_window_buffer();
-          image = alloc_image(window_width, window_height);
-          platform_create_window_buffer(image.pixels, image.width, image.height);
-        } break;
-        case EVENT_KEY_PRESS:
-        case EVENT_KEY_RELEASE: {
-          Keycode keycode = event->keycode;
-          b32 is_down = (event->type == EVENT_KEY_PRESS);
-          process_digital_button(kbd + keycode, is_down);
-        }
-      }
-    }
-
-    if (kbd[KEY_Q].pressed) quit = true;
-
-    cam_vel = make_vector3(0.0f, 0.0f, 0.0f);
-    if (kbd[KEY_H].is_down) cam_vel.x--;
-    if (kbd[KEY_J].is_down) cam_vel = vector3_sub(cam_vel, cam_dir);
-    if (kbd[KEY_K].is_down) cam_vel = vector3_add(cam_vel, cam_dir);
-    if (kbd[KEY_L].is_down) cam_vel.x++;
-    cam_p = vector3_add(cam_p, cam_vel);        
-
-    if (kbd[KEY_A].is_down) cam_yaw--;
-    if (kbd[KEY_F].is_down) cam_yaw++;
-
-    Matrix4x4 scale = matrix4x4_scale(make_vector3(1.0f, 1.0f, 1.0f));
-    Matrix4x4 rotate = matrix4x4_rotate(make_vector3(1.0f, 1.0f, 0.0f), radians_f32(tick));
-    Matrix4x4 translate = matrix4x4_translate(0.0f, 0.0f, 4.0f);
-
-    Matrix4x4 model = make_matrix4x4(1.0f);
-    model = matrix4x4_mul(scale, model);
-    model = matrix4x4_mul(rotate, model);
-    model = matrix4x4_mul(translate, model);
-
-    Vector3 cam_target = make_vector3(0.0f, 0.0f, 1.0f);
-    Matrix4x4 cam_rotate = matrix4x4_rotate(make_vector3(0.0f, 1.0f, 0.0f), radians_f32(cam_yaw));
-    cam_dir = matrix4x4_mul_vector4(cam_rotate, vector4_from_vector3(cam_target, 1.0f)).xyz;
-    cam_target = vector3_add(cam_p, cam_dir);
-    Matrix4x4 view = matrix4x4_quick_inverse(matrix4x4_point_at(cam_p, cam_target, cam_up));
-
-    f32 aspect_ratio = (f32)image.height/(f32)image.width;
-    Matrix4x4 proj = matrix4x4_perspective(90.0f, aspect_ratio, 0.1f, 100.0f);
-
-    image_clear(image, 0);
-
-    for (u32 vertex_index = 0;
-         vertex_index < buf_len(mesh.vertex_buf);
-         vertex_index += 3) {
-      Vector4 v0 = vector4_from_vector3(mesh.vertex_buf[vertex_index], 1.0f);
-      Vector4 v1 = vector4_from_vector3(mesh.vertex_buf[vertex_index+1], 1.0f);
-      Vector4 v2 = vector4_from_vector3(mesh.vertex_buf[vertex_index+2], 1.0f);
-
-      v0 = matrix4x4_mul_vector4(model, v0);
-      v1 = matrix4x4_mul_vector4(model, v1);
-      v2 = matrix4x4_mul_vector4(model, v2);
-
-      Vector3 d01 = vector3_sub(v1.xyz, v0.xyz);
-      Vector3 d02 = vector3_sub(v2.xyz, v0.xyz);
-
-      Vector3 normal = vector3_normalize(vector3_cross(d01, d02));
-      Vector3 cam_ray = vector3_sub(v0.xyz, cam_p);
-
-      f32 scalar = vector3_dot(normal, cam_ray);
-
-      if (scalar < 0.0f) {
-        u32 w = image.width;
-        u32 h = image.height;
-        u32 *px = image.pixels;
-
-        v0 = matrix4x4_mul_vector4(view, v0);
-        v1 = matrix4x4_mul_vector4(view, v1);
-        v2 = matrix4x4_mul_vector4(view, v2);
-
-        v0 = matrix4x4_mul_vector4(proj, v0);
-        v1 = matrix4x4_mul_vector4(proj, v1);
-        v2 = matrix4x4_mul_vector4(proj, v2);
-
-        v0 = vector4_div(v0, v0.w);
-        v1 = vector4_div(v1, v1.w);
-        v2 = vector4_div(v2, v2.w);
-
-        v0.xy = project_to_screen(v0.xy, w, h);
-        v1.xy = project_to_screen(v1.xy, w, h);
-        v2.xy = project_to_screen(v2.xy, w, h);
-
-        fill_triangle(px, w, h, v0.x, v0.y, v1.x, v1.y, v2.x, v2.y, 0xc1c1c1);
-        draw_line(px, w, h, v0.x, v0.y, v1.x, v1.y, 0x79241f);
-        draw_line(px, w, h, v1.x, v1.y, v2.x, v2.y, 0x79241f);
-        draw_line(px, w, h, v2.x, v2.y, v0.x, v0.y, 0x79241f);
-      }
-    }
-
-    if (!(tick % 15)) text_color_switch = !text_color_switch;
-    if (text_color_switch) text_color = 0x79241f; else text_color = 0xc1c1c1;
-
-    draw_text(image.pixels, image.width, image.height, text,
-              -text_len + ((tick*7) % (image.width + text_len)), 
-              image.height/2 - KRUEGER_FONT_HEIGHT*text_size - text_margin*2,
-              (u8 *)default_font_glyphs, KRUEGER_FONT_WIDTH, KRUEGER_FONT_HEIGHT,
-              text_size, text_color);
-    draw_text(image.pixels, image.width, image.height, text,
-              -text_len + ((tick*8) % (image.width + text_len)), 
-              image.height/2 - text_margin, 
-              (u8 *)default_font_glyphs, KRUEGER_FONT_WIDTH, KRUEGER_FONT_HEIGHT,
-              text_size, text_color);
-    draw_text(image.pixels, image.width, image.height, text,
-              -text_len + ((tick*6) % (image.width + text_len)), 
-              image.height/2 + KRUEGER_FONT_HEIGHT*text_size, 
-              (u8 *)default_font_glyphs, KRUEGER_FONT_WIDTH, KRUEGER_FONT_HEIGHT,
-              text_size, text_color);
-
-    u64 clock_end = platform_clock();
-    u64 clock_delta = clock_end - clock_start;
-    clock_start = clock_end;
-
-    f32 ms_per_frame = (f32)clock_delta/(f32)MICRO_SEC;
-    f32 frames_per_sec = (f32)NANO_SEC/(f32)clock_delta;
-    
-    if (!(tick % 10)) {
-      sprintf(fps_str, "%.2f FPS", frames_per_sec);
-      sprintf(ms_str,  "%.2f MS", ms_per_frame);
-    }
-
-    s32 offset = 16;
-    draw_text(image.pixels, image.width, image.height,
-              fps_str, offset, offset,
-              (u8 *)default_font_glyphs, KRUEGER_FONT_WIDTH, KRUEGER_FONT_HEIGHT,
-              text_size, 0xc1c1c1);
-    draw_text(image.pixels, image.width, image.height,
-              ms_str, offset, offset + KRUEGER_FONT_HEIGHT*text_size,
-              (u8 *)default_font_glyphs, KRUEGER_FONT_WIDTH, KRUEGER_FONT_HEIGHT,
-              text_size, 0xc1c1c1);
-
-    platform_display_window_buffer(image.width, image.height);
-    tick++;
-  }
-
-  platform_destroy_window();
-  return(0);
-}
-#else
 
 internal void
 fill_triangle_s32(u32 *pixels, u32 width, u32 height,
@@ -507,11 +228,6 @@ fill_triangle_f32(u32 *pixels, u32 width, u32 height,
     }
   }
 }
-
-#define ALPHA_MASK(x) ((x >> 24) & 0xFF)
-#define RED_MASK(x)   ((x >> 16) & 0xFF)
-#define GREEN_MASK(x) ((x >>  8) & 0xFF)
-#define BLUE_MASK(x)  ((x >>  0) & 0xFF)
 
 internal void
 fill_triangle3_s32(u32 *pixels, u32 width, u32 height,
@@ -607,10 +323,151 @@ fill_triangle3_f32(u32 *pixels, u32 width, u32 height,
   }
 }
 
+internal Vector2
+project_point_to_screen(Vector2 p, f32 w, f32 h) {
+  Vector2 result = {
+    .x = (p.x + 1.0f)*(f32)w*0.5f,
+    .y = (-p.y + 1.0f)*(f32)h*0.5f,
+  };
+  return(result);
+}
+
+typedef struct {
+  Vector3 *vertex_buf;
+  u32 *vertex_index_buf;
+} Mesh;
+
+internal Mesh
+load_obj(char *filename) {
+  Mesh mesh = {0};
+  Vector3 *tmp_vertex_buf = 0;
+  FILE *file = fopen(filename, "r");
+  if (file) {
+    char line[1<<8];
+    while (fscanf(file, "%s", line) != EOF) {
+      if (cstr_match(line, "v")) {
+        Vector3 v;
+        fscanf(file, "%f %f %f\n", &v.x, &v.y, &v.z);
+        buf_push(tmp_vertex_buf, v);
+      } else if (cstr_match(line, "f")) {
+        s32 f[3];
+        fscanf(file, "%d %d %d\n", &f[0], &f[1], &f[2]);
+        buf_push(mesh.vertex_index_buf, f[0]);
+        buf_push(mesh.vertex_index_buf, f[1]);
+        buf_push(mesh.vertex_index_buf, f[2]);
+      }
+    }
+    fclose(file);
+    for (u32 i = 0; i < buf_len(mesh.vertex_index_buf); ++i) {
+      u32 vertex_index = mesh.vertex_index_buf[i];
+      Vector3 v = tmp_vertex_buf[vertex_index-1];
+      buf_push(mesh.vertex_buf, v);
+    }
+    buf_free(tmp_vertex_buf);
+  } else {
+    printf("[ERROR]: Failed to open file: %s\n", filename);
+  }
+  return(mesh);
+}
+
+internal Matrix4x4
+matrix4x4_point_at(Vector3 eye, Vector3 center, Vector3 up) {
+  Matrix4x4 result = make_matrix4x4(1.0f);
+  center = vector3_normalize(vector3_sub(center, eye));
+  up = vector3_normalize(vector3_sub(up, vector3_mul(center, vector3_dot(up, center))));
+  Vector3 right = vector3_cross(up, center);
+  result.m[0][0] = right.x;
+  result.m[0][1] = right.y;
+  result.m[0][2] = right.z;
+  result.m[1][0] = up.x;
+  result.m[1][1] = up.y;
+  result.m[1][2] = up.z;
+  result.m[2][0] = center.x;
+  result.m[2][1] = center.y;
+  result.m[2][2] = center.z;
+  result.m[3][0] = eye.x;
+  result.m[3][1] = eye.y;
+  result.m[3][2] = eye.z;
+  return(result);
+}
+
+internal Matrix4x4
+matrix4x4_quick_inverse(Matrix4x4 m) {
+  Matrix4x4 result = make_matrix4x4(1.0f);
+  result.m[0][0] = m.m[0][0];
+  result.m[0][1] = m.m[1][0];
+  result.m[0][2] = m.m[2][0];
+  result.m[1][0] = m.m[0][1];
+  result.m[1][1] = m.m[1][1];
+  result.m[1][2] = m.m[2][1];
+  result.m[2][0] = m.m[0][2];
+  result.m[2][1] = m.m[1][2];
+  result.m[2][2] = m.m[2][2];
+  result.m[3][0] = -(m.m[3][0]*result.m[0][0] + m.m[3][1]*result.m[1][0] + m.m[3][2]*result.m[2][0]);
+  result.m[3][1] = -(m.m[3][0]*result.m[0][1] + m.m[3][1]*result.m[1][1] + m.m[3][2]*result.m[2][1]);
+  result.m[3][2] = -(m.m[3][0]*result.m[0][2] + m.m[3][1]*result.m[1][2] + m.m[3][2]*result.m[2][2]);
+  return(result);
+}
+
+typedef struct {
+  b32 is_down;
+  b32 pressed;
+  b32 released;
+} Digital_Button;
+
 internal void
-test_draw_mesh_s32(Image back_buffer, Mesh mesh, 
-               Vector3 cam_p, Vector3 cam_dir, Vector3 cam_up,
-               u32 tick, b32 line) {
+process_digital_button(Digital_Button *db, b32 is_down) {
+  b32 was_down = db->is_down;
+  db->pressed = !was_down && is_down; 
+  db->released = was_down && !is_down;
+  db->is_down = is_down;
+}
+
+global Digital_Button kbd[KEY_MAX];
+
+internal void
+keyboard_reset(void) {
+  for (u32 key = 0; key < KEY_MAX; ++key) {
+    kbd[key].pressed = false;
+    kbd[key].released = false;
+  }
+}
+
+#if 0
+{
+  cam_vel = make_vector3(0.0f, 0.0f, 0.0f);
+  if (kbd[KEY_H].is_down) cam_vel.x--;
+  if (kbd[KEY_J].is_down) cam_vel = vector3_sub(cam_vel, cam_dir);
+  if (kbd[KEY_K].is_down) cam_vel = vector3_add(cam_vel, cam_dir);
+  if (kbd[KEY_L].is_down) cam_vel.x++;
+  cam_p = vector3_add(cam_p, cam_vel);        
+
+  if (kbd[KEY_A].is_down) cam_yaw--;
+  if (kbd[KEY_F].is_down) cam_yaw++;
+
+  Matrix4x4 scale = matrix4x4_scale(make_vector3(1.0f, 1.0f, 1.0f));
+  Matrix4x4 rotate = matrix4x4_rotate(make_vector3(1.0f, 1.0f, 0.0f), radians_f32(tick));
+  Matrix4x4 translate = matrix4x4_translate(0.0f, 0.0f, 4.0f);
+
+  Matrix4x4 model = make_matrix4x4(1.0f);
+  model = matrix4x4_mul(scale, model);
+  model = matrix4x4_mul(rotate, model);
+  model = matrix4x4_mul(translate, model);
+
+  Vector3 cam_target = make_vector3(0.0f, 0.0f, 1.0f);
+  Matrix4x4 cam_rotate = matrix4x4_rotate(make_vector3(0.0f, 1.0f, 0.0f), radians_f32(cam_yaw));
+  cam_dir = matrix4x4_mul_vector4(cam_rotate, vector4_from_vector3(cam_target, 1.0f)).xyz;
+  cam_target = vector3_add(cam_p, cam_dir);
+  Matrix4x4 view = matrix4x4_quick_inverse(matrix4x4_point_at(cam_p, cam_target, cam_up));
+}
+#endif
+
+internal void
+test_draw_mesh_s32(Image back_buffer, Mesh mesh, b32 line, u32 tick) {
+  Vector3 cam_p   = make_vector3(0.0f, 0.0f, 0.0f);
+  Vector3 cam_up  = make_vector3(0.0f, 1.0f, 0.0f);
+  Vector3 cam_dir = make_vector3(0.0f, 0.0f, 1.0f);
+
   Matrix4x4 scale = matrix4x4_scale(make_vector3(1.0f, 1.0f, 1.0f));
   Matrix4x4 rotate = matrix4x4_rotate(make_vector3(1.0f, 1.0f, 0.0f), radians_f32(tick));
   Matrix4x4 translate = matrix4x4_translate(-2.0f, 0.0f, 4.0f);
@@ -626,8 +483,8 @@ test_draw_mesh_s32(Image back_buffer, Mesh mesh,
   Matrix4x4 proj = matrix4x4_perspective(90.0f, aspect_ratio, 0.1f, 100.0f);
 
   for (u32 vertex_index = 0;
-  vertex_index < buf_len(mesh.vertex_buf);
-  vertex_index += 3) {
+       vertex_index < buf_len(mesh.vertex_buf);
+       vertex_index += 3) {
     Vector4 v0 = vector4_from_vector3(mesh.vertex_buf[vertex_index], 1.0f);
     Vector4 v1 = vector4_from_vector3(mesh.vertex_buf[vertex_index+1], 1.0f);
     Vector4 v2 = vector4_from_vector3(mesh.vertex_buf[vertex_index+2], 1.0f);
@@ -661,9 +518,9 @@ test_draw_mesh_s32(Image back_buffer, Mesh mesh,
       v1 = vector4_div(v1, v1.w);
       v2 = vector4_div(v2, v2.w);
 
-      v0.xy = project_to_screen(v0.xy, w, h);
-      v1.xy = project_to_screen(v1.xy, w, h);
-      v2.xy = project_to_screen(v2.xy, w, h);
+      v0.xy = project_point_to_screen(v0.xy, w, h);
+      v1.xy = project_point_to_screen(v1.xy, w, h);
+      v2.xy = project_point_to_screen(v2.xy, w, h);
 
       fill_triangle3_s32(px, w, h, 
                          v0.x, v0.y, 0xFF0000,
@@ -680,9 +537,11 @@ test_draw_mesh_s32(Image back_buffer, Mesh mesh,
 }
 
 internal void
-test_draw_mesh_f32(Image back_buffer, Mesh mesh, 
-                   Vector3 cam_p, Vector3 cam_dir, Vector3 cam_up,
-                   u32 tick, b32 line) {
+test_draw_mesh_f32(Image back_buffer, Mesh mesh, b32 line, u32 tick) {
+  Vector3 cam_p   = make_vector3(0.0f, 0.0f, 0.0f);
+  Vector3 cam_up  = make_vector3(0.0f, 1.0f, 0.0f);
+  Vector3 cam_dir = make_vector3(0.0f, 0.0f, 1.0f);
+
   Matrix4x4 scale = matrix4x4_scale(make_vector3(1.0f, 1.0f, 1.0f));
   Matrix4x4 rotate = matrix4x4_rotate(make_vector3(1.0f, 1.0f, 0.0f), radians_f32(tick));
   Matrix4x4 translate = matrix4x4_translate(2.0f, 0.0f, 4.0f);
@@ -698,8 +557,8 @@ test_draw_mesh_f32(Image back_buffer, Mesh mesh,
   Matrix4x4 proj = matrix4x4_perspective(90.0f, aspect_ratio, 0.1f, 100.0f);
 
   for (u32 vertex_index = 0;
-  vertex_index < buf_len(mesh.vertex_buf);
-  vertex_index += 3) {
+       vertex_index < buf_len(mesh.vertex_buf);
+       vertex_index += 3) {
     Vector4 v0 = vector4_from_vector3(mesh.vertex_buf[vertex_index], 1.0f);
     Vector4 v1 = vector4_from_vector3(mesh.vertex_buf[vertex_index+1], 1.0f);
     Vector4 v2 = vector4_from_vector3(mesh.vertex_buf[vertex_index+2], 1.0f);
@@ -733,14 +592,14 @@ test_draw_mesh_f32(Image back_buffer, Mesh mesh,
       v1 = vector4_div(v1, v1.w);
       v2 = vector4_div(v2, v2.w);
 
-      v0.xy = project_to_screen(v0.xy, w, h);
-      v1.xy = project_to_screen(v1.xy, w, h);
-      v2.xy = project_to_screen(v2.xy, w, h);
+      v0.xy = project_point_to_screen(v0.xy, w, h);
+      v1.xy = project_point_to_screen(v1.xy, w, h);
+      v2.xy = project_point_to_screen(v2.xy, w, h);
 
       fill_triangle3_f32(px, w, h, 
-                         v0.x, v0.y, 0xFF0000,
-                         v1.x, v1.y, 0x00FF00,
-                         v2.x, v2.y, 0x0000FF);
+                         v0.x, v0.y, 0x00FFFF,
+                         v1.x, v1.y, 0xFF00FF,
+                         v2.x, v2.y, 0xFFFF00);
 
       if (line) {
         draw_line(px, w, h, v0.x, v0.y, v1.x, v1.y, 0x79241f);
@@ -765,6 +624,8 @@ main(void) {
   Image back_buffer = alloc_image(back_buffer_width, back_buffer_height);
 
   Display *display = XOpenDisplay(0);
+  XAutoRepeatOff(display);
+
   Window root = XDefaultRootWindow(display);
   Window window = XCreateSimpleWindow(display, root, 0, 0, window_width, window_height, 0, 0, 0);
 
@@ -782,27 +643,14 @@ main(void) {
 
   XImage *image = XCreateImage(display, attributes.visual, attributes.depth, ZPixmap, 0, 
                                (char *)front_buffer.pixels, front_buffer.width, front_buffer.height, 
-                               32, front_buffer.width*sizeof(u32));
+                               BITS_PER_PIXEL, front_buffer.width*BYTES_PER_PIXEL);
 
   Mesh mesh = load_obj("../res/monkey.obj");
-
-  Vector3 cam_p   = make_vector3(0.0f, 0.0f, 0.0f);
-  Vector3 cam_up  = make_vector3(0.0f, 1.0f, 0.0f);
-  Vector3 cam_dir = make_vector3(0.0f, 0.0f, 1.0f);
-
-  u32 text_size = 1;
-  u32 text_color = 0xc1c1c1;
-  
-  char fps_str[256];
-  char ms_str[256];
-  for (uxx i = 0; i < 256; ++i) {
-    fps_str[i] = 0;
-    ms_str[i] = 0;
-  }
+  char debug_str[256] = {0};
 
   u64 clock_start = platform_clock();
-
   u32 tick = 0;
+
   for (b32 quit = false; !quit;) {
     while (XPending(display)) {
       XEvent base_event = {0};
@@ -822,15 +670,31 @@ main(void) {
           front_buffer = alloc_image(window_width, window_height);
           image = XCreateImage(display, attributes.visual, attributes.depth, ZPixmap, 0, 
                                (char *)front_buffer.pixels, front_buffer.width, front_buffer.height, 
-                               32, front_buffer.width*sizeof(u32));
+                               BITS_PER_PIXEL, front_buffer.width*BYTES_PER_PIXEL);
+        } break;
+        case KeyPress: 
+        case KeyRelease: {
+          XKeyEvent *event = (XKeyEvent *)&base_event;
+          KeySym keysym = XLookupKeysym(event, 0);
+          Keycode keycode = linux_translate_keycode(keysym);
+          b32 is_down = (base_event.type == KeyPress);
+          process_digital_button(kbd + keycode, is_down);
+        } break;
+        case FocusIn:
+        case FocusOut: {
+          XFocusChangeEvent *event = (XFocusChangeEvent *)&base_event;
+          if (event->type == FocusIn) XAutoRepeatOff(display);
+          if (event->type == FocusOut) XAutoRepeatOn(display);
         } break;
       }
     }
     
-    image_clear(back_buffer, 0x000000);
+    if (kbd[KEY_Q].pressed) quit = true;
+    keyboard_reset();
 
-    test_draw_mesh_s32(back_buffer, mesh, cam_p, cam_dir, cam_up, tick, false);
-    test_draw_mesh_f32(back_buffer, mesh, cam_p, cam_dir, cam_up, tick, false);
+    image_clear(back_buffer, 0x000000);
+    test_draw_mesh_s32(back_buffer, mesh, false, tick);
+    test_draw_mesh_f32(back_buffer, mesh, false, tick);
 
     u64 clock_end = platform_clock();
     u64 clock_delta = clock_end - clock_start;
@@ -838,21 +702,31 @@ main(void) {
 
     f32 ms_per_frame = (f32)clock_delta/(f32)MICRO_SEC;
     f32 frames_per_sec = (f32)NANO_SEC/(f32)clock_delta;
-    
-    if (!(tick % 5)) {
-      sprintf(fps_str, "%.2f FPS", frames_per_sec);
-      sprintf(ms_str,  "%.2f MS", ms_per_frame);
-    }
 
-    s32 offset = 0;
-    draw_text(back_buffer.pixels, back_buffer.width, back_buffer.height,
-              fps_str, offset, offset,
-              (u8 *)default_font_glyphs, KRUEGER_FONT_WIDTH, KRUEGER_FONT_HEIGHT,
-              text_size, text_color);
-    draw_text(back_buffer.pixels, back_buffer.width, back_buffer.height,
-              ms_str, offset, offset + KRUEGER_FONT_HEIGHT*text_size,
-              (u8 *)default_font_glyphs, KRUEGER_FONT_WIDTH, KRUEGER_FONT_HEIGHT,
-              text_size, text_color);
+    { // NOTE: Draw Debug Info
+      sprintf(debug_str, "%.2f FPS\n%.2f MS", frames_per_sec, ms_per_frame);
+
+      u32 text_size = 1;
+      u32 text_color = 0xc1c1c1;
+
+      s32 x_offset = 0;
+      s32 y_offset = 0;
+      draw_text(back_buffer.pixels, back_buffer.width, back_buffer.height,
+                debug_str, x_offset, y_offset,
+                (u8 *)default_font_glyphs, KRUEGER_FONT_WIDTH, KRUEGER_FONT_HEIGHT,
+                text_size, text_color);
+
+      local b32 switch_text_color = false;
+      if (!(tick%10)) switch_text_color = !switch_text_color;
+      if (switch_text_color) text_color = 0x79241f;
+
+      x_offset = 4*KRUEGER_FONT_HEIGHT*text_size;
+      y_offset = 6*KRUEGER_FONT_HEIGHT*text_size;
+      draw_text(back_buffer.pixels, back_buffer.width, back_buffer.height,
+                "int\nmain(void) {\n\tkrueger_init();\n\treturn(0);\n}", x_offset, y_offset,
+                (u8 *)default_font_glyphs, KRUEGER_FONT_WIDTH, KRUEGER_FONT_HEIGHT,
+                text_size, text_color);
+    } // NOTE: Draw Debug Info
   
     // NOTE: nearest-neighbor interpolation
     f32 scale_x = (f32)back_buffer.width/(f32)front_buffer.width;
@@ -868,16 +742,17 @@ main(void) {
     GC context = XCreateGC(display, window, 0, 0);
     XPutImage(display, window, context, image, 0, 0, 0, 0, window_width, window_height);
     XFreeGC(display, context);
+
     ++tick;
   }
 
   XUnmapWindow(display, window);
   XDestroyWindow(display, window);
-  XCloseDisplay(display);
 
+  XAutoRepeatOn(display);
+  XCloseDisplay(display);
   return(0);
 }
-#endif
 
 // TODO:
 // - Texture Mapping

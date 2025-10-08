@@ -161,10 +161,13 @@
 //////////////////////
 // NOTE: Helper Macros
 
-#define kb(n) (((u64)(n))<<10)
-#define mb(n) (((u64)(n))<<20)
-#define gb(n) (((u64)(n))<<30)
-#define tb(n) (((u64)(n))<<40)
+#define KB(n) (((u64)(n))<<10)
+#define MB(n) (((u64)(n))<<20)
+#define GB(n) (((u64)(n))<<30)
+#define TB(n) (((u64)(n))<<40)
+#define thousand(n) ((n)*1000)
+#define million(n)  ((n)*1000000)
+#define billion(n)  ((n)*1000000000)
 
 #define min(a, b) ((a)<(b)?(a):(b))
 #define max(a, b) ((a)>(b)?(a):(b))
@@ -369,5 +372,11 @@ typedef struct {
 #define buf_clear(b) ((b) ? buf__hdr(b)->len = 0 : 0)
 
 internal void *buf__grow(const void *buf, uxx new_len, uxx elem_size);
+
+///////////////
+// NOTE: String
+
+internal uxx cstr_len(char *cstr);
+internal b32 cstr_match(char *a, char *b);
 
 #endif // BASE_H

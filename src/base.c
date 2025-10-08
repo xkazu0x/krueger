@@ -424,4 +424,34 @@ buf__grow(const void *buf, uxx new_len, uxx elem_size) {
   return(header->ptr);
 }
 
+///////////////
+// NOTE: String
+
+internal uxx
+cstr_len(char *cstr) {
+  char *ptr = cstr;
+  for (; *ptr != 0; ++ptr);
+  return(ptr - cstr);
+}
+
+internal b32
+cstr_match(char *a, char *b) {
+  b32 result = false;
+  uxx a_len = cstr_len(a);
+  uxx b_len = cstr_len(b);
+  if (a_len == b_len) {
+    result = true;
+    uxx len = min(a_len, b_len);
+    for (uxx i = 0; i < len; ++i) {
+      char at = a[i];
+      char bt = b[i];
+      if (at != bt) {
+        result = false;
+        break;
+      }
+    }
+  }
+  return(result);
+}
+
 #endif // BASE_C

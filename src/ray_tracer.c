@@ -1,4 +1,5 @@
 #include "base.h"
+#include "base.c"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -167,29 +168,29 @@ ray_cast(World *world, Vector3 ray_origin, Vector3 ray_direction) {
                 if ((t > min_hit_distance) && (t < hit_distance)) {
                     hit_distance = t;
                     hit_material_index = sphere.material_index;
-                    next_normal = vector3_normalize(vector3_add(so, vector3_scale(ray_direction, t)));
+                    next_normal = vector3_normalize(vector3_add(so, vector3_mul(ray_direction, t)));
                 }
             }
         }
 
         if (hit_material_index) {
             Material material = world->materials[hit_material_index];
-            result = vector3_add(result, vector3_mul(attenuation, material.emit_color));
+            result = vector3_add(result, vector3_hadamard(attenuation, material.emit_color));
             
-            f32 cos_attenuation = vector3_dot(vector3_scale(ray_direction, -1.0f), next_normal);
+            f32 cos_attenuation = vector3_dot(vector3_mul(ray_direction, -1.0f), next_normal);
             if (cos_attenuation < 0) cos_attenuation = 0;
-            attenuation = vector3_mul(attenuation, vector3_scale(material.refl_color, cos_attenuation));
+            attenuation = vector3_hadamard(attenuation, vector3_mul(material.refl_color, cos_attenuation));
 
-            ray_origin = vector3_add(ray_origin, vector3_scale(ray_direction, hit_distance));
+            ray_origin = vector3_add(ray_origin, vector3_mul(ray_direction, hit_distance));
             Vector3 pure_bounce = vector3_sub(ray_direction, 
-                                              vector3_scale(next_normal, 
+                                              vector3_mul(next_normal, 
                                                             2.0f*vector3_dot(ray_direction, next_normal)));
             Vector3 random_bounce = vector3_normalize(vector3_add(next_normal, 
                                                                   make_vector3(rand_bi(), rand_bi(), rand_bi())));
             ray_direction = vector3_normalize(vector3_lerp(random_bounce, pure_bounce, material.scatter));
         } else {
             Material material = world->materials[hit_material_index];
-            result = vector3_add(result, vector3_mul(attenuation, material.emit_color));
+            result = vector3_add(result, vector3_hadamard(attenuation, material.emit_color));
             break;
         }
     }
@@ -290,7 +291,7 @@ main(void) {
     }
     f32 half_screen_w = 0.5f*screen_w;
     f32 half_screen_h = 0.5f*screen_h;
-    Vector3 screen_c = vector3_sub(cam_p, vector3_scale(cam_z, screen_d));
+    Vector3 screen_c = vector3_sub(cam_p, vector3_mul(cam_z, screen_d));
 
     f32 half_pixel_w = 0.5f / image.width;
     f32 half_pixel_h = 0.5f / image.height;
@@ -310,13 +311,13 @@ main(void) {
                 f32 offset_x = screen_x + rand_bi()*half_pixel_w;
                 f32 offset_y = screen_y + rand_bi()*half_pixel_h;
                 Vector3 screen_p = vector3_add(screen_c, 
-                                               vector3_add(vector3_scale(cam_x, offset_x*half_screen_w), 
-                                                           vector3_scale(cam_y, offset_y*half_screen_h)));
+                                               vector3_add(vector3_mul(cam_x, offset_x*half_screen_w), 
+                                                           vector3_mul(cam_y, offset_y*half_screen_h)));
                 Vector3 ray_origin = cam_p;
                 Vector3 ray_direction = vector3_normalize(vector3_sub(screen_p, cam_p));
 
                 Vector3 ray_cast_color = ray_cast(&world, ray_origin, ray_direction);
-                color = vector3_add(color, vector3_scale(ray_cast_color, contrib)); 
+                color = vector3_add(color, vector3_mul(ray_cast_color, contrib)); 
             }
 
             color.r = exact_linear_to_srgb(color.r)*255.0f;

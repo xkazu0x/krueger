@@ -116,7 +116,7 @@ platform_update_window_events(void) {
         KeySym keysym = XLookupKeysym(event, 0);
         push_event.keycode = linux_translate_keycode(keysym);
         buf_push(event_buf, push_event);
-      }
+      } break;
       case FocusIn:
       case FocusOut: {
         XFocusChangeEvent *event = (XFocusChangeEvent *)&base_event;
