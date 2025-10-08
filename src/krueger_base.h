@@ -1,5 +1,5 @@
-#ifndef BASE_H
-#define BASE_H
+#ifndef KRUEGER_BASE_H
+#define KRUEGER_BASE_H
 
 //////////////////////////////////
 // NOTE: Standard Library Includes
@@ -379,4 +379,4 @@ internal void *buf__grow(const void *buf, uxx new_len, uxx elem_size);
 internal uxx cstr_len(char *cstr);
 internal b32 cstr_match(char *a, char *b);
 
-#endif // BASE_H
+#endif // KRUEGER_BASE_H

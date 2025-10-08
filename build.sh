@@ -13,14 +13,17 @@ if [ -v clang ];     then compiler="${CC:-clang}"; echo "[clang compiler]"; fi
 gcc_common="-I../src/ -std=gnu11 -Wall -Wextra -Wno-unused-function -Wno-unused-variable"
 gcc_debug="$compiler -O0 -g -DBUILD_DEBUG=1 ${gcc_common}"
 gcc_release="$compiler -O2 -DBUILD_DEBUG=0 ${gcc_common}"
-gcc_link="-lm -lX11"
+gcc_link="-lm"
 gcc_out="-o"
 
 clang_common="-I../src/ -std=gnu11 -Wall -Wextra -Wno-unused-function -Wno-unused-variable"
 clang_debug="$compiler -O0 -g -DBUILD_DEBUG=1 ${clang_common}"
 clang_release="$compiler -O2 -DBUILD_DEBUG=0 ${clang_common}"
-clang_link="-lm -lX11"
+clang_link="-lm"
 clang_out="-o"
+
+shared="-fPIC -shared"
+link_os="-lX11"
 
 if [ -v gcc ]; then compile_debug="$gcc_debug"; fi
 if [ -v gcc ]; then compile_release="$gcc_release"; fi
@@ -38,6 +41,7 @@ if [ -v release ]; then compile="$compile_release"; fi
 mkdir -p build
 
 cd build
-$compile ../src/krueger.c $link $out krueger 
+$compile $shared ../src/krueger_shared.c $link          $out libkrueger.so
+$compile         ../src/krueger_main.c   $link $link_os $out krueger 
 if [ -v run ]; then ./krueger; fi
 cd ..

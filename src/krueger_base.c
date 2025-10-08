@@ -1,5 +1,5 @@
-#ifndef BASE_C
-#define BASE_C
+#ifndef KRUEGER_BASE_C
+#define KRUEGER_BASE_C
 
 /////////////
 // NOTE: Math
@@ -454,4 +454,4 @@ cstr_match(char *a, char *b) {
   return(result);
 }
 
-#endif // BASE_C
+#endif // KRUEGER_BASE_C
