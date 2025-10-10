@@ -62,13 +62,13 @@ typedef struct {
 } Input;
 
 typedef struct {
-  uxx width;
-  uxx height;
+  u32 width;
+  u32 height;
   u32 *pixels;
 } Image;
 
 internal Image
-alloc_image(uxx width, uxx height) {
+alloc_image(u32 width, u32 height) {
   Image result = {
     .width = width,
     .height = height,
@@ -79,7 +79,7 @@ alloc_image(uxx width, uxx height) {
 
 internal void
 image_clear(Image image, u32 color) {
-  for (uxx i = 0; i < (image.width*image.height); ++i) {
+  for (u32 i = 0; i < (image.width*image.height); ++i) {
     image.pixels[i] = color;
   }
 }

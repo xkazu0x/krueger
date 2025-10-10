@@ -378,5 +378,6 @@ internal void *buf__grow(const void *buf, uxx new_len, uxx elem_size);
 
 internal uxx cstr_len(char *cstr);
 internal b32 cstr_match(char *a, char *b);
+internal uxx cstr_encode(char *cstr);
 
 #endif // KRUEGER_BASE_H

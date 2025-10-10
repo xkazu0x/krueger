@@ -454,4 +454,14 @@ cstr_match(char *a, char *b) {
   return(result);
 }
 
+internal uxx
+cstr_encode(char *cstr) {
+  uxx result = 0;
+  uxx len = cstr_len(cstr);
+  for (uxx i = 0; i < len; ++i) {
+    result |= cstr[i] << 8*i;
+  }
+  return(result);
+}
+
 #endif // KRUEGER_BASE_C

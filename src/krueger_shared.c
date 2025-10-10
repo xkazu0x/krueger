@@ -10,6 +10,65 @@
 #define GREEN_MASK(x) ((x >>  8) & 0xFF)
 #define BLUE_MASK(x)  ((x >>  0) & 0xFF)
 
+#pragma pack(push, 1)
+typedef struct {
+  u16 file_type;
+  u32 file_size;
+  u16 reserved1;
+  u16 reserved2;
+  u32 data_offset;
+} Bmp_File_Header;
+
+typedef struct {
+  u32 header_size;
+  s32 image_width;
+  s32 image_height;
+  u16 num_color_planes;
+  u16 bits_per_pixel;
+  u32 compression;
+  u32 image_size;
+  s32 x_resolution_ppm;
+  s32 y_resolution_ppm;
+  u32 num_colors;
+  u32 num_important_colors;
+} Bmp_Info_Header;
+
+// NOTE: in big-endian
+typedef struct {
+  u32 red_mask;
+  u32 green_mask;
+  u32 blue_mask;
+  u32 alpha_mask;
+} Bmp_Color_Header;
+#pragma pack(pop)
+
+internal void *
+load_bmp(char *filename, u32 *width, u32 *height) {
+  void *result = 0;
+  FILE *file = fopen(filename, "rb");
+  if (file) {
+    fseek(file, 0, SEEK_END);
+    uxx file_size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    void *file_data = malloc(file_size);
+    if (fread(file_data, file_size, 1, file)) {
+      Bmp_File_Header *bmp_header = (Bmp_File_Header *)file_data;
+      if (bmp_header->file_type == cstr_encode("BM")) {
+        Bmp_Info_Header *bmp_info = (Bmp_Info_Header *)((u8 *)file_data + sizeof(Bmp_File_Header));
+        *width = bmp_info->image_width;
+        *height = bmp_info->image_height;
+        result = (u32 *)((u8 *)file_data + bmp_header->data_offset);
+        // printf("header size: %d\n", bmp_info->header_size);
+      }
+    } else {
+      printf("[ERROR]: load_bmp: failed to read file: %s", filename);
+    }
+  } else {
+    printf("[ERROR]: load_bmp: failed to open file: %s", filename);
+  }
+  return(result);
+}
+
 typedef struct {
   Vector3 *vertex_buf;
   u32 *vertex_index_buf;
@@ -497,9 +556,27 @@ test_draw_mesh_f32(Image back_buffer, Mesh mesh,
   }
 }
 
+internal void
+draw_texture(u32 *dst_buf, u32 dst_w, u32 dst_h,
+             u32 *src_buf, u32 src_w, u32 src_h,
+             s32 x, s32 y) {
+  s32 min_x = clamp_bot(0, x);
+  s32 min_y = clamp_bot(0, y);
+  s32 max_x = clamp_top(x + src_w, dst_w);
+  s32 max_y = clamp_top(y + src_h, dst_h);
+  for (s32 dy = min_y; dy < max_y; ++dy) {
+    for (s32 dx = min_x; dx < max_x; ++dx) {
+      // dst_buf[dy*dst_w + dx] = src_buf[dy*src_w + dx];
+      // NOTE: vertically flipped
+      dst_buf[dy*dst_w + dx] = src_buf[src_w*(src_h-1) - dy*src_w + dx];
+    }
+  }
+}
+
 global b32 initialized;
 global char debug_str[256];
 global u32 tick;
+global Image bmp;
 global Mesh mesh;
 global Vector3 cam_p;
 global Vector3 cam_up;
@@ -510,6 +587,7 @@ global f32 cam_yaw;
 UPDATE_AND_RENDER_PROC(update_and_render) {
   Digital_Button *kbd = input.kbd;
   if (!initialized) {
+    bmp.pixels = load_bmp("../res/4x4.bmp", &bmp.width, &bmp.height);
     mesh    = load_obj("../res/monkey.obj");
     cam_p   = make_vector3(0.0f, 0.0f, 0.0f);
     cam_up  = make_vector3(0.0f, 1.0f, 0.0f);
@@ -579,5 +657,10 @@ UPDATE_AND_RENDER_PROC(update_and_render) {
               (u8 *)default_font_glyphs, KRUEGER_FONT_WIDTH, KRUEGER_FONT_HEIGHT,
               text_size, text_color);
   } // NOTE: Draw Debug Info
+
+  draw_texture(back_buffer.pixels, back_buffer.width, back_buffer.height,
+               bmp.pixels, bmp.width, bmp.height, 
+               0, 0);
+
   ++tick;
 }
