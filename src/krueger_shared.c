@@ -208,10 +208,10 @@ draw_triangle_f32(u32 *pixels, u32 width, u32 height,
                   f32 x1, f32 y1,
                   f32 x2, f32 y2,
                   u32 color) {
-  u32 min_x = clamp_bot(0, floor_f32(min(min(x0, x1), x2)));
-  u32 min_y = clamp_bot(0, floor_f32(min(min(y0, y1), y2)));
-  u32 max_x = clamp_top(ceil_f32(max(max(x0, x1), x2)), width);
-  u32 max_y = clamp_top(ceil_f32(max(max(y0, y1), y2)), height);
+  s32 min_x = clamp_bot(0, floor_f32(min(min(x0, x1), x2)));
+  s32 min_y = clamp_bot(0, floor_f32(min(min(y0, y1), y2)));
+  s32 max_x = clamp_top(ceil_f32(max(max(x0, x1), x2)), width);
+  s32 max_y = clamp_top(ceil_f32(max(max(y0, y1), y2)), height);
   f32 x01 = x1 - x0;
   f32 y01 = y1 - y0;
   f32 x12 = x2 - x1;
@@ -221,11 +221,11 @@ draw_triangle_f32(u32 *pixels, u32 width, u32 height,
   f32 bias0 = (((y01 == 0.0f) && (x01 > 0.0f)) || (y01 < 0.0f)) ? 0.0f : -0.0001;
   f32 bias1 = (((y12 == 0.0f) && (x12 > 0.0f)) || (y12 < 0.0f)) ? 0.0f : -0.0001;
   f32 bias2 = (((y20 == 0.0f) && (x20 > 0.0f)) || (y20 < 0.0f)) ? 0.0f : -0.0001;
-  for (u32 y = min_y; y < max_y; ++y) {
+  for (s32 y = min_y; y < max_y; ++y) {
     f32 dy0 = ((f32)y + 0.5f) - y0;
     f32 dy1 = ((f32)y + 0.5f) - y1;
     f32 dy2 = ((f32)y + 0.5f) - y2;
-    for (u32 x = min_x; x < max_x; ++x) {
+    for (s32 x = min_x; x < max_x; ++x) {
       f32 dx0 = ((f32)x + 0.5f) - x0;
       f32 dx1 = ((f32)x + 0.5f) - x1;
       f32 dx2 = ((f32)x + 0.5f) - x2;
@@ -275,10 +275,10 @@ draw_triangle3_s32(u32 *pixels, u32 width, u32 height,
         f32 alpha = w0/det;
         f32 beta = w1/det;
         f32 gamma = w2/det;
-        u32 a = 0xFF;
-        u32 r = RED_MASK(c0)*alpha + RED_MASK(c1)*beta + RED_MASK(c2)*gamma;
-        u32 g = GREEN_MASK(c0)*alpha + GREEN_MASK(c1)*beta + GREEN_MASK(c2)*gamma;
-        u32 b = BLUE_MASK(c0)*alpha + BLUE_MASK(c1)*beta + BLUE_MASK(c2)*gamma;
+        u8 a = 0xFF;
+        u8 r = RED_MASK(c0)*alpha + RED_MASK(c1)*beta + RED_MASK(c2)*gamma;
+        u8 g = GREEN_MASK(c0)*alpha + GREEN_MASK(c1)*beta + GREEN_MASK(c2)*gamma;
+        u8 b = BLUE_MASK(c0)*alpha + BLUE_MASK(c1)*beta + BLUE_MASK(c2)*gamma;
         u32 color = ((a << 24) | (r << 16) | (g << 8) | (b << 0));
         pixels[y*width + x] = color;
       }
@@ -291,10 +291,10 @@ draw_triangle3_f32(u32 *pixels, u32 width, u32 height,
                    f32 x0, f32 y0, u32 c0,
                    f32 x1, f32 y1, u32 c1,
                    f32 x2, f32 y2, u32 c2) {
-  u32 min_x = clamp_bot(0, floor_f32(min(min(x0, x1), x2)));
-  u32 min_y = clamp_bot(0, floor_f32(min(min(y0, y1), y2)));
-  u32 max_x = clamp_top(ceil_f32(max(max(x0, x1), x2)), width);
-  u32 max_y = clamp_top(ceil_f32(max(max(y0, y1), y2)), height);
+  s32 min_x = clamp_bot(0, floor_f32(min(min(x0, x1), x2)));
+  s32 min_y = clamp_bot(0, floor_f32(min(min(y0, y1), y2)));
+  s32 max_x = clamp_top(ceil_f32(max(max(x0, x1), x2)), width);
+  s32 max_y = clamp_top(ceil_f32(max(max(y0, y1), y2)), height);
   f32 x01 = x1 - x0;
   f32 y01 = y1 - y0;
   f32 x02 = x2 - x0;
@@ -307,11 +307,11 @@ draw_triangle3_f32(u32 *pixels, u32 width, u32 height,
   f32 bias0 = (((y01 == 0.0f) && (x01 > 0.0f)) || (y01 < 0.0f)) ? 0.0f : -0.0001;
   f32 bias1 = (((y12 == 0.0f) && (x12 > 0.0f)) || (y12 < 0.0f)) ? 0.0f : -0.0001;
   f32 bias2 = (((y20 == 0.0f) && (x20 > 0.0f)) || (y20 < 0.0f)) ? 0.0f : -0.0001;
-  for (u32 y = min_y; y < max_y; ++y) {
+  for (s32 y = min_y; y < max_y; ++y) {
     f32 dy0 = ((f32)y + 0.5f) - y0;
     f32 dy1 = ((f32)y + 0.5f) - y1;
     f32 dy2 = ((f32)y + 0.5f) - y2;
-    for (u32 x = min_x; x < max_x; ++x) {
+    for (s32 x = min_x; x < max_x; ++x) {
       f32 dx0 = ((f32)x + 0.5f) - x0;
       f32 dx1 = ((f32)x + 0.5f) - x1;
       f32 dx2 = ((f32)x + 0.5f) - x2;
@@ -322,10 +322,10 @@ draw_triangle3_f32(u32 *pixels, u32 width, u32 height,
         f32 alpha = w0/det;
         f32 beta = w1/det;
         f32 gamma = w2/det;
-        u32 a = 0xFF;
-        u32 r = RED_MASK(c0)*alpha + RED_MASK(c1)*beta + RED_MASK(c2)*gamma;
-        u32 g = GREEN_MASK(c0)*alpha + GREEN_MASK(c1)*beta + GREEN_MASK(c2)*gamma;
-        u32 b = BLUE_MASK(c0)*alpha + BLUE_MASK(c1)*beta + BLUE_MASK(c2)*gamma;
+        u8 a = 0xFF;
+        u8 r = RED_MASK(c0)*alpha + RED_MASK(c1)*beta + RED_MASK(c2)*gamma;
+        u8 g = GREEN_MASK(c0)*alpha + GREEN_MASK(c1)*beta + GREEN_MASK(c2)*gamma;
+        u8 b = BLUE_MASK(c0)*alpha + BLUE_MASK(c1)*beta + BLUE_MASK(c2)*gamma;
         u32 color = ((a << 24) | (r << 16) | (g << 8) | (b << 0));
         pixels[y*width + x] = color;
       }
@@ -482,7 +482,7 @@ test_draw_mesh_f32(Image back_buffer, Mesh mesh,
       v0.xy = project_point_to_screen(v0.xy, w, h);
       v1.xy = project_point_to_screen(v1.xy, w, h);
       v2.xy = project_point_to_screen(v2.xy, w, h);
-
+      
       draw_triangle3_f32(px, w, h, 
                          v0.x, v0.y, 0x00FFFF,
                          v1.x, v1.y, 0xFF00FF,

@@ -221,8 +221,9 @@ main(void) {
 }
 
 // TODO:
-// - load font bitmap
-// - Texture Mapping
-// - Clipping
-// - Depth Buffer
 // - Fixed Frame Rate
+// - Load Bitmap
+// - Font Struct
+// - Clipping
+// - Texture Mapping
+// - Depth Buffer
