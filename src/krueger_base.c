@@ -459,7 +459,7 @@ cstr_encode(char *cstr) {
   uxx result = 0;
   uxx len = cstr_len(cstr);
   for (uxx i = 0; i < len; ++i) {
-    result |= cstr[i] << 8*i;
+    result |= cstr[i] << i*8;
   }
   return(result);
 }
