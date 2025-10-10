@@ -49,7 +49,7 @@ load_obj(char *filename) {
 }
 
 internal void
-fill_rect(u32 *pixels, u32 width, u32 height,
+draw_rect(u32 *pixels, u32 width, u32 height,
           s32 x0, s32 y0, 
           s32 x1, s32 y1,
           u32 color) {
@@ -135,7 +135,7 @@ draw_char(u32 *pixels, u32 width, u32 height,
     for (u32 gx = 0; gx < glyph_width; ++gx) {
       s32 px = x + gx*font_size;
       if (glyph[gy*glyph_width + gx]) {
-        fill_rect(pixels, width, height, px, py, px + font_size, py + font_size, color);
+        draw_rect(pixels, width, height, px, py, px + font_size, py + font_size, color);
       }
     }
   }
@@ -166,7 +166,7 @@ draw_text(u32 *pixels, u32 width, u32 height,
 }
 
 internal void
-fill_triangle_s32(u32 *pixels, u32 width, u32 height,
+draw_triangle_s32(u32 *pixels, u32 width, u32 height,
                   s32 x0, s32 y0,
                   s32 x1, s32 y1,
                   s32 x2, s32 y2,
@@ -203,7 +203,7 @@ fill_triangle_s32(u32 *pixels, u32 width, u32 height,
 }
 
 internal void
-fill_triangle_f32(u32 *pixels, u32 width, u32 height,
+draw_triangle_f32(u32 *pixels, u32 width, u32 height,
                   f32 x0, f32 y0,
                   f32 x1, f32 y1,
                   f32 x2, f32 y2,
@@ -240,7 +240,7 @@ fill_triangle_f32(u32 *pixels, u32 width, u32 height,
 }
 
 internal void
-fill_triangle3_s32(u32 *pixels, u32 width, u32 height,
+draw_triangle3_s32(u32 *pixels, u32 width, u32 height,
                    s32 x0, s32 y0, u32 c0,
                    s32 x1, s32 y1, u32 c1,
                    s32 x2, s32 y2, u32 c2) {
@@ -287,7 +287,7 @@ fill_triangle3_s32(u32 *pixels, u32 width, u32 height,
 }
 
 internal void
-fill_triangle3_f32(u32 *pixels, u32 width, u32 height,
+draw_triangle3_f32(u32 *pixels, u32 width, u32 height,
                    f32 x0, f32 y0, u32 c0,
                    f32 x1, f32 y1, u32 c1,
                    f32 x2, f32 y2, u32 c2) {
@@ -382,25 +382,9 @@ matrix4x4_quick_inverse(Matrix4x4 m) {
 }
 
 internal void
-test_draw_mesh_s32(Image back_buffer, Mesh mesh, b32 line, u32 tick) {
-  Vector3 cam_p   = make_vector3(0.0f, 0.0f, 0.0f);
-  Vector3 cam_up  = make_vector3(0.0f, 1.0f, 0.0f);
-  Vector3 cam_dir = make_vector3(0.0f, 0.0f, 1.0f);
-
-  Matrix4x4 scale = matrix4x4_scale(make_vector3(1.0f, 1.0f, 1.0f));
-  Matrix4x4 rotate = matrix4x4_rotate(make_vector3(1.0f, 1.0f, 0.0f), radians_f32(tick));
-  Matrix4x4 translate = matrix4x4_translate(-2.0f, 0.0f, 4.0f);
-
-  Matrix4x4 model = make_matrix4x4(1.0f);
-  model = matrix4x4_mul(scale, model);
-  model = matrix4x4_mul(rotate, model);
-  model = matrix4x4_mul(translate, model);
-
-  Matrix4x4 view = matrix4x4_quick_inverse(matrix4x4_point_at(cam_p, cam_dir, cam_up));
-
-  f32 aspect_ratio = (f32)back_buffer.height/(f32)back_buffer.width;
-  Matrix4x4 proj = matrix4x4_perspective(90.0f, aspect_ratio, 0.1f, 100.0f);
-
+test_draw_mesh_s32(Image back_buffer, Mesh mesh,
+                   Matrix4x4 model, Matrix4x4 view, Matrix4x4 proj,
+                   Vector3 cam_p, b32 line) {
   for (u32 vertex_index = 0;
        vertex_index < buf_len(mesh.vertex_buf);
        vertex_index += 3) {
@@ -441,7 +425,7 @@ test_draw_mesh_s32(Image back_buffer, Mesh mesh, b32 line, u32 tick) {
       v1.xy = project_point_to_screen(v1.xy, w, h);
       v2.xy = project_point_to_screen(v2.xy, w, h);
 
-      fill_triangle3_s32(px, w, h, 
+      draw_triangle3_s32(px, w, h, 
                          v0.x, v0.y, 0xFF0000,
                          v1.x, v1.y, 0x00FF00,
                          v2.x, v2.y, 0x0000FF);
@@ -456,25 +440,9 @@ test_draw_mesh_s32(Image back_buffer, Mesh mesh, b32 line, u32 tick) {
 }
 
 internal void
-test_draw_mesh_f32(Image back_buffer, Mesh mesh, b32 line, u32 tick) {
-  Vector3 cam_p   = make_vector3(0.0f, 0.0f, 0.0f);
-  Vector3 cam_up  = make_vector3(0.0f, 1.0f, 0.0f);
-  Vector3 cam_dir = make_vector3(0.0f, 0.0f, 1.0f);
-
-  Matrix4x4 scale = matrix4x4_scale(make_vector3(1.0f, 1.0f, 1.0f));
-  Matrix4x4 rotate = matrix4x4_rotate(make_vector3(1.0f, 1.0f, 0.0f), radians_f32(tick));
-  Matrix4x4 translate = matrix4x4_translate(2.0f, 0.0f, 4.0f);
-
-  Matrix4x4 model = make_matrix4x4(1.0f);
-  model = matrix4x4_mul(scale, model);
-  model = matrix4x4_mul(rotate, model);
-  model = matrix4x4_mul(translate, model);
-
-  Matrix4x4 view = matrix4x4_quick_inverse(matrix4x4_point_at(cam_p, cam_dir, cam_up));
-
-  f32 aspect_ratio = (f32)back_buffer.height/(f32)back_buffer.width;
-  Matrix4x4 proj = matrix4x4_perspective(90.0f, aspect_ratio, 0.1f, 100.0f);
-
+test_draw_mesh_f32(Image back_buffer, Mesh mesh, 
+                   Matrix4x4 model, Matrix4x4 view, Matrix4x4 proj,
+                   Vector3 cam_p, b32 line) {
   for (u32 vertex_index = 0;
        vertex_index < buf_len(mesh.vertex_buf);
        vertex_index += 3) {
@@ -515,7 +483,7 @@ test_draw_mesh_f32(Image back_buffer, Mesh mesh, b32 line, u32 tick) {
       v1.xy = project_point_to_screen(v1.xy, w, h);
       v2.xy = project_point_to_screen(v2.xy, w, h);
 
-      fill_triangle3_f32(px, w, h, 
+      draw_triangle3_f32(px, w, h, 
                          v0.x, v0.y, 0x00FFFF,
                          v1.x, v1.y, 0xFF00FF,
                          v2.x, v2.y, 0xFFFF00);
@@ -529,44 +497,60 @@ test_draw_mesh_f32(Image back_buffer, Mesh mesh, b32 line, u32 tick) {
   }
 }
 
-#if 0
-{
+global b32 initialized;
+global char debug_str[256];
+global u32 tick;
+global Mesh mesh;
+global Vector3 cam_p;
+global Vector3 cam_up;
+global Vector3 cam_dir;
+global Vector3 cam_vel;
+global f32 cam_yaw;
+
+UPDATE_AND_RENDER_PROC(update_and_render) {
+  Digital_Button *kbd = input.kbd;
+  if (!initialized) {
+    mesh    = load_obj("../res/monkey.obj");
+    cam_p   = make_vector3(0.0f, 0.0f, 0.0f);
+    cam_up  = make_vector3(0.0f, 1.0f, 0.0f);
+    cam_dir = make_vector3(0.0f, 0.0f, 1.0f);
+    initialized = true;
+  }
+
   cam_vel = make_vector3(0.0f, 0.0f, 0.0f);
   if (kbd[KEY_H].is_down) cam_vel.x--;
   if (kbd[KEY_J].is_down) cam_vel = vector3_sub(cam_vel, cam_dir);
   if (kbd[KEY_K].is_down) cam_vel = vector3_add(cam_vel, cam_dir);
   if (kbd[KEY_L].is_down) cam_vel.x++;
-  cam_p = vector3_add(cam_p, cam_vel);        
+  cam_p = vector3_add(cam_p, cam_vel);
 
   if (kbd[KEY_A].is_down) cam_yaw--;
   if (kbd[KEY_F].is_down) cam_yaw++;
+
+  f32 aspect_ratio = (f32)back_buffer.height/(f32)back_buffer.width;
+  Matrix4x4 proj = matrix4x4_perspective(90.0f, aspect_ratio, 0.1f, 100.0f);
 
   Vector3 cam_target = make_vector3(0.0f, 0.0f, 1.0f);
   Matrix4x4 cam_rotate = matrix4x4_rotate(make_vector3(0.0f, 1.0f, 0.0f), radians_f32(cam_yaw));
   cam_dir = matrix4x4_mul_vector4(cam_rotate, vector4_from_vector3(cam_target, 1.0f)).xyz;
   cam_target = vector3_add(cam_p, cam_dir);
   Matrix4x4 view = matrix4x4_quick_inverse(matrix4x4_point_at(cam_p, cam_target, cam_up));
-}
-#endif
-
-global b32 initialized;
-global Mesh mesh;
-global char debug_str[256];
-
-UPDATE_AND_RENDER_PROC(update_and_render) {
-  if (!initialized) {
-    mesh = load_obj("../res/monkey.obj");
-  }
-  
-  if (input.kbd[KEY_W].pressed) printf("[W]: PRESSED\n");
-  if (input.kbd[KEY_A].pressed) printf("[A]: PRESSED\n");
-  if (input.kbd[KEY_S].pressed) printf("[S]: PRESSED\n");
-  if (input.kbd[KEY_D].pressed) printf("[D]: PRESSED\n");
 
   image_clear(back_buffer, 0x000000);
-
-  test_draw_mesh_s32(back_buffer, mesh, false, tick);
-  test_draw_mesh_f32(back_buffer, mesh, false, tick);
+  Matrix4x4 scale = matrix4x4_scale(make_vector3(1.0f, 1.0f, 1.0f));
+  Matrix4x4 rotate = matrix4x4_rotate(make_vector3(1.0f, 1.0f, 0.0f), radians_f32(tick));
+  Matrix4x4 translate = matrix4x4_translate(-2.0f, 0.0f, 4.0f);
+  Matrix4x4 model = make_matrix4x4(1.0f);
+  model = matrix4x4_mul(scale, model);
+  model = matrix4x4_mul(rotate, model);
+  model = matrix4x4_mul(translate, model);
+  test_draw_mesh_s32(back_buffer, mesh, model, view, proj, cam_p, false);
+  translate = matrix4x4_translate(2.0f, 0.0f, 4.0f);
+  model = make_matrix4x4(1.0f);
+  model = matrix4x4_mul(scale, model);
+  model = matrix4x4_mul(rotate, model);
+  model = matrix4x4_mul(translate, model);
+  test_draw_mesh_f32(back_buffer, mesh, model, view, proj, cam_p, false);
 
   { // NOTE: Draw Debug Info
     f32 ms_per_frame = (f32)clock_delta/(f32)million(1);
@@ -595,4 +579,5 @@ UPDATE_AND_RENDER_PROC(update_and_render) {
               (u8 *)default_font_glyphs, KRUEGER_FONT_WIDTH, KRUEGER_FONT_HEIGHT,
               text_size, text_color);
   } // NOTE: Draw Debug Info
+  ++tick;
 }

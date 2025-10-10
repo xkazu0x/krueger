@@ -5,8 +5,8 @@
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <dlfcn.h>
-#include <stdio.h>
 #include <time.h>
+#include <stdio.h>
 
 internal Keycode
 linux_translate_keycode(KeySym keycode) {
@@ -83,18 +83,30 @@ linux_get_wall_clock(void) {
 }
 
 global Input input;
-global Update_And_Render_Proc *update_and_render;
+global void *libkrueger;
+#define PROC(x) global x##_proc *x;
+SHARED_PROC_LIST;
+#undef PROC
 
-int
-main(void) {
-  char *krueger_lib_str = "../build/libkrueger.so";
-  void *krueger_lib = dlopen(krueger_lib_str, RTLD_NOW);
-  if (krueger_lib) {
-    update_and_render = dlsym(krueger_lib, "update_and_render"); 
-    if (!update_and_render) printf("[ERROR]: %s\n", dlerror());
+internal void
+linux_reload_libkrueger(char *lib_str) {
+  if (libkrueger) dlclose(libkrueger);
+  libkrueger = dlopen(lib_str, RTLD_NOW);
+  if (libkrueger) {
+  #define PROC(x) \
+    x = dlsym(libkrueger, #x); \
+    if (!x) printf("[ERROR]: %s\n", dlerror());
+  SHARED_PROC_LIST;
+  #undef PROC
   } else {
     printf("[ERROR]: %s\n", dlerror());
   }
+}
+
+int
+main(void) {
+  char *libkrueger_str = "../build/libkrueger.so";
+  linux_reload_libkrueger(libkrueger_str);
 
   char *window_title = "krueger";
 
@@ -131,7 +143,6 @@ main(void) {
 
   u64 clock_start = linux_get_wall_clock();
   u64 clock_delta = 0;
-  u32 tick = 0;
 
   for (b32 quit = false; !quit;) {
     while (XPending(display)) {
@@ -172,12 +183,10 @@ main(void) {
     }
 
     if (input.kbd[KEY_Q].pressed) quit = true;
-    if (update_and_render) update_and_render(back_buffer, input, clock_delta, tick);
-    linux_reset_input(&input);
+    if (input.kbd[KEY_R].pressed) linux_reload_libkrueger(libkrueger_str);
 
-    u64 clock_end = linux_get_wall_clock();
-    clock_delta = clock_end - clock_start;
-    clock_start = clock_end;
+    if (update_and_render) update_and_render(back_buffer, input, clock_delta);
+    linux_reset_input(&input);
 
     // NOTE: nearest-neighbor interpolation
     f32 scale_x = (f32)back_buffer.width/(f32)front_buffer.width;
@@ -190,12 +199,15 @@ main(void) {
       }
     }
     
-    // NOTE: display frame buffer
+    // NOTE: display front buffer
     GC context = XCreateGC(display, window, 0, 0);
     XPutImage(display, window, context, image, 0, 0, 0, 0, window_width, window_height);
     XFreeGC(display, context);
-
-    ++tick;
+    
+    // NOTE: compute time
+    u64 clock_end = linux_get_wall_clock();
+    clock_delta = clock_end - clock_start;
+    clock_start = clock_end;
   }
 
   XUnmapWindow(display, window);
@@ -204,11 +216,12 @@ main(void) {
   XAutoRepeatOn(display);
   XCloseDisplay(display);
 
-  dlclose(krueger_lib);
+  dlclose(libkrueger);
   return(0);
 }
 
 // TODO:
+// - load font bitmap
 // - Texture Mapping
 // - Clipping
 // - Depth Buffer
