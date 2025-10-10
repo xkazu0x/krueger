@@ -657,6 +657,7 @@ global Vector3 cam_dir;
 global Vector3 cam_vel;
 global f32 cam_yaw;
 
+shared_function
 UPDATE_AND_RENDER_PROC(update_and_render) {
   Digital_Button *kbd = input.kbd;
   if (!initialized) {
@@ -704,10 +705,7 @@ UPDATE_AND_RENDER_PROC(update_and_render) {
   test_draw_mesh_f32(back_buffer, mesh, model, view, proj, cam_p, false);
 
   { // NOTE: Draw Debug Info
-    f32 ms_per_frame = (f32)clock_delta/(f32)million(1);
-    f32 frames_per_sec = (f32)billion(1)/(f32)clock_delta;
-
-    sprintf(debug_str, "%.2f FPS\n%.2f MS", frames_per_sec, ms_per_frame);
+    sprintf(debug_str, "FPS: %.2f\n MS: %.2f", time.fps, time.dt_ms);
 
     u32 text_size = 1;
     u32 text_color = 0xc1c1c1;

@@ -62,6 +62,12 @@ typedef struct {
 } Input;
 
 typedef struct {
+  f32 dt_sec;
+  f32 dt_ms;
+  f32 fps;
+} Clock;
+
+typedef struct {
   u32 width;
   u32 height;
   u32 *pixels;
@@ -84,7 +90,7 @@ image_clear(Image image, u32 color) {
   }
 }
 
-#define UPDATE_AND_RENDER_PROC(x) void x(Image back_buffer, Input input, u64 clock_delta)
+#define UPDATE_AND_RENDER_PROC(x) void x(Image back_buffer, Input input, Clock time)
 typedef UPDATE_AND_RENDER_PROC(update_and_render_proc);
 
 #define SHARED_PROC_LIST \

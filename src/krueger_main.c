@@ -1,6 +1,261 @@
 #include "krueger_base.h"
-#include "krueger_base.c"
+#include "krueger_platform.h"
 #include "krueger_shared.h"
+
+#include "krueger_base.c"
+#include "krueger_platform.c"
+
+#define BITS_PER_PIXEL 32
+
+global Input input;
+global void *libkrueger;
+#define PROC(x) global x##_proc *x;
+SHARED_PROC_LIST;
+#undef PROC
+
+internal void
+process_digital_button(Digital_Button *b, b32 is_down) {
+  b32 was_down = b->is_down;
+  b->pressed = !was_down && is_down; 
+  b->released = was_down && !is_down;
+  b->is_down = is_down;
+}
+
+internal void
+input_reset(Input *input) {
+  for (u32 key = 0; key < KEY_MAX; ++key) {
+    input->kbd[key].pressed = false;
+    input->kbd[key].released = false;
+  }
+}
+
+#if PLATFORM_WINDOWS
+#pragma comment(lib, "user32")
+#pragma comment(lib, "gdi32")
+
+internal LRESULT CALLBACK
+win32_window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
+    LRESULT result = 0;
+    switch (message) {
+        case WM_CLOSE:
+        case WM_DESTROY: {
+            PostQuitMessage(0);
+        } break;
+        default: {
+            result = DefWindowProcA(window, message, wparam, lparam);
+        }
+    }
+    return(result);
+}
+
+internal Keycode
+win32_translate_keycode(u32 keycode) {
+  Keycode result = KEY_NULL;
+  switch (keycode) {
+    case '0': result = KEY_0; break;
+    case '1': result = KEY_1; break;
+    case '2': result = KEY_2; break;
+    case '3': result = KEY_3; break;
+    case '4': result = KEY_4; break;
+    case '5': result = KEY_5; break;
+    case '6': result = KEY_6; break;
+    case '7': result = KEY_7; break;
+    case '8': result = KEY_8; break;
+    case '9': result = KEY_9; break;
+    case 'A': result = KEY_A; break;
+    case 'B': result = KEY_B; break;
+    case 'C': result = KEY_C; break;
+    case 'D': result = KEY_D; break;
+    case 'E': result = KEY_E; break;
+    case 'F': result = KEY_F; break;
+    case 'G': result = KEY_G; break;
+    case 'H': result = KEY_H; break;
+    case 'I': result = KEY_I; break;
+    case 'J': result = KEY_J; break;
+    case 'K': result = KEY_K; break;
+    case 'L': result = KEY_L; break;
+    case 'M': result = KEY_M; break;
+    case 'N': result = KEY_N; break;
+    case 'O': result = KEY_O; break;
+    case 'P': result = KEY_P; break;
+    case 'Q': result = KEY_Q; break;
+    case 'R': result = KEY_R; break;
+    case 'S': result = KEY_S; break;
+    case 'T': result = KEY_T; break;
+    case 'U': result = KEY_U; break;
+    case 'V': result = KEY_V; break;
+    case 'W': result = KEY_W; break;
+    case 'X': result = KEY_X; break;
+    case 'Y': result = KEY_Y; break;
+    case 'Z': result = KEY_Z; break;
+
+    case VK_UP: result = KEY_UP; break;
+    case VK_LEFT: result = KEY_LEFT; break;
+    case VK_DOWN: result = KEY_DOWN; break;
+    case VK_RIGHT: result = KEY_RIGHT; break;
+  }
+  return(result);
+}
+
+internal void
+win32_reload_libkrueger(char *lib_str) {
+  if (libkrueger) FreeLibrary(libkrueger);
+  libkrueger = LoadLibraryA(lib_str);
+  if (libkrueger) {
+    #define PROC(x) \
+      (*(PROC*)(&(x))) = GetProcAddress(libkrueger, #x); \
+      if (!x) printf("[ERROR]: %s: failed to load proc %s\n", lib_str, #x);
+    SHARED_PROC_LIST;
+    #undef PROC
+  } else {
+    printf("[ERROR]: %s: failed to reload\n", lib_str);
+  }
+}
+
+internal u64
+win32_get_wall_clock(void) {
+  LARGE_INTEGER large_integer;
+  QueryPerformanceCounter(&large_integer);
+  u64 result = large_integer.QuadPart;
+  return(result);
+}
+
+int
+main(void) {
+  char *libkrueger_str = "..\\build\\libkrueger.dll";
+  win32_reload_libkrueger(libkrueger_str);
+
+  char *window_title = "krueger";
+
+  s32 window_width = 800;
+  s32 window_height = 600;
+
+  s32 back_buffer_width = 320;
+  s32 back_buffer_height = 240;
+  uxx back_buffer_size = back_buffer_width*back_buffer_height*sizeof(u32);
+  u32 *back_buffer_pixels = platform_reserve(back_buffer_size);
+  platform_commit(back_buffer_pixels, back_buffer_size);
+  
+  s32 monitor_width = GetSystemMetrics(SM_CXSCREEN);
+  s32 monitor_height = GetSystemMetrics(SM_CYSCREEN);
+
+  s32 window_x = (monitor_width - window_width)/2;
+  s32 window_y = (monitor_height - window_height)/2;
+
+  s32 fixed_window_width = window_width;
+  s32 fixed_window_height = window_height;
+  u32 window_style = WS_OVERLAPPEDWINDOW;
+  u32 window_style_ex = 0;
+
+  RECT window_rectangle = {};
+  window_rectangle.left = 0;
+  window_rectangle.right = window_width;
+  window_rectangle.top = 0;
+  window_rectangle.bottom = window_height;
+  if (AdjustWindowRect(&window_rectangle, window_style, 0)) {
+    fixed_window_width = window_rectangle.right - window_rectangle.left;
+    fixed_window_height = window_rectangle.bottom - window_rectangle.top;
+  }
+
+  HINSTANCE window_instance = GetModuleHandleA(0);
+
+  WNDCLASSA window_class = {};
+  window_class.style = CS_HREDRAW | CS_VREDRAW;
+  window_class.lpfnWndProc = win32_window_proc;
+  window_class.cbClsExtra = 0;
+  window_class.cbWndExtra = 0;
+  window_class.hInstance = window_instance;
+  window_class.hIcon = LoadIcon(0, IDI_APPLICATION);
+  window_class.hCursor = LoadCursor(0, IDC_ARROW);
+  window_class.hbrBackground = CreateSolidBrush(RGB(255, 0, 255));
+  window_class.lpszMenuName = 0;
+  window_class.lpszClassName = "krueger_window_class";
+  ATOM window_atom = RegisterClassA(&window_class);
+  HWND window = CreateWindowExA(window_style_ex, MAKEINTATOM(window_atom),
+                                window_title, window_style,
+                                window_x, window_y,
+                                fixed_window_width, fixed_window_height,
+                                0, 0, window_instance, 0);
+  ShowWindow(window, SW_SHOW);
+
+  BITMAPINFO bitmap_info = {
+    .bmiHeader.biSize = sizeof(bitmap_info.bmiHeader),
+    .bmiHeader.biWidth = back_buffer_width,
+    .bmiHeader.biHeight = -back_buffer_height,
+    .bmiHeader.biPlanes = 1,
+    .bmiHeader.biBitCount = BITS_PER_PIXEL,
+    .bmiHeader.biCompression = BI_RGB,
+  };
+
+  LARGE_INTEGER large_integer;
+  QueryPerformanceFrequency(&large_integer);
+  u64 performance_frequency = large_integer.QuadPart;
+  
+  Clock time = {0};
+  u64 clock_start = win32_get_wall_clock();
+
+  for (b32 quit = false; !quit;) {
+    MSG message;
+    while (PeekMessageA(&message, 0, 0, 0, PM_REMOVE)) {
+      switch (message.message) {
+        case WM_QUIT: {
+          quit = true;
+        } break;
+        case WM_SYSKEYDOWN:
+        case WM_SYSKEYUP:
+        case WM_KEYDOWN:
+        case WM_KEYUP: {
+          Keycode keycode = win32_translate_keycode((u32)message.wParam);
+          b32 is_down = ((message.lParam & (1 << 31)) == 0);
+          process_digital_button(input.kbd + keycode, is_down);
+          TranslateMessage(&message);
+          DispatchMessageA(&message);
+        } break;
+        default: {
+          TranslateMessage(&message);
+          DispatchMessageA(&message);
+        }
+      }
+    }
+    
+    RECT client_rectangle;
+    GetClientRect(window, &client_rectangle);
+    window_width = client_rectangle.right - client_rectangle.left;
+    window_height = client_rectangle.bottom - client_rectangle.top;
+
+    if (input.kbd[KEY_Q].pressed) quit = true;
+    if (input.kbd[KEY_R].pressed) win32_reload_libkrueger(libkrueger_str);
+    
+    Image back_buffer = {
+      .width = back_buffer_width,
+      .height = back_buffer_height,
+      .pixels = back_buffer_pixels,
+    };
+    if (update_and_render) update_and_render(back_buffer, input, time);
+    input_reset(&input);
+    
+    // NOTE: display back buffer
+    HDC window_device = GetDC(window);
+    StretchDIBits(window_device,
+                  0, 0, window_width, window_height,
+                  0, 0, back_buffer.width, back_buffer.height,
+                  back_buffer.pixels,
+                  &bitmap_info,
+                  DIB_RGB_COLORS, SRCCOPY);
+    ReleaseDC(window, window_device);
+
+    // NOTE: compute time
+    u64 clock_end = win32_get_wall_clock();
+    time.dt_sec = (f32)(clock_end - clock_start)/(f32)performance_frequency;
+    time.dt_ms = time.dt_sec*1000.0f;
+    time.fps = (f32)performance_frequency/(f32)(clock_end - clock_start);
+    clock_start = clock_end;
+  }
+
+  return(0);
+}
+
+#elif PLATFORM_LINUX
 
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
@@ -58,22 +313,6 @@ linux_translate_keycode(KeySym keycode) {
   return(result);
 }
 
-internal void
-linux_process_digital_button(Digital_Button *b, b32 is_down) {
-  b32 was_down = b->is_down;
-  b->pressed = !was_down && is_down; 
-  b->released = was_down && !is_down;
-  b->is_down = is_down;
-}
-
-internal void
-linux_reset_input(Input *input) {
-  for (u32 key = 0; key < KEY_MAX; ++key) {
-    input->kbd[key].pressed = false;
-    input->kbd[key].released = false;
-  }
-}
-
 internal u64
 linux_get_wall_clock(void) {
   struct timespec clock;
@@ -82,22 +321,16 @@ linux_get_wall_clock(void) {
   return(result);
 }
 
-global Input input;
-global void *libkrueger;
-#define PROC(x) global x##_proc *x;
-SHARED_PROC_LIST;
-#undef PROC
-
 internal void
 linux_reload_libkrueger(char *lib_str) {
   if (libkrueger) dlclose(libkrueger);
   libkrueger = dlopen(lib_str, RTLD_NOW);
   if (libkrueger) {
-  #define PROC(x) \
-    x = dlsym(libkrueger, #x); \
-    if (!x) printf("[ERROR]: %s\n", dlerror());
-  SHARED_PROC_LIST;
-  #undef PROC
+    #define PROC(x) \
+      x = dlsym(libkrueger, #x); \
+      if (!x) printf("[ERROR]: %s\n", dlerror());
+    SHARED_PROC_LIST;
+    #undef PROC
   } else {
     printf("[ERROR]: %s\n", dlerror());
   }
@@ -133,13 +366,13 @@ main(void) {
 
   Atom wm_delete_window = XInternAtom(display, "WM_DELETE_WINDOW", false);
   XSetWMProtocols(display, window, &wm_delete_window, 1);
-  
+
   XWindowAttributes attributes = {0};
   XGetWindowAttributes(display, window, &attributes);
 
   XImage *image = XCreateImage(display, attributes.visual, attributes.depth, ZPixmap, 0, 
                                (char *)front_buffer.pixels, front_buffer.width, front_buffer.height, 
-                               32, front_buffer.width*sizeof(u32));
+                               BITS_PER_PIXEL, front_buffer.width*sizeof(u32));
 
   u64 clock_start = linux_get_wall_clock();
   u64 clock_delta = 0;
@@ -163,7 +396,7 @@ main(void) {
           front_buffer = alloc_image(window_width, window_height);
           image = XCreateImage(display, attributes.visual, attributes.depth, ZPixmap, 0, 
                                (char *)front_buffer.pixels, front_buffer.width, front_buffer.height, 
-                               32, front_buffer.width*sizeof(u32));
+                               BITS_PER_PIXEL, front_buffer.width*sizeof(u32));
         } break;
         case KeyPress: 
         case KeyRelease: {
@@ -171,7 +404,7 @@ main(void) {
           KeySym keysym = XLookupKeysym(event, 0);
           Keycode keycode = linux_translate_keycode(keysym);
           b32 is_down = (base_event.type == KeyPress);
-          linux_process_digital_button(input.kbd + keycode, is_down);
+          process_digital_button(input.kbd + keycode, is_down);
         } break;
         case FocusIn:
         case FocusOut: {
@@ -186,7 +419,7 @@ main(void) {
     if (input.kbd[KEY_R].pressed) linux_reload_libkrueger(libkrueger_str);
 
     if (update_and_render) update_and_render(back_buffer, input, clock_delta);
-    linux_reset_input(&input);
+    input_reset(&input);
 
     // NOTE: nearest-neighbor interpolation
     f32 scale_x = (f32)back_buffer.width/(f32)front_buffer.width;
@@ -198,12 +431,12 @@ main(void) {
         front_buffer.pixels[y*front_buffer.width + x] = back_buffer.pixels[nearest_y*back_buffer.width + nearest_x];
       }
     }
-    
+
     // NOTE: display front buffer
     GC context = XCreateGC(display, window, 0, 0);
     XPutImage(display, window, context, image, 0, 0, 0, 0, window_width, window_height);
     XFreeGC(display, context);
-    
+
     // NOTE: compute time
     u64 clock_end = linux_get_wall_clock();
     clock_delta = clock_end - clock_start;
@@ -219,11 +452,11 @@ main(void) {
   dlclose(libkrueger);
   return(0);
 }
+#endif
 
 // TODO:
 // - Fixed Frame Rate
-// - Load Bitmap
-// - Font Struct
+// - Better Font Rendering
 // - Clipping
 // - Texture Mapping
 // - Depth Buffer

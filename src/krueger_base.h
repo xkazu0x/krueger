@@ -130,8 +130,11 @@
 #define ARCH_ARM32 0
 #endif
 
-////////////////
-// NOTE: Asserts
+#if PLATFORM_WINDOWS
+# define shared_function __declspec(dllexport)
+#else
+# define shared_function
+#endif
 
 #if COMPILER_MSVC
 #define trap() __debugbreak()
@@ -148,18 +151,12 @@
 #define assert(x) (void)(x)
 #endif
 
-//////////////////////
-// NOTE: Base Keywords
-
 #define internal static
 #define global static
 #define local static
 
 #define false 0
 #define true 1
-
-//////////////////////
-// NOTE: Helper Macros
 
 #define KB(n) (((u64)(n))<<10)
 #define MB(n) (((u64)(n))<<20)
@@ -169,10 +166,10 @@
 #define million(n)  ((n)*1000000)
 #define billion(n)  ((n)*1000000000)
 
-#define min(a, b) ((a)<(b)?(a):(b))
-#define max(a, b) ((a)>(b)?(a):(b))
-#define clamp_top(a, x) min(a, x);
-#define clamp_bot(x, b) max(x, b);
+#define MIN(a, b) ((a)<(b)?(a):(b))
+#define MAX(a, b) ((a)>(b)?(a):(b))
+#define clamp_top(a, x) MIN(a, x);
+#define clamp_bot(x, b) MAX(x, b);
 
 #define array_count(x) (sizeof(x)/sizeof(*(x)))
 #define square(x) ((x)*(x))
