@@ -18,7 +18,7 @@ platform_commit(void *ptr, uxx size) {
 }
 
 internal void
-platform_free(void *ptr) {
+platform_release(void *ptr) {
   if (ptr) VirtualFree(ptr, 0, MEM_RELEASE);
 }
 

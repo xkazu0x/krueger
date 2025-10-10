@@ -5,9 +5,10 @@
 #include "krueger_base.c"
 #include "krueger_platform.c"
 
+#include <stdio.h>
+
 #define BITS_PER_PIXEL 32
 
-global Input input;
 global void *libkrueger;
 #define PROC(x) global x##_proc *x;
 SHARED_PROC_LIST;
@@ -62,6 +63,7 @@ win32_translate_keycode(u32 keycode) {
     case '7': result = KEY_7; break;
     case '8': result = KEY_8; break;
     case '9': result = KEY_9; break;
+
     case 'A': result = KEY_A; break;
     case 'B': result = KEY_B; break;
     case 'C': result = KEY_C; break;
@@ -126,16 +128,9 @@ main(void) {
   win32_reload_libkrueger(libkrueger_str);
 
   char *window_title = "krueger";
-
   s32 window_width = 800;
   s32 window_height = 600;
 
-  s32 back_buffer_width = 320;
-  s32 back_buffer_height = 240;
-  uxx back_buffer_size = back_buffer_width*back_buffer_height*sizeof(u32);
-  u32 *back_buffer_pixels = platform_reserve(back_buffer_size);
-  platform_commit(back_buffer_pixels, back_buffer_size);
-  
   s32 monitor_width = GetSystemMetrics(SM_CXSCREEN);
   s32 monitor_height = GetSystemMetrics(SM_CYSCREEN);
 
@@ -147,7 +142,7 @@ main(void) {
   u32 window_style = WS_OVERLAPPEDWINDOW;
   u32 window_style_ex = 0;
 
-  RECT window_rectangle = {};
+  RECT window_rectangle = {0};
   window_rectangle.left = 0;
   window_rectangle.right = window_width;
   window_rectangle.top = 0;
@@ -159,7 +154,7 @@ main(void) {
 
   HINSTANCE window_instance = GetModuleHandleA(0);
 
-  WNDCLASSA window_class = {};
+  WNDCLASSA window_class = {0};
   window_class.style = CS_HREDRAW | CS_VREDRAW;
   window_class.lpfnWndProc = win32_window_proc;
   window_class.cbClsExtra = 0;
@@ -178,19 +173,30 @@ main(void) {
                                 0, 0, window_instance, 0);
   ShowWindow(window, SW_SHOW);
 
-  BITMAPINFO bitmap_info = {
-    .bmiHeader.biSize = sizeof(bitmap_info.bmiHeader),
-    .bmiHeader.biWidth = back_buffer_width,
-    .bmiHeader.biHeight = -back_buffer_height,
-    .bmiHeader.biPlanes = 1,
-    .bmiHeader.biBitCount = BITS_PER_PIXEL,
-    .bmiHeader.biCompression = BI_RGB,
-  };
+  s32 back_buffer_width = 320;
+  s32 back_buffer_height = 240;
+  uxx back_buffer_size = back_buffer_width*back_buffer_height*sizeof(u32);
+
+  Image back_buffer = {0};
+  back_buffer.width = back_buffer_width;
+  back_buffer.height = back_buffer_height;
+  back_buffer.pixels = platform_reserve(back_buffer_size);
+  platform_commit(back_buffer.pixels, back_buffer_size);
+
+  BITMAPINFO bitmap_info = {0};
+  bitmap_info.bmiHeader.biSize = sizeof(bitmap_info.bmiHeader);
+  bitmap_info.bmiHeader.biWidth = back_buffer_width;
+  bitmap_info.bmiHeader.biHeight = -back_buffer_height;
+  bitmap_info.bmiHeader.biPlanes = 1;
+  bitmap_info.bmiHeader.biBitCount = BITS_PER_PIXEL;
+  bitmap_info.bmiHeader.biCompression = BI_RGB;
+
+  Input input = {0};
 
   LARGE_INTEGER large_integer;
   QueryPerformanceFrequency(&large_integer);
-  u64 performance_frequency = large_integer.QuadPart;
-  
+  u64 clock_frequency = large_integer.QuadPart;
+
   Clock time = {0};
   u64 clock_start = win32_get_wall_clock();
 
@@ -217,7 +223,7 @@ main(void) {
         }
       }
     }
-    
+
     RECT client_rectangle;
     GetClientRect(window, &client_rectangle);
     window_width = client_rectangle.right - client_rectangle.left;
@@ -225,16 +231,10 @@ main(void) {
 
     if (input.kbd[KEY_Q].pressed) quit = true;
     if (input.kbd[KEY_R].pressed) win32_reload_libkrueger(libkrueger_str);
-    
-    Image back_buffer = {
-      .width = back_buffer_width,
-      .height = back_buffer_height,
-      .pixels = back_buffer_pixels,
-    };
+
     if (update_and_render) update_and_render(back_buffer, input, time);
     input_reset(&input);
-    
-    // NOTE: display back buffer
+
     HDC window_device = GetDC(window);
     StretchDIBits(window_device,
                   0, 0, window_width, window_height,
@@ -244,24 +244,20 @@ main(void) {
                   DIB_RGB_COLORS, SRCCOPY);
     ReleaseDC(window, window_device);
 
-    // NOTE: compute time
     u64 clock_end = win32_get_wall_clock();
-    time.dt_sec = (f32)(clock_end - clock_start)/(f32)performance_frequency;
+    time.dt_sec = (f32)(clock_end - clock_start)/(f32)clock_frequency;
     time.dt_ms = time.dt_sec*1000.0f;
-    time.fps = (f32)performance_frequency/(f32)(clock_end - clock_start);
+    time.fps = (f32)clock_frequency/(f32)(clock_end - clock_start);
     clock_start = clock_end;
   }
-
   return(0);
 }
 
 #elif PLATFORM_LINUX
-
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <dlfcn.h>
 #include <time.h>
-#include <stdio.h>
 
 internal Keycode
 linux_translate_keycode(KeySym keycode) {
@@ -313,14 +309,6 @@ linux_translate_keycode(KeySym keycode) {
   return(result);
 }
 
-internal u64
-linux_get_wall_clock(void) {
-  struct timespec clock;
-  clock_gettime(CLOCK_MONOTONIC, &clock);
-  u64 result = clock.tv_sec*billion(1) + clock.tv_nsec; 
-  return(result);
-}
-
 internal void
 linux_reload_libkrueger(char *lib_str) {
   if (libkrueger) dlclose(libkrueger);
@@ -336,13 +324,20 @@ linux_reload_libkrueger(char *lib_str) {
   }
 }
 
+internal u64
+linux_get_wall_clock(void) {
+  struct timespec clock;
+  clock_gettime(CLOCK_MONOTONIC, &clock);
+  u64 result = clock.tv_sec*billion(1) + clock.tv_nsec; 
+  return(result);
+}
+
 int
 main(void) {
   char *libkrueger_str = "../build/libkrueger.so";
   linux_reload_libkrueger(libkrueger_str);
 
   char *window_title = "krueger";
-
   s32 window_width = 800;
   s32 window_height = 600;
 

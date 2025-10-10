@@ -179,6 +179,13 @@ load_obj(char *filename) {
 }
 
 internal void
+clear(u32 *pixels, u32 width, u32 height, u32 color) {
+  for (u32 i = 0; i < (width*height); ++i) {
+    pixels[i] = color;
+  }
+}
+
+internal void
 draw_rect(u32 *pixels, u32 width, u32 height,
           s32 x0, s32 y0, 
           s32 x1, s32 y1,
@@ -338,19 +345,19 @@ draw_triangle_f32(u32 *pixels, u32 width, u32 height,
                   f32 x1, f32 y1,
                   f32 x2, f32 y2,
                   u32 color) {
-  s32 min_x = clamp_bot(0, floor_f32(min(min(x0, x1), x2)));
-  s32 min_y = clamp_bot(0, floor_f32(min(min(y0, y1), y2)));
-  s32 max_x = clamp_top(ceil_f32(max(max(x0, x1), x2)), width);
-  s32 max_y = clamp_top(ceil_f32(max(max(y0, y1), y2)), height);
+  s32 min_x = (s32)clamp_bot(0, floor_f32(min(min(x0, x1), x2)));
+  s32 min_y = (s32)clamp_bot(0, floor_f32(min(min(y0, y1), y2)));
+  s32 max_x = (s32)clamp_top(ceil_f32(max(max(x0, x1), x2)), width);
+  s32 max_y = (s32)clamp_top(ceil_f32(max(max(y0, y1), y2)), height);
   f32 x01 = x1 - x0;
   f32 y01 = y1 - y0;
   f32 x12 = x2 - x1;
   f32 y12 = y2 - y1;
   f32 x20 = x0 - x2;
   f32 y20 = y0 - y2;
-  f32 bias0 = (((y01 == 0.0f) && (x01 > 0.0f)) || (y01 < 0.0f)) ? 0.0f : -0.0001;
-  f32 bias1 = (((y12 == 0.0f) && (x12 > 0.0f)) || (y12 < 0.0f)) ? 0.0f : -0.0001;
-  f32 bias2 = (((y20 == 0.0f) && (x20 > 0.0f)) || (y20 < 0.0f)) ? 0.0f : -0.0001;
+  f32 bias0 = (((y01 == 0.0f) && (x01 > 0.0f)) || (y01 < 0.0f)) ? 0.0f : -0.0001f;
+  f32 bias1 = (((y12 == 0.0f) && (x12 > 0.0f)) || (y12 < 0.0f)) ? 0.0f : -0.0001f;
+  f32 bias2 = (((y20 == 0.0f) && (x20 > 0.0f)) || (y20 < 0.0f)) ? 0.0f : -0.0001f;
   for (s32 y = min_y; y < max_y; ++y) {
     f32 dy0 = ((f32)y + 0.5f) - y0;
     f32 dy1 = ((f32)y + 0.5f) - y1;
@@ -386,7 +393,7 @@ draw_triangle3(u32 *pixels, u32 width, u32 height,
   s32 y12 = y2 - y1;
   s32 x20 = x0 - x2;
   s32 y20 = y0 - y2;
-  f32 det = x01*y02 - y01*x02;
+  f32 det = (f32)(x01*y02 - y01*x02);
   s32 bias0 = (((y01 == 0) && (x01 > 0)) || (y01 < 0)) ? 0 : -1;
   s32 bias1 = (((y12 == 0) && (x12 > 0)) || (y12 < 0)) ? 0 : -1;
   s32 bias2 = (((y20 == 0) && (x20 > 0)) || (y20 < 0)) ? 0 : -1;
@@ -398,16 +405,16 @@ draw_triangle3(u32 *pixels, u32 width, u32 height,
       s32 dx0 = x - x0;
       s32 dx1 = x - x1;
       s32 dx2 = x - x2;
-      f32 w0 = x01*dy0 - y01*dx0 + bias0;
-      f32 w1 = x12*dy1 - y12*dx1 + bias1;
-      f32 w2 = x20*dy2 - y20*dx2 + bias2;
+      f32 w0 = (f32)(x01*dy0 - y01*dx0 + bias0);
+      f32 w1 = (f32)(x12*dy1 - y12*dx1 + bias1);
+      f32 w2 = (f32)(x20*dy2 - y20*dx2 + bias2);
       if ((w0 >= 0.0f) && (w1 >= 0.0f) && (w2 >= 0.0f)) {
         f32 alpha = w0/det;
         f32 beta = w1/det;
         f32 gamma = w2/det;
-        u8 r = RED_BYTE(c0)*alpha + RED_BYTE(c1)*beta + RED_BYTE(c2)*gamma;
-        u8 g = GREEN_BYTE(c0)*alpha + GREEN_BYTE(c1)*beta + GREEN_BYTE(c2)*gamma;
-        u8 b = BLUE_BYTE(c0)*alpha + BLUE_BYTE(c1)*beta + BLUE_BYTE(c2)*gamma;
+        u8 r = (u8)(RED_BYTE(c0)*alpha + RED_BYTE(c1)*beta + RED_BYTE(c2)*gamma);
+        u8 g = (u8)(GREEN_BYTE(c0)*alpha + GREEN_BYTE(c1)*beta + GREEN_BYTE(c2)*gamma);
+        u8 b = (u8)(BLUE_BYTE(c0)*alpha + BLUE_BYTE(c1)*beta + BLUE_BYTE(c2)*gamma);
         u8 a = 0xFF;
         u32 color = pack_rgba32(r, g, b, a);
         pixels[y*width + x] = color;
@@ -421,10 +428,10 @@ draw_triangle3_f32(u32 *pixels, u32 width, u32 height,
                    f32 x0, f32 y0, u32 c0,
                    f32 x1, f32 y1, u32 c1,
                    f32 x2, f32 y2, u32 c2) {
-  s32 min_x = clamp_bot(0, floor_f32(min(min(x0, x1), x2)));
-  s32 min_y = clamp_bot(0, floor_f32(min(min(y0, y1), y2)));
-  s32 max_x = clamp_top(ceil_f32(max(max(x0, x1), x2)), width);
-  s32 max_y = clamp_top(ceil_f32(max(max(y0, y1), y2)), height);
+  s32 min_x = (s32)clamp_bot(0, floor_f32(min(min(x0, x1), x2)));
+  s32 min_y = (s32)clamp_bot(0, floor_f32(min(min(y0, y1), y2)));
+  s32 max_x = (s32)clamp_top(ceil_f32(max(max(x0, x1), x2)), width);
+  s32 max_y = (s32)clamp_top(ceil_f32(max(max(y0, y1), y2)), height);
   f32 x01 = x1 - x0;
   f32 y01 = y1 - y0;
   f32 x02 = x2 - x0;
@@ -434,9 +441,9 @@ draw_triangle3_f32(u32 *pixels, u32 width, u32 height,
   f32 x20 = x0 - x2;
   f32 y20 = y0 - y2;
   f32 det = x01*y02 - y01*x02;
-  f32 bias0 = (((y01 == 0.0f) && (x01 > 0.0f)) || (y01 < 0.0f)) ? 0.0f : -0.0001;
-  f32 bias1 = (((y12 == 0.0f) && (x12 > 0.0f)) || (y12 < 0.0f)) ? 0.0f : -0.0001;
-  f32 bias2 = (((y20 == 0.0f) && (x20 > 0.0f)) || (y20 < 0.0f)) ? 0.0f : -0.0001;
+  f32 bias0 = (((y01 == 0.0f) && (x01 > 0.0f)) || (y01 < 0.0f)) ? 0.0f : -0.0001f;
+  f32 bias1 = (((y12 == 0.0f) && (x12 > 0.0f)) || (y12 < 0.0f)) ? 0.0f : -0.0001f;
+  f32 bias2 = (((y20 == 0.0f) && (x20 > 0.0f)) || (y20 < 0.0f)) ? 0.0f : -0.0001f;
   for (s32 y = min_y; y < max_y; ++y) {
     f32 dy0 = ((f32)y + 0.5f) - y0;
     f32 dy1 = ((f32)y + 0.5f) - y1;
@@ -452,11 +459,11 @@ draw_triangle3_f32(u32 *pixels, u32 width, u32 height,
         f32 alpha = w0/det;
         f32 beta = w1/det;
         f32 gamma = w2/det;
+        u8 r = (u8)(RED_BYTE(c0)*alpha + RED_BYTE(c1)*beta + RED_BYTE(c2)*gamma);
+        u8 g = (u8)(GREEN_BYTE(c0)*alpha + GREEN_BYTE(c1)*beta + GREEN_BYTE(c2)*gamma);
+        u8 b = (u8)(BLUE_BYTE(c0)*alpha + BLUE_BYTE(c1)*beta + BLUE_BYTE(c2)*gamma);
         u8 a = 0xFF;
-        u8 r = RED_BYTE(c0)*alpha + RED_BYTE(c1)*beta + RED_BYTE(c2)*gamma;
-        u8 g = GREEN_BYTE(c0)*alpha + GREEN_BYTE(c1)*beta + GREEN_BYTE(c2)*gamma;
-        u8 b = BLUE_BYTE(c0)*alpha + BLUE_BYTE(c1)*beta + BLUE_BYTE(c2)*gamma;
-        u32 color = ((a << 24) | (r << 16) | (g << 8) | (b << 0));
+        u32 color = pack_rgba32(r, g, b, a);
         pixels[y*width + x] = color;
       }
     }
@@ -464,10 +471,10 @@ draw_triangle3_f32(u32 *pixels, u32 width, u32 height,
 }
 
 internal Vector2
-project_point_to_screen(Vector2 p, f32 w, f32 h) {
+project_point_to_screen(Vector2 p, u32 w, u32 h) {
   Vector2 result = {
-    .x = (p.x + 1.0f)*(f32)w*0.5f,
-    .y = (-p.y + 1.0f)*(f32)h*0.5f,
+    .x = (p.x + 1.0f)*0.5f*w,
+    .y = (-p.y + 1.0f)*0.5f*h,
   };
   return(result);
 }
@@ -556,14 +563,14 @@ test_draw_mesh(Image back_buffer, Mesh mesh,
       v2.xy = project_point_to_screen(v2.xy, w, h);
 
       draw_triangle3(px, w, h, 
-                     v0.x, v0.y, 0xFF0000,
-                     v1.x, v1.y, 0x00FF00,
-                     v2.x, v2.y, 0x0000FF);
+                     (s32)v0.x, (s32)v0.y, 0xFF0000,
+                     (s32)v1.x, (s32)v1.y, 0x00FF00,
+                     (s32)v2.x, (s32)v2.y, 0x0000FF);
 
       if (line) {
-        draw_line(px, w, h, v0.x, v0.y, v1.x, v1.y, 0x79241f);
-        draw_line(px, w, h, v1.x, v1.y, v2.x, v2.y, 0x79241f);
-        draw_line(px, w, h, v2.x, v2.y, v0.x, v0.y, 0x79241f);
+        draw_line(px, w, h, (s32)v0.x, (s32)v0.y, (s32)v1.x, (s32)v1.y, 0x79241f);
+        draw_line(px, w, h, (s32)v1.x, (s32)v1.y, (s32)v2.x, (s32)v2.y, 0x79241f);
+        draw_line(px, w, h, (s32)v2.x, (s32)v2.y, (s32)v0.x, (s32)v0.y, 0x79241f);
       }
     }
   }
@@ -619,9 +626,9 @@ test_draw_mesh_f32(Image back_buffer, Mesh mesh,
                          v2.x, v2.y, 0xFFFF00);
 
       if (line) {
-        draw_line(px, w, h, v0.x, v0.y, v1.x, v1.y, 0x79241f);
-        draw_line(px, w, h, v1.x, v1.y, v2.x, v2.y, 0x79241f);
-        draw_line(px, w, h, v2.x, v2.y, v0.x, v0.y, 0x79241f);
+        draw_line(px, w, h, (s32)v0.x, (s32)v0.y, (s32)v1.x, (s32)v1.y, 0x79241f);
+        draw_line(px, w, h, (s32)v1.x, (s32)v1.y, (s32)v2.x, (s32)v2.y, 0x79241f);
+        draw_line(px, w, h, (s32)v2.x, (s32)v2.y, (s32)v0.x, (s32)v0.y, 0x79241f);
       }
     }
   }
@@ -662,7 +669,7 @@ UPDATE_AND_RENDER_PROC(update_and_render) {
   Digital_Button *kbd = input.kbd;
   if (!initialized) {
     bmp.pixels = load_bmp("../res/4x4.bmp", &bmp.width, &bmp.height);
-    mesh    = load_obj("../res/monkey.obj");
+    mesh = load_obj("../res/monkey.obj");
     cam_p   = make_vector3(0.0f, 0.0f, 0.0f);
     cam_up  = make_vector3(0.0f, 1.0f, 0.0f);
     cam_dir = make_vector3(0.0f, 0.0f, 1.0f);
@@ -688,7 +695,7 @@ UPDATE_AND_RENDER_PROC(update_and_render) {
   cam_target = vector3_add(cam_p, cam_dir);
   Matrix4x4 view = matrix4x4_quick_inverse(matrix4x4_point_at(cam_p, cam_target, cam_up));
 
-  image_clear(back_buffer, 0x000000);
+  clear(back_buffer.pixels, back_buffer.width, back_buffer.height, 0x000000);
   Matrix4x4 scale = matrix4x4_scale(make_vector3(1.0f, 1.0f, 1.0f));
   Matrix4x4 rotate = matrix4x4_rotate(make_vector3(1.0f, 1.0f, 0.0f), radians_f32(tick));
   Matrix4x4 translate = matrix4x4_translate(-2.0f, 0.0f, 4.0f);

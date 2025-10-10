@@ -62,33 +62,16 @@ typedef struct {
 } Input;
 
 typedef struct {
-  f32 dt_sec;
-  f32 dt_ms;
-  f32 fps;
-} Clock;
-
-typedef struct {
   u32 width;
   u32 height;
   u32 *pixels;
 } Image;
 
-internal Image
-alloc_image(u32 width, u32 height) {
-  Image result = {
-    .width = width,
-    .height = height,
-    .pixels = malloc(width*height*sizeof(u32)),
-  };
-  return(result);
-}
-
-internal void
-image_clear(Image image, u32 color) {
-  for (u32 i = 0; i < (image.width*image.height); ++i) {
-    image.pixels[i] = color;
-  }
-}
+typedef struct {
+  f32 dt_sec;
+  f32 dt_ms;
+  f32 fps;
+} Clock;
 
 #define UPDATE_AND_RENDER_PROC(x) void x(Image back_buffer, Input input, Clock time)
 typedef UPDATE_AND_RENDER_PROC(update_and_render_proc);
