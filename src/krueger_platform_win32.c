@@ -18,8 +18,13 @@ platform_commit(void *ptr, uxx size) {
 }
 
 internal void
-platform_release(void *ptr) {
-  if (ptr) VirtualFree(ptr, 0, MEM_RELEASE);
+platform_decommit(void *ptr, uxx size) {
+  VirtualFree(ptr, size, MEM_DECOMMIT);
+}
+
+internal void
+platform_release(void *ptr, uxx size) {
+  VirtualFree(ptr, 0, MEM_RELEASE);
 }
 
 #endif // KRUEGER_PLATFORM_WIN32_C

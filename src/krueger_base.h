@@ -349,6 +349,18 @@ internal Matrix4x4 matrix4x4_rotate(Vector3 axis, f32 t);
 internal Matrix4x4 matrix4x4_mul(Matrix4x4 a, Matrix4x4 b);
 internal Vector4 matrix4x4_mul_vector4(Matrix4x4 m, Vector4 v);
 
+//////////////
+// NOTE: Arena
+typedef struct {
+  uxx reserve_size;
+  uxx commit_size;
+  u8 *memory;
+} Arena;
+
+internal Arena arena_alloc(uxx reserve_size);
+internal void arena_free(Arena *arena);
+internal void *arena_push(Arena *arena, uxx commit_size);
+
 ////////////////////////
 // NOTE: Stretchy Buffer
 

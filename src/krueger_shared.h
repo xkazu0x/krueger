@@ -73,10 +73,14 @@ typedef struct {
   f32 fps;
 } Clock;
 
-#define UPDATE_AND_RENDER_PROC(x) void x(Image back_buffer, Input input, Clock time)
-typedef UPDATE_AND_RENDER_PROC(update_and_render_proc);
+#define KRUEGER_INIT_PROC(x) void x(Arena *arena)
+typedef KRUEGER_INIT_PROC(krueger_init_proc);
 
-#define SHARED_PROC_LIST \
-  PROC(update_and_render)
+#define KRUEGER_FRAME_PROC(x) void x(Arena *arena, Image *back_buffer, Input *input, Clock *time)
+typedef KRUEGER_FRAME_PROC(krueger_frame_proc);
+
+#define KRUEGER_PROC_LIST \
+  PROC(krueger_init) \
+  PROC(krueger_frame)
 
 #endif // KRUEGER_SHARED_H

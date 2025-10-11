@@ -41,7 +41,7 @@ if [ -v release ]; then compile="$compile_release"; fi
 mkdir -p build
 
 cd build
-$compile $shared ../src/krueger_shared.c $link          $out libkrueger.so
-$compile         ../src/krueger_main.c   $link $link_os $out krueger 
+$compile $shared ../src/krueger.c      $link          $out libkrueger.so
+$compile         ../src/krueger_main.c $link $link_os $out krueger 
 if [ -v run ]; then ./krueger; fi
 cd ..

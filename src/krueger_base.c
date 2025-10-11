@@ -411,6 +411,32 @@ matrix4x4_mul_vector4(Matrix4x4 m, Vector4 v) {
   return(result);
 }
 
+//////////////
+// NOTE: Arena
+
+internal Arena
+arena_alloc(uxx reserve_size) {
+  Arena result = {0};
+  result.reserve_size = reserve_size;
+  result.commit_size = 0;
+  result.memory = platform_reserve(reserve_size);
+  platform_commit(result.memory, reserve_size);
+  return(result);
+}
+
+internal void
+arena_free(Arena *arena) {
+  platform_release(arena->memory, arena->reserve_size);
+}
+
+internal void *
+arena_push(Arena *arena, uxx commit_size) {
+  assert((arena->commit_size + commit_size) <= arena->reserve_size);
+  void *result = (void *)(arena->memory + arena->commit_size);
+  arena->commit_size += commit_size;
+  return(result);
+}
+
 ////////////////////////
 // NOTE: Stretchy Buffer
 

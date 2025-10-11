@@ -10,7 +10,7 @@ if "%release%"=="1"     set debug=0 && echo [release mode]
 if "%msvc%"=="1"        set clang=0 && echo [msvc compile]
 if "%clang%"=="1"       set msvc=0 && echo [clang compile]
 
-set cl_common=/D_CRT_SECURE_NO_WARNINGS /nologo /I..\src\ /std:c11 /W4 /wd4200 /wd4310
+set cl_common=/D_CRT_SECURE_NO_WARNINGS /nologo /I..\src\ /std:c11 /W4 /wd4100 /wd4200 /wd4310
 set cl_debug=call cl /Od /DBUILD_DEBUG=1 %cl_common%
 set cl_release=call cl /O2 /DBUILD_DEBUG=1 %cl_common%
 set cl_link=
@@ -30,7 +30,7 @@ if "%release%"=="1" set compile=%compile_release%
 if not exist build mkdir build
 
 pushd build
-%compile%  %shared% ..\src\krueger_shared.c %link% %out% libkrueger.dll || exit /b 1
-%compile%           ..\src\krueger_main.c   %link% %out% krueger.exe || exit /b 1
+%compile%  %shared% ..\src\krueger.c      %link% %out% libkrueger.dll || exit /b 1
+%compile%           ..\src\krueger_main.c %link% %out% krueger.exe || exit /b 1
 if "%run%"=="1" call krueger.exe
 popd

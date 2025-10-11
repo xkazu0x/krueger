@@ -11,7 +11,7 @@
 
 global void *libkrueger;
 #define PROC(x) global x##_proc *x;
-SHARED_PROC_LIST;
+KRUEGER_PROC_LIST
 #undef PROC
 
 internal void
@@ -107,7 +107,7 @@ win32_reload_libkrueger(char *lib_str) {
     #define PROC(x) \
       (*(PROC*)(&(x))) = GetProcAddress(libkrueger, #x); \
       if (!x) printf("[ERROR]: %s: failed to load proc %s\n", lib_str, #x);
-    SHARED_PROC_LIST;
+    KRUEGER_PROC_LIST
     #undef PROC
   } else {
     printf("[ERROR]: %s: failed to reload\n", lib_str);
@@ -126,6 +126,8 @@ int
 main(void) {
   char *libkrueger_str = "..\\build\\libkrueger.dll";
   win32_reload_libkrueger(libkrueger_str);
+
+  Arena arena = arena_alloc(MB(64));
 
   char *window_title = "krueger";
   s32 window_width = 800;
@@ -199,6 +201,8 @@ main(void) {
 
   Clock time = {0};
   u64 clock_start = win32_get_wall_clock();
+  
+  if (krueger_init) krueger_init(&arena);
 
   for (b32 quit = false; !quit;) {
     MSG message;
@@ -232,7 +236,7 @@ main(void) {
     if (input.kbd[KEY_Q].pressed) quit = true;
     if (input.kbd[KEY_R].pressed) win32_reload_libkrueger(libkrueger_str);
 
-    if (update_and_render) update_and_render(back_buffer, input, time);
+    if (krueger_frame) krueger_frame(&arena, &back_buffer, &input, &time);
     input_reset(&input);
 
     HDC window_device = GetDC(window);
