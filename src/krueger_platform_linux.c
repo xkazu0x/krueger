@@ -1,35 +1,31 @@
-#ifndef KRUEGER_PLATFORM_WIN32_C
-#define KRUEGER_PLATFORM_WIN32_C
+#ifndef KRUEGER_PLATFORM_LINUX_C
+#define KRUEGER_PLATFORM_LINUX_C
 
-#ifndef NO_MIN_MAX
-#define NO_MIN_MAX
-#endif
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <windows.h>
+#include <sys/mman.h>
 #include <stdio.h> // TODO: remove this
 
 internal void *
 platform_reserve(uxx size) {
-  void *result = VirtualAlloc(0, size, MEM_RESERVE, PAGE_READWRITE);
+  void *result = mmap(0, size, PROT_NONE , MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (result == MAP_FAILED) result = 0;
   return(result);
 }
 
 internal b32
 platform_commit(void *ptr, uxx size) {
-  b32 result = (VirtualAlloc(ptr, size, MEM_COMMIT, PAGE_READWRITE) != 0);
-  return(result);
+  mprotect(ptr, size, PROT_READ | PROT_WRITE);
+  return(true);
 }
 
 internal void
 platform_decommit(void *ptr, uxx size) {
-  VirtualFree(ptr, size, MEM_DECOMMIT);
+  madvise(ptr, size, MADV_DONTNEED);
+  mprotect(ptr, size, PROT_NONE);
 }
 
 internal void
 platform_release(void *ptr, uxx size) {
-  VirtualFree(ptr, 0, MEM_RELEASE);
+  munmap(ptr, size);
 }
 
 internal void *
@@ -48,4 +44,4 @@ platform_read_file(char *filename, uxx *size) {
   return(result);
 }
 
-#endif // KRUEGER_PLATFORM_WIN32_C
+#endif // KRUEGER_PLATFORM_LINUX_C

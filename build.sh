@@ -10,14 +10,14 @@ if [ -v release ];   then echo "[release mode]"; fi
 if [ -v gcc ];       then compiler="${CC:-gcc}"; echo "[gcc compiler]"; fi
 if [ -v clang ];     then compiler="${CC:-clang}"; echo "[clang compiler]"; fi
 
-gcc_common="-I../src/ -std=gnu11 -Wall -Wextra -Wno-unused-function -Wno-unused-variable"
+gcc_common="-I../src/ -std=gnu11 -Wall -Wextra -Wno-unused-function -Wno-unused-variable -Wno-unused-parameter"
 gcc_debug="$compiler -O0 -g -DBUILD_DEBUG=1 ${gcc_common}"
 gcc_release="$compiler -O2 -DBUILD_DEBUG=0 ${gcc_common}"
 gcc_shared="-fPIC -shared"
 gcc_link="-lm"
 gcc_out="-o"
 
-clang_common="-I../src/ -std=gnu11 -Wall -Wextra -Wno-unused-function -Wno-unused-variable"
+clang_common="-I../src/ -std=gnu11 -Wall -Wextra -Wno-unused-function -Wno-unused-variable -Wno-unused-parameter"
 clang_debug="$compiler -O0 -g -DBUILD_DEBUG=1 ${clang_common}"
 clang_release="$compiler -O2 -DBUILD_DEBUG=0 ${clang_common}"
 clang_shared="-fPIC -shared"

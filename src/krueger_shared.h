@@ -76,14 +76,10 @@ typedef struct {
   f32 sec;
 } Clock;
 
-#define KRUEGER_INIT_PROC(x) void x(Arena *arena)
-typedef KRUEGER_INIT_PROC(krueger_init_proc);
-
-#define KRUEGER_FRAME_PROC(x) void x(Arena *arena, Image *back_buffer, Input *input, Clock *time)
+#define KRUEGER_FRAME_PROC(x) void x(Image *back_buffer, Input *input, Clock *time)
 typedef KRUEGER_FRAME_PROC(krueger_frame_proc);
 
 #define KRUEGER_PROC_LIST \
-  PROC(krueger_init) \
   PROC(krueger_frame)
 
 #endif // KRUEGER_SHARED_H

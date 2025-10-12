@@ -97,48 +97,41 @@ bit_scan_forward(u32 *index, u32 mask) {
 internal u32 *
 load_bmp(char *filename, u32 *width, u32 *height) {
   u32 *result = 0;
-  FILE *file = fopen(filename, "rb");
-  if (file) {
-    fseek(file, 0, SEEK_END);
-    uxx file_size = ftell(file);
-    fseek(file, 0, SEEK_SET);
-    void *file_data = malloc(file_size);
-    if (fread(file_data, file_size, 1, file)) {
-      Bmp_File_Header *bmp_file = (Bmp_File_Header *)file_data;
-      if (bmp_file->type == cstr_encode("BM")) {
-        Bmp_Info_Header *bmp_info = (Bmp_Info_Header *)((u8 *)bmp_file + sizeof(Bmp_File_Header));
-        *width = bmp_info->image_width;
-        *height = bmp_info->image_height;
-        result = (u32 *)((u8 *)file_data + bmp_file->data_offset);
-        if (bmp_info->header_size > 40) {
-          Bmp_Color_Header *bmp_color = (Bmp_Color_Header *)((u8 *)bmp_info + sizeof(Bmp_Info_Header));
-          u32 red_mask = bmp_color->red_mask;
-          u32 green_mask = bmp_color->green_mask;
-          u32 blue_mask = bmp_color->blue_mask;
-          u32 alpha_mask = ~(red_mask | green_mask | blue_mask);
-          u32 red_shift = 0;
-          u32 green_shift = 0;
-          u32 blue_shift = 0;
-          u32 alpha_shift = 0;
-          assert(bit_scan_forward(&red_shift, red_mask));
-          assert(bit_scan_forward(&green_shift, green_mask));
-          assert(bit_scan_forward(&blue_shift, blue_mask));
-          assert(bit_scan_forward(&alpha_shift, alpha_mask));
-          for (u32 i = 0; i < (*width)*(*height); ++i) {
-            u32 color = result[i];
-            u8 r = ((color >> red_shift) & 0xFF);
-            u8 g = ((color >> green_shift) & 0xFF);
-            u8 b = ((color >> blue_shift) & 0xFF);
-            u8 a = ((color >> alpha_shift) & 0xFF);
-            result[i] = pack_rgba32(r, g, b, a);
-          }
+  uxx size;
+  void *data = platform_read_file(filename, &size);
+  if (data) {
+    Bmp_File_Header *bmp_file = (Bmp_File_Header *)data;
+    if (bmp_file->type == cstr_encode("BM")) {
+      Bmp_Info_Header *bmp_info = (Bmp_Info_Header *)((u8 *)bmp_file + sizeof(Bmp_File_Header));
+      *width = bmp_info->image_width;
+      *height = bmp_info->image_height;
+      result = (u32 *)((u8 *)data + bmp_file->data_offset);
+      if (bmp_info->header_size > 40) {
+        Bmp_Color_Header *bmp_color = (Bmp_Color_Header *)((u8 *)bmp_info + sizeof(Bmp_Info_Header));
+        u32 red_mask = bmp_color->red_mask;
+        u32 green_mask = bmp_color->green_mask;
+        u32 blue_mask = bmp_color->blue_mask;
+        u32 alpha_mask = ~(red_mask | green_mask | blue_mask);
+        u32 red_shift = 0;
+        u32 green_shift = 0;
+        u32 blue_shift = 0;
+        u32 alpha_shift = 0;
+        assert(bit_scan_forward(&red_shift, red_mask));
+        assert(bit_scan_forward(&green_shift, green_mask));
+        assert(bit_scan_forward(&blue_shift, blue_mask));
+        assert(bit_scan_forward(&alpha_shift, alpha_mask));
+        for (u32 i = 0; i < (*width)*(*height); ++i) {
+          u32 color = result[i];
+          u8 r = ((color >> red_shift) & 0xFF);
+          u8 g = ((color >> green_shift) & 0xFF);
+          u8 b = ((color >> blue_shift) & 0xFF);
+          u8 a = ((color >> alpha_shift) & 0xFF);
+          result[i] = pack_rgba32(r, g, b, a);
         }
       }
-    } else {
-      printf("[ERROR]: load_bmp: failed to read file: %s", filename);
     }
   } else {
-    printf("[ERROR]: load_bmp: failed to open file: %s", filename);
+    printf("[ERROR]: load_bmp: failed to read file: %s\n", filename);
   }
   return(result);
 }
@@ -311,10 +304,10 @@ draw_triangle(u32 *pixels, u32 width, u32 height,
               s32 x1, s32 y1,
               s32 x2, s32 y2,
               u32 color) {
-  s32 min_x = clamp_bot(0, min(min(x0, x1), x2));
-  s32 min_y = clamp_bot(0, min(min(y0, y1), y2));
-  s32 max_x = clamp_top(max(max(x0, x1), x2), (s32)width);
-  s32 max_y = clamp_top(max(max(y0, y1), y2), (s32)height);
+  s32 min_x = clamp_bot(0, MIN(MIN(x0, x1), x2));
+  s32 min_y = clamp_bot(0, MIN(MIN(y0, y1), y2));
+  s32 max_x = clamp_top(MAX(MAX(x0, x1), x2), (s32)width);
+  s32 max_y = clamp_top(MAX(MAX(y0, y1), y2), (s32)height);
   s32 x01 = x1 - x0;
   s32 y01 = y1 - y0;
   s32 x12 = x2 - x1;
@@ -348,10 +341,10 @@ draw_triangle_f32(u32 *pixels, u32 width, u32 height,
                   f32 x1, f32 y1,
                   f32 x2, f32 y2,
                   u32 color) {
-  s32 min_x = (s32)clamp_bot(0, floor_f32(min(min(x0, x1), x2)));
-  s32 min_y = (s32)clamp_bot(0, floor_f32(min(min(y0, y1), y2)));
-  s32 max_x = (s32)clamp_top(ceil_f32(max(max(x0, x1), x2)), width);
-  s32 max_y = (s32)clamp_top(ceil_f32(max(max(y0, y1), y2)), height);
+  s32 min_x = (s32)clamp_bot(0, floor_f32(MIN(MIN(x0, x1), x2)));
+  s32 min_y = (s32)clamp_bot(0, floor_f32(MIN(MIN(y0, y1), y2)));
+  s32 max_x = (s32)clamp_top(ceil_f32(MAX(MAX(x0, x1), x2)), width);
+  s32 max_y = (s32)clamp_top(ceil_f32(MAX(MAX(y0, y1), y2)), height);
   f32 x01 = x1 - x0;
   f32 y01 = y1 - y0;
   f32 x12 = x2 - x1;
@@ -384,10 +377,10 @@ draw_triangle3(u32 *pixels, u32 width, u32 height,
                s32 x0, s32 y0, u32 c0,
                s32 x1, s32 y1, u32 c1,
                s32 x2, s32 y2, u32 c2) {
-  s32 min_x = clamp_bot(0, min(min(x0, x1), x2));
-  s32 min_y = clamp_bot(0, min(min(y0, y1), y2));
-  s32 max_x = clamp_top(max(max(x0, x1), x2), (s32)width);
-  s32 max_y = clamp_top(max(max(y0, y1), y2), (s32)height);
+  s32 min_x = clamp_bot(0, MIN(MIN(x0, x1), x2));
+  s32 min_y = clamp_bot(0, MIN(MIN(y0, y1), y2));
+  s32 max_x = clamp_top(MAX(MAX(x0, x1), x2), (s32)width);
+  s32 max_y = clamp_top(MAX(MAX(y0, y1), y2), (s32)height);
   s32 x01 = x1 - x0;
   s32 y01 = y1 - y0;
   s32 x02 = x2 - x0;
@@ -431,10 +424,10 @@ draw_triangle3_f32(u32 *pixels, u32 width, u32 height,
                    f32 x0, f32 y0, u32 c0,
                    f32 x1, f32 y1, u32 c1,
                    f32 x2, f32 y2, u32 c2) {
-  s32 min_x = (s32)clamp_bot(0, floor_f32(min(min(x0, x1), x2)));
-  s32 min_y = (s32)clamp_bot(0, floor_f32(min(min(y0, y1), y2)));
-  s32 max_x = (s32)clamp_top(ceil_f32(max(max(x0, x1), x2)), width);
-  s32 max_y = (s32)clamp_top(ceil_f32(max(max(y0, y1), y2)), height);
+  s32 min_x = (s32)clamp_bot(0, floor_f32(MIN(MIN(x0, x1), x2)));
+  s32 min_y = (s32)clamp_bot(0, floor_f32(MIN(MIN(y0, y1), y2)));
+  s32 max_x = (s32)clamp_top(ceil_f32(MAX(MAX(x0, x1), x2)), width);
+  s32 max_y = (s32)clamp_top(ceil_f32(MAX(MAX(y0, y1), y2)), height);
   f32 x01 = x1 - x0;
   f32 y01 = y1 - y0;
   f32 x02 = x2 - x0;
@@ -657,6 +650,7 @@ draw_texture(u32 *dst_buf, u32 dst_w, u32 dst_h,
 }
 
 typedef struct {
+  Arena arena;
   Image bmp;
   Mesh mesh;
   f32 rot_angle;
@@ -668,23 +662,26 @@ typedef struct {
   f32 cam_yaw;
 } Krueger_State;
 
+global b32 initialized;
 global Krueger_State *state;
 
 shared_function
-KRUEGER_INIT_PROC(krueger_init) {
-  assert(sizeof(Krueger_State) <= arena->reserve_size);
-  state = arena_push(arena, sizeof(Krueger_State));
-  state->bmp.pixels = load_bmp("../res/4x4.bmp", &state->bmp.width, &state->bmp.height);
-  state->mesh = load_obj("../res/monkey.obj");
-  state->rot_angle = 0.0f;
-  state->rot_vel = 100.0f;
-  state->cam_p   = make_vector3(0.0f, 0.0f, 0.0f);
-  state->cam_up  = make_vector3(0.0f, 1.0f, 0.0f);
-  state->cam_dir = make_vector3(0.0f, 0.0f, 1.0f);
-}
-
-shared_function
 KRUEGER_FRAME_PROC(krueger_frame) {
+  if (!initialized) {
+    Arena arena = arena_alloc(MB(64));
+    assert(sizeof(Krueger_State) <= arena.reserve_size);
+    state = push_array(&arena, Krueger_State, 1);
+    state->arena = arena;
+    state->bmp.pixels = load_bmp("../res/4x4.bmp", &state->bmp.width, &state->bmp.height);
+    state->mesh = load_obj("../res/monkey.obj");
+    state->rot_angle = 0.0f;
+    state->rot_vel = 100.0f;
+    state->cam_p   = make_vector3(0.0f, 0.0f, 0.0f);
+    state->cam_up  = make_vector3(0.0f, 1.0f, 0.0f);
+    state->cam_dir = make_vector3(0.0f, 0.0f, 1.0f);
+    initialized = true;
+  }
+
   Digital_Button *kbd = input->kbd;
 
   u32 *draw_buf = back_buffer->pixels;

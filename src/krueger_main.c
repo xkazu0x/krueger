@@ -128,9 +128,6 @@ main(void) {
   char *libkrueger_str = "..\\build\\libkrueger.dll";
   win32_reload_libkrueger(libkrueger_str);
 
-  Arena arena = arena_alloc(MB(64));
-  if (krueger_init) krueger_init(&arena);
-
   char *window_title = "krueger";
 
   s32 window_width = 800;
@@ -233,7 +230,7 @@ main(void) {
     if (input.kbd[KEY_Q].pressed) quit = true;
     if (input.kbd[KEY_R].pressed) win32_reload_libkrueger(libkrueger_str);
 
-    if (krueger_frame) krueger_frame(&arena, &back_buffer, &input, &time);
+    if (krueger_frame) krueger_frame(&back_buffer, &input, &time);
     input_reset(&input);
 
     RECT client_rectangle;
@@ -334,7 +331,7 @@ linux_reload_libkrueger(char *lib_str) {
     #define PROC(x) \
       x = dlsym(libkrueger, #x); \
       if (!x) printf("[ERROR]: %s\n", dlerror());
-    SHARED_PROC_LIST;
+    KRUEGER_PROC_LIST;
     #undef PROC
   } else {
     printf("[ERROR]: %s\n", dlerror());
@@ -346,16 +343,13 @@ main(void) {
   char *libkrueger_str = "../build/libkrueger.so";
   linux_reload_libkrueger(libkrueger_str);
 
-  Arena arena = arena_alloc(MB(64));
-  if (krueger_init) krueger_init(&arena);
-
   char *window_title = "krueger";
 
   s32 window_width = 800;
   s32 window_height = 600;
 
   Display *display = XOpenDisplay(0);
-  XAutoRepeatOff(display);
+  XAutoRepeatOn(display);
 
   Window root = XDefaultRootWindow(display);
   Window window = XCreateSimpleWindow(display, root, 0, 0, window_width, window_height, 0, 0, 0);
@@ -375,7 +369,7 @@ main(void) {
   s32 back_buffer_width = 160;
   s32 back_buffer_height = 120;
   uxx back_buffer_size = back_buffer_width*back_buffer_height*sizeof(u32);
-
+  
   Image back_buffer = {0};
   back_buffer.width = back_buffer_width;
   back_buffer.height = back_buffer_height;
@@ -397,7 +391,7 @@ main(void) {
   Input input = {0};
   Clock time = {0};
 
-  u64 time_start = linux_get_wall_clock();
+  u64 time_start = linux_get_time_us();
 
   for (b32 quit = false; !quit;) {
     while (XPending(display)) {
@@ -414,7 +408,7 @@ main(void) {
           XConfigureEvent *event = (XConfigureEvent *)&base_event;
           window_width = event->width;
           window_height = event->height;
-          XDestroyImage(image);
+          platform_release(front_buffer.pixels, front_buffer_size);
           front_buffer_size = window_width*window_height*sizeof(u32);
           front_buffer.width = window_width;
           front_buffer.height = window_height;
@@ -444,7 +438,7 @@ main(void) {
     if (input.kbd[KEY_Q].pressed) quit = true;
     if (input.kbd[KEY_R].pressed) linux_reload_libkrueger(libkrueger_str);
 
-    if (krueger_frame) krueger_frame(&arena, &back_buffer, &input, &time);
+    if (krueger_frame) krueger_frame(&back_buffer, &input, &time);
     input_reset(&input);
 
     // NOTE: nearest-neighbor interpolation
@@ -466,9 +460,14 @@ main(void) {
     // NOTE: compute time
     u64 time_end = linux_get_time_us();
     time.dt_us = time_end - time_start;
+    time.dt_ms = time.dt_us/thousand(1);
+    time.dt_sec = time.dt_ms/thousand(1);
     time.us += time.dt_us;
+    time.ms += time.dt_ms;
+    time.sec += time.dt_sec;
     time_start = time_end;
   }
+
   XUnmapWindow(display, window);
   XDestroyWindow(display, window);
 

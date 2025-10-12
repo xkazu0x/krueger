@@ -4,7 +4,7 @@
 //////////////////////////////////
 // NOTE: Standard Library Includes
 
-#include <stdlib.h>
+#include <stdlib.h> // TODO: remove this
 #include <stdint.h>
 #include <stddef.h>
 #include <float.h>
@@ -360,6 +360,8 @@ typedef struct {
   uxx commit_size;
   u8 *memory;
 } Arena;
+
+#define push_array(a, T, c) (T *)arena_push((a), sizeof(T)*(c))
 
 internal Arena arena_alloc(uxx reserve_size);
 internal void arena_free(Arena *arena);

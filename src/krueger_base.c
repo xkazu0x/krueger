@@ -442,7 +442,7 @@ arena_push(Arena *arena, uxx commit_size) {
 
 internal void *
 buf__grow(const void *buf, uxx new_len, uxx elem_size) {
-  uxx new_cap = max(1 + 2*buf_cap(buf), new_len);
+  uxx new_cap = MAX(1 + 2*buf_cap(buf), new_len);
   uxx new_size = offsetof(Buffer_Header, ptr) + new_cap*elem_size;
   Buffer_Header *header = realloc((buf) ? buf__hdr(buf) : 0, new_size);
   if (!buf) header->len = 0;
@@ -467,7 +467,7 @@ cstr_match(char *a, char *b) {
   uxx b_len = cstr_len(b);
   if (a_len == b_len) {
     result = true;
-    uxx len = min(a_len, b_len);
+    uxx len = MIN(a_len, b_len);
     for (uxx i = 0; i < len; ++i) {
       char at = a[i];
       char bt = b[i];
