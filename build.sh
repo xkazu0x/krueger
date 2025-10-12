@@ -13,25 +13,28 @@ if [ -v clang ];     then compiler="${CC:-clang}"; echo "[clang compiler]"; fi
 gcc_common="-I../src/ -std=gnu11 -Wall -Wextra -Wno-unused-function -Wno-unused-variable"
 gcc_debug="$compiler -O0 -g -DBUILD_DEBUG=1 ${gcc_common}"
 gcc_release="$compiler -O2 -DBUILD_DEBUG=0 ${gcc_common}"
+gcc_shared="-fPIC -shared"
 gcc_link="-lm"
 gcc_out="-o"
 
 clang_common="-I../src/ -std=gnu11 -Wall -Wextra -Wno-unused-function -Wno-unused-variable"
 clang_debug="$compiler -O0 -g -DBUILD_DEBUG=1 ${clang_common}"
 clang_release="$compiler -O2 -DBUILD_DEBUG=0 ${clang_common}"
+clang_shared="-fPIC -shared"
 clang_link="-lm"
 clang_out="-o"
 
-shared="-fPIC -shared"
-link_os="-lX11"
+link_platform="-lX11"
 
 if [ -v gcc ]; then compile_debug="$gcc_debug"; fi
 if [ -v gcc ]; then compile_release="$gcc_release"; fi
+if [ -v gcc ]; then shared="$gcc_shared"; fi
 if [ -v gcc ]; then link="$gcc_link"; fi
 if [ -v gcc ]; then out="$gcc_out"; fi
 
 if [ -v clang ]; then compile_debug="$clang_debug"; fi
 if [ -v clang ]; then compile_release="$clang_release"; fi
+if [ -v clang ]; then shared="$clang_shared"; fi
 if [ -v clang ]; then link="$clang_link"; fi
 if [ -v clang ]; then out="$clang_out"; fi
 
@@ -41,7 +44,7 @@ if [ -v release ]; then compile="$compile_release"; fi
 mkdir -p build
 
 cd build
-$compile $shared ../src/krueger.c      $link          $out libkrueger.so
-$compile         ../src/krueger_main.c $link $link_os $out krueger 
+$compile $shared ../src/krueger.c $link $out libkrueger.so
+$compile ../src/krueger_main.c $link $link_platform $out krueger 
 if [ -v run ]; then ./krueger; fi
 cd ..

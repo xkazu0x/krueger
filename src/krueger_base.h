@@ -67,8 +67,12 @@
 #elif defined(__GNUC__) || defined(__GNUG__)
 #define COMPILER_GCC 1
 
-#if defined(__gnu_linux__) || defined(__linux__)
+#if defined(_WIN32)
+#define PLATFORM_WINDOWS 1
+#elif defined(__gnu_linux__) || defined(__linux__)
 #define PLATFORM_LINUX 1
+#elif defined(__APPLE__) && defined(__MACH__)
+#define PLATFORM_MAC 1
 #else
 #error compiler/platform is not supported
 #endif

@@ -659,23 +659,25 @@ draw_texture(u32 *dst_buf, u32 dst_w, u32 dst_h,
 typedef struct {
   Image bmp;
   Mesh mesh;
+  f32 rot_angle;
+  f32 rot_vel;
   Vector3 cam_p;
   Vector3 cam_up;
   Vector3 cam_dir;
   Vector3 cam_vel;
   f32 cam_yaw;
-} Program_State;
+} Krueger_State;
 
-global Program_State *state;
-global char debug_str[256];
-global u32 tick;
+global Krueger_State *state;
 
 shared_function
 KRUEGER_INIT_PROC(krueger_init) {
-  assert(sizeof(Program_State) <= arena->reserve_size);
-  state = arena_push(arena, sizeof(Program_State));
+  assert(sizeof(Krueger_State) <= arena->reserve_size);
+  state = arena_push(arena, sizeof(Krueger_State));
   state->bmp.pixels = load_bmp("../res/4x4.bmp", &state->bmp.width, &state->bmp.height);
   state->mesh = load_obj("../res/monkey.obj");
+  state->rot_angle = 0.0f;
+  state->rot_vel = 100.0f;
   state->cam_p   = make_vector3(0.0f, 0.0f, 0.0f);
   state->cam_up  = make_vector3(0.0f, 1.0f, 0.0f);
   state->cam_dir = make_vector3(0.0f, 0.0f, 1.0f);
@@ -690,14 +692,18 @@ KRUEGER_FRAME_PROC(krueger_frame) {
   u32 draw_buf_h = back_buffer->height;
 
   state->cam_vel = make_vector3(0.0f, 0.0f, 0.0f);
+
   if (kbd[KEY_H].is_down) state->cam_vel.x--;
   if (kbd[KEY_J].is_down) state->cam_vel = vector3_sub(state->cam_vel, state->cam_dir);
   if (kbd[KEY_K].is_down) state->cam_vel = vector3_add(state->cam_vel, state->cam_dir);
   if (kbd[KEY_L].is_down) state->cam_vel.x++;
+
   state->cam_p = vector3_add(state->cam_p, state->cam_vel);
 
   if (kbd[KEY_A].is_down) state->cam_yaw--;
   if (kbd[KEY_F].is_down) state->cam_yaw++;
+
+  state->rot_angle += state->rot_vel*time->dt_sec;
 
   f32 aspect_ratio = (f32)draw_buf_h/(f32)draw_buf_w;
   Matrix4x4 proj = matrix4x4_perspective(90.0f, aspect_ratio, 0.1f, 100.0f);
@@ -710,7 +716,7 @@ KRUEGER_FRAME_PROC(krueger_frame) {
 
   clear(draw_buf, draw_buf_w, draw_buf_h, 0x000000);
   Matrix4x4 scale = matrix4x4_scale(make_vector3(1.0f, 1.0f, 1.0f));
-  Matrix4x4 rotate = matrix4x4_rotate(make_vector3(1.0f, 1.0f, 0.0f), radians_f32(tick));
+  Matrix4x4 rotate = matrix4x4_rotate(make_vector3(1.0f, 1.0f, 0.0f), radians_f32(state->rot_angle));
   Matrix4x4 translate = matrix4x4_translate(-2.0f, 0.0f, 4.0f);
   Matrix4x4 model = make_matrix4x4(1.0f);
   model = matrix4x4_mul(scale, model);
@@ -725,26 +731,17 @@ KRUEGER_FRAME_PROC(krueger_frame) {
   test_draw_mesh_f32(*back_buffer, state->mesh, model, view, proj, state->cam_p, false);
 
   { // NOTE: Draw Debug Info
-    sprintf(debug_str, "FPS: %.2f\n MS: %.2f", time->fps, time->dt_ms);
+    local char debug_str[256];
+    f32 ms = time->dt_us/thousand(1);
+    f32 fps = million(1)/time->dt_us;
+    sprintf(debug_str, "FPS: %.2f\n MS: %.2f\n", fps, ms);
 
     u32 text_size = 1;
     u32 text_color = 0xc1c1c1;
-
-    s32 x_offset = 0;
-    s32 y_offset = 0;
+    s32 offset_x = 0;
+    s32 offset_y = 0;
     draw_text(draw_buf, draw_buf_w, draw_buf_h,
-              debug_str, x_offset, y_offset,
-              (u8 *)default_font_glyphs, KRUEGER_FONT_WIDTH, KRUEGER_FONT_HEIGHT,
-              text_size, text_color);
-
-    local b32 switch_text_color = false;
-    if (!(tick%10)) switch_text_color = !switch_text_color;
-    if (switch_text_color) text_color = 0x79241f;
-
-    x_offset = 4*KRUEGER_FONT_HEIGHT*text_size;
-    y_offset = 6*KRUEGER_FONT_HEIGHT*text_size;
-    draw_text(draw_buf, draw_buf_w, draw_buf_h,
-              "int\nmain(void) {\n\tkrueger_init();\n\treturn(0);\n}", x_offset, y_offset,
+              debug_str, offset_x, offset_y,
               (u8 *)default_font_glyphs, KRUEGER_FONT_WIDTH, KRUEGER_FONT_HEIGHT,
               text_size, text_color);
   } // NOTE: Draw Debug Info
@@ -752,6 +749,4 @@ KRUEGER_FRAME_PROC(krueger_frame) {
   draw_texture(draw_buf, draw_buf_w, draw_buf_h,
                state->bmp.pixels, state->bmp.width, state->bmp.height, 
                0, 0);
-
-  ++tick;
 }

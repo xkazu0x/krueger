@@ -68,9 +68,12 @@ typedef struct {
 } Image;
 
 typedef struct {
-  f32 dt_sec;
+  f32 dt_us;
   f32 dt_ms;
-  f32 fps;
+  f32 dt_sec;
+  f32 us;
+  f32 ms;
+  f32 sec;
 } Clock;
 
 #define KRUEGER_INIT_PROC(x) void x(Arena *arena)

@@ -1,8 +1,12 @@
 #ifndef KRUEGER_PLATFORM_WIN32_C
 #define KRUEGER_PLATFORM_WIN32_C
 
+#ifndef NO_MIN_MAX
 #define NO_MIN_MAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#endif
 #include <windows.h>
 
 internal void *

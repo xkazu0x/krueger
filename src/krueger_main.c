@@ -5,9 +5,8 @@
 #include "krueger_base.c"
 #include "krueger_platform.c"
 
-#include <stdio.h>
-
 #define BITS_PER_PIXEL 32
+#include <stdio.h>
 
 global void *libkrueger;
 #define PROC(x) global x##_proc *x;
@@ -33,6 +32,16 @@ input_reset(Input *input) {
 #if PLATFORM_WINDOWS
 #pragma comment(lib, "user32")
 #pragma comment(lib, "gdi32")
+
+global u64 us_res;
+
+internal u64
+win32_get_time_us() {
+  LARGE_INTEGER large_integer;
+  QueryPerformanceCounter(&large_integer);
+  u64 result = large_integer.QuadPart*million(1)/us_res;
+  return(result);
+}
 
 internal LRESULT CALLBACK
 win32_window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
@@ -114,22 +123,16 @@ win32_reload_libkrueger(char *lib_str) {
   }
 }
 
-internal u64
-win32_get_wall_clock(void) {
-  LARGE_INTEGER large_integer;
-  QueryPerformanceCounter(&large_integer);
-  u64 result = large_integer.QuadPart;
-  return(result);
-}
-
 int
 main(void) {
   char *libkrueger_str = "..\\build\\libkrueger.dll";
   win32_reload_libkrueger(libkrueger_str);
 
   Arena arena = arena_alloc(MB(64));
+  if (krueger_init) krueger_init(&arena);
 
   char *window_title = "krueger";
+
   s32 window_width = 800;
   s32 window_height = 600;
 
@@ -141,6 +144,7 @@ main(void) {
 
   s32 fixed_window_width = window_width;
   s32 fixed_window_height = window_height;
+
   u32 window_style = WS_OVERLAPPEDWINDOW;
   u32 window_style_ex = 0;
 
@@ -175,8 +179,8 @@ main(void) {
                                 0, 0, window_instance, 0);
   ShowWindow(window, SW_SHOW);
 
-  s32 back_buffer_width = 320;
-  s32 back_buffer_height = 240;
+  s32 back_buffer_width = 160;
+  s32 back_buffer_height = 120;
   uxx back_buffer_size = back_buffer_width*back_buffer_height*sizeof(u32);
 
   Image back_buffer = {0};
@@ -194,15 +198,13 @@ main(void) {
   bitmap_info.bmiHeader.biCompression = BI_RGB;
 
   Input input = {0};
+  Clock time = {0};
 
   LARGE_INTEGER large_integer;
   QueryPerformanceFrequency(&large_integer);
-  u64 clock_frequency = large_integer.QuadPart;
+  us_res = large_integer.QuadPart;
 
-  Clock time = {0};
-  u64 clock_start = win32_get_wall_clock();
-  
-  if (krueger_init) krueger_init(&arena);
+  u64 time_start = win32_get_time_us();
 
   for (b32 quit = false; !quit;) {
     MSG message;
@@ -228,16 +230,16 @@ main(void) {
       }
     }
 
-    RECT client_rectangle;
-    GetClientRect(window, &client_rectangle);
-    window_width = client_rectangle.right - client_rectangle.left;
-    window_height = client_rectangle.bottom - client_rectangle.top;
-
     if (input.kbd[KEY_Q].pressed) quit = true;
     if (input.kbd[KEY_R].pressed) win32_reload_libkrueger(libkrueger_str);
 
     if (krueger_frame) krueger_frame(&arena, &back_buffer, &input, &time);
     input_reset(&input);
+
+    RECT client_rectangle;
+    GetClientRect(window, &client_rectangle);
+    window_width = client_rectangle.right - client_rectangle.left;
+    window_height = client_rectangle.bottom - client_rectangle.top;
 
     HDC window_device = GetDC(window);
     StretchDIBits(window_device,
@@ -248,11 +250,14 @@ main(void) {
                   DIB_RGB_COLORS, SRCCOPY);
     ReleaseDC(window, window_device);
 
-    u64 clock_end = win32_get_wall_clock();
-    time.dt_sec = (f32)(clock_end - clock_start)/(f32)clock_frequency;
-    time.dt_ms = time.dt_sec*1000.0f;
-    time.fps = (f32)clock_frequency/(f32)(clock_end - clock_start);
-    clock_start = clock_end;
+    u64 time_end = win32_get_time_us();
+    time.dt_us = (f32)(time_end - time_start);
+    time.dt_ms = time.dt_us/thousand(1);
+    time.dt_sec = time.dt_ms/thousand(1);
+    time.us += time.dt_us;
+    time.ms += time.dt_ms;
+    time.sec += time.dt_sec;
+    time_start = time_end;
   }
   return(0);
 }
@@ -262,6 +267,14 @@ main(void) {
 #include <X11/Xutil.h>
 #include <dlfcn.h>
 #include <time.h>
+
+internal u64
+linux_get_time_us(void) {
+  struct timespec clock;
+  clock_gettime(CLOCK_MONOTONIC, &clock);
+  u64 result = clock.tv_sec*million(1) + clock.tv_nsec/thousand(1); 
+  return(result);
+}
 
 internal Keycode
 linux_translate_keycode(KeySym keycode) {
@@ -328,37 +341,24 @@ linux_reload_libkrueger(char *lib_str) {
   }
 }
 
-internal u64
-linux_get_wall_clock(void) {
-  struct timespec clock;
-  clock_gettime(CLOCK_MONOTONIC, &clock);
-  u64 result = clock.tv_sec*billion(1) + clock.tv_nsec; 
-  return(result);
-}
-
 int
 main(void) {
   char *libkrueger_str = "../build/libkrueger.so";
   linux_reload_libkrueger(libkrueger_str);
 
+  Arena arena = arena_alloc(MB(64));
+  if (krueger_init) krueger_init(&arena);
+
   char *window_title = "krueger";
+
   s32 window_width = 800;
   s32 window_height = 600;
-
-  s32 back_buffer_width = 320;
-  s32 back_buffer_height = 240;
-
-  Image front_buffer = alloc_image(window_width, window_height);
-  Image back_buffer = alloc_image(back_buffer_width, back_buffer_height);
 
   Display *display = XOpenDisplay(0);
   XAutoRepeatOff(display);
 
   Window root = XDefaultRootWindow(display);
   Window window = XCreateSimpleWindow(display, root, 0, 0, window_width, window_height, 0, 0, 0);
-
-  XStoreName(display, window, window_title);
-  XMapWindow(display, window);
 
   u32 event_masks = StructureNotifyMask | FocusChangeMask | KeyPressMask | KeyReleaseMask;
   XSelectInput(display, window, event_masks);
@@ -369,12 +369,35 @@ main(void) {
   XWindowAttributes attributes = {0};
   XGetWindowAttributes(display, window, &attributes);
 
+  XStoreName(display, window, window_title);
+  XMapWindow(display, window);
+
+  s32 back_buffer_width = 160;
+  s32 back_buffer_height = 120;
+  uxx back_buffer_size = back_buffer_width*back_buffer_height*sizeof(u32);
+
+  Image back_buffer = {0};
+  back_buffer.width = back_buffer_width;
+  back_buffer.height = back_buffer_height;
+  back_buffer.pixels = platform_reserve(back_buffer_size);
+  platform_commit(back_buffer.pixels, back_buffer_size);
+  
+  uxx front_buffer_size = window_width*window_height*sizeof(u32);
+
+  Image front_buffer = {0};
+  front_buffer.width = window_width;
+  front_buffer.height = window_height;
+  front_buffer.pixels = platform_reserve(front_buffer_size);
+  platform_commit(front_buffer.pixels, front_buffer_size);
+
   XImage *image = XCreateImage(display, attributes.visual, attributes.depth, ZPixmap, 0, 
                                (char *)front_buffer.pixels, front_buffer.width, front_buffer.height, 
                                BITS_PER_PIXEL, front_buffer.width*sizeof(u32));
 
-  u64 clock_start = linux_get_wall_clock();
-  u64 clock_delta = 0;
+  Input input = {0};
+  Clock time = {0};
+
+  u64 time_start = linux_get_wall_clock();
 
   for (b32 quit = false; !quit;) {
     while (XPending(display)) {
@@ -392,7 +415,11 @@ main(void) {
           window_width = event->width;
           window_height = event->height;
           XDestroyImage(image);
-          front_buffer = alloc_image(window_width, window_height);
+          front_buffer_size = window_width*window_height*sizeof(u32);
+          front_buffer.width = window_width;
+          front_buffer.height = window_height;
+          front_buffer.pixels = platform_reserve(front_buffer_size);
+          platform_commit(front_buffer.pixels, front_buffer_size);
           image = XCreateImage(display, attributes.visual, attributes.depth, ZPixmap, 0, 
                                (char *)front_buffer.pixels, front_buffer.width, front_buffer.height, 
                                BITS_PER_PIXEL, front_buffer.width*sizeof(u32));
@@ -417,7 +444,7 @@ main(void) {
     if (input.kbd[KEY_Q].pressed) quit = true;
     if (input.kbd[KEY_R].pressed) linux_reload_libkrueger(libkrueger_str);
 
-    if (update_and_render) update_and_render(back_buffer, input, clock_delta);
+    if (krueger_frame) krueger_frame(&arena, &back_buffer, &input, &time);
     input_reset(&input);
 
     // NOTE: nearest-neighbor interpolation
@@ -437,11 +464,11 @@ main(void) {
     XFreeGC(display, context);
 
     // NOTE: compute time
-    u64 clock_end = linux_get_wall_clock();
-    clock_delta = clock_end - clock_start;
-    clock_start = clock_end;
+    u64 time_end = linux_get_time_us();
+    time.dt_us = time_end - time_start;
+    time.us += time.dt_us;
+    time_start = time_end;
   }
-
   XUnmapWindow(display, window);
   XDestroyWindow(display, window);
 
@@ -451,7 +478,8 @@ main(void) {
   dlclose(libkrueger);
   return(0);
 }
-#endif
+
+#endif // PLATFORM_LINUX
 
 // TODO:
 // - Fixed Frame Rate
