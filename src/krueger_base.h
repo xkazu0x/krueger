@@ -284,8 +284,6 @@ typedef union {
   };
 } Vector3;
 
-#define vector3(x) make_vector3((x), (x), (x))
-
 internal Vector3 make_vector3(f32 x, f32 y, f32 z);
 internal Vector3 vector3_add(Vector3 a, Vector3 b);
 internal Vector3 vector3_sub(Vector3 a, Vector3 b);

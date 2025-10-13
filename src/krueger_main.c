@@ -127,6 +127,9 @@ int
 main(void) {
   char *libkrueger_str = "..\\build\\libkrueger.dll";
   win32_reload_libkrueger(libkrueger_str);
+  
+  Krueger_State *krueger_state = 0;
+  if (krueger_init) krueger_state = krueger_init();
 
   char *window_title = "krueger";
 
@@ -202,7 +205,7 @@ main(void) {
   us_res = large_integer.QuadPart;
 
   u64 time_start = win32_get_time_us();
-
+  
   for (b32 quit = false; !quit;) {
     MSG message;
     while (PeekMessageA(&message, 0, 0, 0, PM_REMOVE)) {
@@ -230,7 +233,7 @@ main(void) {
     if (input.kbd[KEY_Q].pressed) quit = true;
     if (input.kbd[KEY_R].pressed) win32_reload_libkrueger(libkrueger_str);
 
-    if (krueger_frame) krueger_frame(&back_buffer, &input, &time);
+    if (krueger_frame) krueger_frame(krueger_state, &back_buffer, &input, &time);
     input_reset(&input);
 
     RECT client_rectangle;
@@ -343,6 +346,9 @@ main(void) {
   char *libkrueger_str = "../build/libkrueger.so";
   linux_reload_libkrueger(libkrueger_str);
 
+  Krueger_State *krueger_state = 0;
+  if (krueger_init) krueger_state = krueger_init();
+
   char *window_title = "krueger";
 
   s32 window_width = 800;
@@ -438,7 +444,7 @@ main(void) {
     if (input.kbd[KEY_Q].pressed) quit = true;
     if (input.kbd[KEY_R].pressed) linux_reload_libkrueger(libkrueger_str);
 
-    if (krueger_frame) krueger_frame(&back_buffer, &input, &time);
+    if (krueger_frame) krueger_frame(krueger_state, &back_buffer, &input, &time);
     input_reset(&input);
 
     // NOTE: nearest-neighbor interpolation
@@ -479,10 +485,3 @@ main(void) {
 }
 
 #endif // PLATFORM_LINUX
-
-// TODO:
-// - Fixed Frame Rate
-// - Better Font Rendering
-// - Clipping
-// - Texture Mapping
-// - Depth Buffer
