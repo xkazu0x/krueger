@@ -284,6 +284,8 @@ typedef union {
   };
 } Vector3;
 
+#define vector3(x) make_vector3((x), (x), (x))
+
 internal Vector3 make_vector3(f32 x, f32 y, f32 z);
 internal Vector3 vector3_add(Vector3 a, Vector3 b);
 internal Vector3 vector3_sub(Vector3 a, Vector3 b);
@@ -392,6 +394,7 @@ internal void *buf__grow(const void *buf, uxx new_len, uxx elem_size);
 // NOTE: String
 
 internal uxx cstr_len(char *cstr);
+internal uxx cstr_index_of(char *cstr, char c);
 internal b32 cstr_match(char *a, char *b);
 internal uxx cstr_encode(char *cstr);
 

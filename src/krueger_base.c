@@ -460,6 +460,19 @@ cstr_len(char *cstr) {
   return(ptr - cstr);
 }
 
+internal uxx
+cstr_index_of(char *cstr, char c) {
+  uxx result = 0;
+  uxx len = cstr_len(cstr);
+  for (uxx i = 0; i < len; ++i) {
+    if (cstr[i] == c) {
+      result = i;
+      break;
+    }
+  }
+  return(result);
+}
+
 internal b32
 cstr_match(char *a, char *b) {
   b32 result = false;

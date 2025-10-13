@@ -1,17 +1,16 @@
 #include "krueger_base.h"
 #include "krueger_platform.h"
 #include "krueger_shared.h"
-#include "krueger_font.h"
 
 #include "krueger_base.c"
 #include "krueger_platform.c"
 
 #include <stdio.h>
 
-#define ALPHA_BYTE(x) (((x) >> 24) & 0xFF)
-#define RED_BYTE(x)   (((x) >> 16) & 0xFF)
-#define GREEN_BYTE(x) (((x) >>  8) & 0xFF)
-#define BLUE_BYTE(x)  (((x) >>  0) & 0xFF)
+#define ALPHA_MASK(x) (((x) >> 24) & 0xFF)
+#define RED_MASK(x)   (((x) >> 16) & 0xFF)
+#define GREEN_MASK(x) (((x) >>  8) & 0xFF)
+#define BLUE_MASK(x)  (((x) >>  0) & 0xFF)
 
 internal void
 unpack_rgba32(u32 color, u8 *r, u8 *g, u8 *b, u8 *a) {
@@ -258,47 +257,6 @@ draw_line(u32 *buffer, u32 width, u32 height,
 }
 
 internal void
-draw_char(u32 *pixels, u32 width, u32 height, 
-          char c, s32 x, s32 y, 
-          u8 *glyphs, u32 glyph_width, u32 glyph_height, 
-          u32 font_size, u32 color) {
-  u8 *glyph = glyphs + c*glyph_width*glyph_height*sizeof(u8);
-  for (u32 gy = 0; gy < glyph_height; ++gy) {
-    s32 py = y + gy*font_size;
-    for (u32 gx = 0; gx < glyph_width; ++gx) {
-      s32 px = x + gx*font_size;
-      if (glyph[gy*glyph_width + gx]) {
-        draw_rect(pixels, width, height, px, py, px + font_size, py + font_size, color);
-      }
-    }
-  }
-}
-
-internal void
-draw_text(u32 *pixels, u32 width, u32 height, 
-          char *text, s32 x, s32 y, 
-          u8 *glyphs, u32 glyph_width, u32 glyph_height, 
-          u32 font_size, u32 color) {
-  s32 gx = x;
-  s32 gy = y;
-  uxx text_len = cstr_len(text);
-  for (uxx i = 0; i < text_len; ++i) {
-    char c = text[i];
-    switch (c) {
-      case '\n': {
-        gx = x;
-        gy += glyph_height*font_size;
-      } continue;
-      case '\t': {
-        gx += 2*glyph_width*font_size;
-      } continue;
-    }
-    draw_char(pixels, width, height, c, gx, gy, glyphs, glyph_width, glyph_height, font_size, color);
-    gx += glyph_width*font_size;
-  }
-}
-
-internal void
 draw_triangle(u32 *pixels, u32 width, u32 height,
               s32 x0, s32 y0,
               s32 x1, s32 y1,
@@ -408,9 +366,9 @@ draw_triangle3(u32 *pixels, u32 width, u32 height,
         f32 alpha = w0/det;
         f32 beta = w1/det;
         f32 gamma = w2/det;
-        u8 r = (u8)(RED_BYTE(c0)*alpha + RED_BYTE(c1)*beta + RED_BYTE(c2)*gamma);
-        u8 g = (u8)(GREEN_BYTE(c0)*alpha + GREEN_BYTE(c1)*beta + GREEN_BYTE(c2)*gamma);
-        u8 b = (u8)(BLUE_BYTE(c0)*alpha + BLUE_BYTE(c1)*beta + BLUE_BYTE(c2)*gamma);
+        u8 r = (u8)(RED_MASK(c0)*alpha + RED_MASK(c1)*beta + RED_MASK(c2)*gamma);
+        u8 g = (u8)(GREEN_MASK(c0)*alpha + GREEN_MASK(c1)*beta + GREEN_MASK(c2)*gamma);
+        u8 b = (u8)(BLUE_MASK(c0)*alpha + BLUE_MASK(c1)*beta + BLUE_MASK(c2)*gamma);
         u8 a = 0xFF;
         u32 color = pack_rgba32(r, g, b, a);
         pixels[y*width + x] = color;
@@ -455,9 +413,9 @@ draw_triangle3_f32(u32 *pixels, u32 width, u32 height,
         f32 alpha = w0/det;
         f32 beta = w1/det;
         f32 gamma = w2/det;
-        u8 r = (u8)(RED_BYTE(c0)*alpha + RED_BYTE(c1)*beta + RED_BYTE(c2)*gamma);
-        u8 g = (u8)(GREEN_BYTE(c0)*alpha + GREEN_BYTE(c1)*beta + GREEN_BYTE(c2)*gamma);
-        u8 b = (u8)(BLUE_BYTE(c0)*alpha + BLUE_BYTE(c1)*beta + BLUE_BYTE(c2)*gamma);
+        u8 r = (u8)(RED_MASK(c0)*alpha + RED_MASK(c1)*beta + RED_MASK(c2)*gamma);
+        u8 g = (u8)(GREEN_MASK(c0)*alpha + GREEN_MASK(c1)*beta + GREEN_MASK(c2)*gamma);
+        u8 b = (u8)(BLUE_MASK(c0)*alpha + BLUE_MASK(c1)*beta + BLUE_MASK(c2)*gamma);
         u8 a = 0xFF;
         u32 color = pack_rgba32(r, g, b, a);
         pixels[y*width + x] = color;
@@ -650,11 +608,95 @@ draw_texture(u32 *dst_buf, u32 dst_w, u32 dst_h,
 }
 
 typedef struct {
+  char *chars;
+  u32 glyph_width;
+  u32 glyph_height;
+  u32 num_glyph_x;
+  u32 num_glyph_y;
+  u32 *glyphs;
+} Font;
+
+internal Font
+make_font(char *chars, 
+          u32 glyph_width, u32 glyph_height,
+          u32 num_glyph_x, u32 num_glyph_y, 
+          u32 *glyphs) {
+  Font result = {0};
+  result.chars = chars;
+  result.glyph_width = glyph_width;
+  result.glyph_height = glyph_height;
+  result.num_glyph_x = num_glyph_x;
+  result.num_glyph_y = num_glyph_y;
+  result.glyphs = glyphs;
+  return(result);
+}
+
+internal void
+draw_char(u32 *pixels, u32 width, u32 height,
+          char c, s32 x, s32 y, 
+          Font font, Vector3 color) {
+  s32 min_x = clamp_bot(0, x);
+  s32 min_y = clamp_bot(0, y);
+  s32 max_x = clamp_top(x + font.glyph_width, width);
+  s32 max_y = clamp_top(y + font.glyph_height, height);
+  u32 font_width = font.num_glyph_x*font.glyph_width; 
+  u32 font_height = font.num_glyph_y*font.glyph_height; 
+  uxx char_index = cstr_index_of(font.chars, c);
+  uxx tile_x = char_index % font.num_glyph_x;
+  uxx tile_y = (uxx)floor_f32((f32)char_index/(f32)font.num_glyph_x);
+  u32 *glyph = font.glyphs - tile_y*font_width*font.glyph_height + tile_x*font.glyph_width;
+  for (s32 dy = min_y; dy < max_y; ++dy) {
+    for (s32 dx = min_x; dx < max_x; ++dx) {
+      s32 pixel_index = dy*width + dx;
+      s32 glyph_index = font_width*(font_height-1) - (dy-min_y)*font_width + dx-min_x;
+      u32 pixel_color = pixels[pixel_index];
+      u32 glyph_color = glyph[glyph_index];
+      f32 rc = clamp_top(color.r, 1.0f);
+      f32 gc = clamp_top(color.g, 1.0f);
+      f32 bc = clamp_top(color.b, 1.0f);
+      u8 r = (u8)(rc*RED_MASK(glyph_color));
+      u8 g = (u8)(gc*GREEN_MASK(glyph_color));
+      u8 b = (u8)(bc*BLUE_MASK(glyph_color));
+      u8 a = ALPHA_MASK(glyph_color);
+      glyph_color = pack_rgba32(r, g, b, a);
+      pixels[pixel_index] = alpha_linear_blend(pixel_color, glyph_color);
+    }
+  }
+}
+
+internal void
+draw_text(u32 *pixels, u32 width, u32 height,
+               char *text, s32 x, s32 y, 
+               Font font, Vector3 color) {
+  s32 gx = x;
+  s32 gy = y;
+  uxx text_len = cstr_len(text);
+  for (uxx i = 0; i < text_len; ++i) {
+    char c = text[i];
+    switch (c) {
+      case '\n': {
+        gx = x;
+        gy += font.glyph_height;
+      } continue;
+      case '\t': {
+        gx += 2*font.glyph_width;
+      } continue;
+    }
+    draw_char(pixels, width, height, c, gx, gy, font, color);
+    gx += font.glyph_width;
+  }
+}
+
+typedef struct {
   Arena arena;
-  Image bmp;
+
+  Image font_bmp;
+  Font font;
+
   Mesh mesh;
   f32 rot_angle;
   f32 rot_vel;
+
   Vector3 cam_p;
   Vector3 cam_up;
   Vector3 cam_dir;
@@ -672,13 +714,21 @@ KRUEGER_FRAME_PROC(krueger_frame) {
     assert(sizeof(Krueger_State) <= arena.reserve_size);
     state = push_array(&arena, Krueger_State, 1);
     state->arena = arena;
-    state->bmp.pixels = load_bmp("../res/4x4.bmp", &state->bmp.width, &state->bmp.height);
+
+    state->font_bmp.pixels = load_bmp("../res/font.bmp", &state->font_bmp.width, &state->font_bmp.height);
+    global char *font_chars = 
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZ "
+      "0123456789.,!?'\"-+=/\\%()<> ";
+    state->font = make_font(font_chars, 8, 8, 27, 2, state->font_bmp.pixels);
+
     state->mesh = load_obj("../res/monkey.obj");
     state->rot_angle = 0.0f;
     state->rot_vel = 100.0f;
+
     state->cam_p   = make_vector3(0.0f, 0.0f, 0.0f);
     state->cam_up  = make_vector3(0.0f, 1.0f, 0.0f);
     state->cam_dir = make_vector3(0.0f, 0.0f, 1.0f);
+
     initialized = true;
   }
 
@@ -727,23 +777,25 @@ KRUEGER_FRAME_PROC(krueger_frame) {
   model = matrix4x4_mul(translate, model);
   test_draw_mesh_f32(*back_buffer, state->mesh, model, view, proj, state->cam_p, false);
 
-  { // NOTE: Draw Debug Info
-    local char debug_str[256];
-    f32 ms = time->dt_us/thousand(1);
-    f32 fps = million(1)/time->dt_us;
-    sprintf(debug_str, "FPS: %.2f\n MS: %.2f\n", fps, ms);
+  draw_text(draw_buf, draw_buf_w, draw_buf_h, "0123456789", 0, 0, state->font, vector3(0.75f));
+  draw_text(draw_buf, draw_buf_w, draw_buf_h, "ABCDEFGHIJKLM", 0, 8, state->font, vector3(0.75f));
+  draw_text(draw_buf, draw_buf_w, draw_buf_h, "NOPQRSTUVWXYZ", 0, 16, state->font, vector3(0.75f));
+  draw_text(draw_buf, draw_buf_w, draw_buf_h, ".,!?'\"-+=/\\%()<>", 0, 24, state->font, vector3(0.75f));
 
-    u32 text_size = 1;
-    u32 text_color = 0xc1c1c1;
-    s32 offset_x = 0;
-    s32 offset_y = 0;
-    draw_text(draw_buf, draw_buf_w, draw_buf_h,
-              debug_str, offset_x, offset_y,
-              (u8 *)default_font_glyphs, KRUEGER_FONT_WIDTH, KRUEGER_FONT_HEIGHT,
-              text_size, text_color);
-  } // NOTE: Draw Debug Info
+#if 1
+  // NOTE: Draw Debug Info
+  local char fps_str[256];
+  local char ms_str[256];
+  f32 fps = million(1)/time->dt_us;
+  f32 ms = time->dt_us/thousand(1);
+  sprintf(fps_str, "%.2f FPS", fps);
+  sprintf(ms_str, "%.2f MS", ms);
 
-  draw_texture(draw_buf, draw_buf_w, draw_buf_h,
-               state->bmp.pixels, state->bmp.width, state->bmp.height, 
-               0, 0);
+  s32 offset_x = draw_buf_w - (s32)cstr_len(fps_str)*state->font.glyph_width;
+  s32 offset_y = draw_buf_h - state->font.glyph_height*2;
+  draw_text(draw_buf, draw_buf_w, draw_buf_h, fps_str, offset_x, offset_y, state->font, make_vector3(0.45f, 0.1f, 0.1f));
+  offset_x = draw_buf_w - (s32)cstr_len(ms_str)*state->font.glyph_width - state->font.glyph_width;
+  offset_y = draw_buf_h - state->font.glyph_height;
+  draw_text(draw_buf, draw_buf_w, draw_buf_h, ms_str, offset_x, offset_y, state->font, make_vector3(0.45f, 0.1f, 0.1f));
+#endif
 }
