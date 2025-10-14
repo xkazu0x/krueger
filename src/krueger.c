@@ -11,32 +11,26 @@
 #define RED_MASK(x)   (((x) >> 16) & 0xFF)
 #define GREEN_MASK(x) (((x) >>  8) & 0xFF)
 #define BLUE_MASK(x)  (((x) >>  0) & 0xFF)
-
-internal void
-unpack_rgba32(u32 color, u8 *r, u8 *g, u8 *b, u8 *a) {
-  *a = ((color >> 24) & 0xFF);
-  *r = ((color >> 16) & 0xFF);
-  *g = ((color >>  8) & 0xFF);
-  *b = ((color >>  0) & 0xFF);
-}
-
-internal u32
-pack_rgba32(u8 r, u8 g, u8 b, u8 a) {
-  u32 color = ((a << 24) | (r << 16) | (g << 8) | (b << 0));
-  return(color);
-}
+#define PACK_RGBA(r, g, b, a) ((a << 24) | (r << 16) | (g << 8) | (b << 0))
 
 internal u32
 alpha_linear_blend(u32 dst, u32 src) {
-  u8 r0, g0, b0, a0;
-  u8 r1, g1, b1, a1;
-  unpack_rgba32(dst, &r0, &g0, &b0, &a0);
-  unpack_rgba32(src, &r1, &g1, &b1, &a1);
-  u8 r = (u8)(lerp_f32(r0, r1, a1/255.0f) + 0.5f);
-  u8 g = (u8)(lerp_f32(g0, g1, a1/255.0f) + 0.5f);
-  u8 b = (u8)(lerp_f32(b0, b1, a1/255.0f) + 0.5f);
+  u8 r0 = RED_MASK(dst); 
+  u8 g0 = GREEN_MASK(dst);
+  u8 b0 = BLUE_MASK(dst);
+  u8 a0 = ALPHA_MASK(dst);
+
+  u8 r1 = RED_MASK(src); 
+  u8 g1 = GREEN_MASK(src);
+  u8 b1 = BLUE_MASK(src);
+  u8 a1 = ALPHA_MASK(src);
+
+  u8 r = (u8)lerp_f32(r0, r1, a1/255.0f);
+  u8 g = (u8)lerp_f32(g0, g1, a1/255.0f);
+  u8 b = (u8)lerp_f32(b0, b1, a1/255.0f);
   u8 a = a0;
-  u32 result = pack_rgba32(r, g, b, a);
+
+  u32 result = PACK_RGBA(r, g, b, a);
   return(result);
 }
 
@@ -58,6 +52,24 @@ draw_rect(Image image,
   s32 min_y = clamp_bot(0, y0);
   s32 max_x = clamp_top(x1, (s32)image.width);
   s32 max_y = clamp_top(y1, (s32)image.height);
+  for (s32 y = min_y; y < max_y; ++y) {
+    for (s32 x = min_x; x < max_x; ++x) {
+      image.pixels[y*image.width + x] = color;
+    }
+  }
+}
+
+internal void
+draw_rect_f32(Image image,
+              f32 x0, f32 y0, 
+              f32 x1, f32 y1,
+              u32 color) {
+  if (x0 > x1) swap_t(f32, x0, x1);
+  if (y0 > y1) swap_t(f32, y0, y1);
+  s32 min_x = (s32)clamp_bot(0, floor_f32(x0));
+  s32 min_y = (s32)clamp_bot(0, floor_f32(y0));
+  s32 max_x = (s32)clamp_top(ceil_f32(x1), image.width);
+  s32 max_y = (s32)clamp_top(ceil_f32(y1), image.height);
   for (s32 y = min_y; y < max_y; ++y) {
     for (s32 x = min_x; x < max_x; ++x) {
       image.pixels[y*image.width + x] = color;
@@ -90,7 +102,6 @@ draw_circle_f32(Image image,
             f32 cx, f32 cy, f32 r,
             u32 color) {
   r = abs_t(f32, r);
-  f32 rs = r*r;
   s32 min_x = (s32)clamp_bot(0, floor_f32(cx - r));
   s32 min_y = (s32)clamp_bot(0, floor_f32(cy - r));
   s32 max_x = (s32)clamp_top(ceil_f32(cx + r), image.width);
@@ -99,7 +110,7 @@ draw_circle_f32(Image image,
     f32 dy = (y + 0.5f) - cy;
     for (s32 x = min_x; x < max_x; ++x) {
       f32 dx = (x + 0.5f) - cx;
-      if (dx*dx + dy*dy < rs) {
+      if (dx*dx + dy*dy < r*r) {
         image.pixels[y*image.width + x] = color;
       }
     }
@@ -163,10 +174,10 @@ draw_line(Image image,
 }
 
 internal void
-draw_triangle(Image image,
-              s32 x0, s32 y0,
-              s32 x1, s32 y1,
-              s32 x2, s32 y2,
+draw_triangle(Image image, 
+              s32 x0, s32 y0, 
+              s32 x1, s32 y1, 
+              s32 x2, s32 y2, 
               u32 color) {
   s32 min_x = clamp_bot(0, MIN(MIN(x0, x1), x2));
   s32 min_y = clamp_bot(0, MIN(MIN(y0, y1), y2));
@@ -178,9 +189,6 @@ draw_triangle(Image image,
   s32 y12 = y2 - y1;
   s32 x20 = x0 - x2;
   s32 y20 = y0 - y2;
-  s32 bias0 = (((y01 == 0) && (x01 > 0)) || (y01 < 0)) ? 0 : -1;
-  s32 bias1 = (((y12 == 0) && (x12 > 0)) || (y12 < 0)) ? 0 : -1;
-  s32 bias2 = (((y20 == 0) && (x20 > 0)) || (y20 < 0)) ? 0 : -1;
   for (s32 y = min_y; y < max_y; ++y) {
     s32 dy0 = y - y0;
     s32 dy1 = y - y1;
@@ -189,9 +197,9 @@ draw_triangle(Image image,
       s32 dx0 = x - x0;
       s32 dx1 = x - x1;
       s32 dx2 = x - x2;
-      s32 w0 = x01*dy0 - y01*dx0 + bias0;
-      s32 w1 = x12*dy1 - y12*dx1 + bias1;
-      s32 w2 = x20*dy2 - y20*dx2 + bias2;
+      s32 w0 = x01*dy0 - y01*dx0;
+      s32 w1 = x12*dy1 - y12*dx1;
+      s32 w2 = x20*dy2 - y20*dx2;
       if ((w0 >= 0) && (w1 >= 0) && (w2 >= 0)) {
         image.pixels[y*image.width + x] = color;
       }
@@ -219,13 +227,13 @@ draw_triangle_f32(Image image,
   f32 bias1 = (((y12 == 0.0f) && (x12 > 0.0f)) || (y12 < 0.0f)) ? 0.0f : -0.0001f;
   f32 bias2 = (((y20 == 0.0f) && (x20 > 0.0f)) || (y20 < 0.0f)) ? 0.0f : -0.0001f;
   for (s32 y = min_y; y < max_y; ++y) {
-    f32 dy0 = ((f32)y + 0.5f) - y0;
-    f32 dy1 = ((f32)y + 0.5f) - y1;
-    f32 dy2 = ((f32)y + 0.5f) - y2;
+    f32 dy0 = (y + 0.5f) - y0;
+    f32 dy1 = (y + 0.5f) - y1;
+    f32 dy2 = (y + 0.5f) - y2;
     for (s32 x = min_x; x < max_x; ++x) {
-      f32 dx0 = ((f32)x + 0.5f) - x0;
-      f32 dx1 = ((f32)x + 0.5f) - x1;
-      f32 dx2 = ((f32)x + 0.5f) - x2;
+      f32 dx0 = (x + 0.5f) - x0;
+      f32 dx1 = (x + 0.5f) - x1;
+      f32 dx2 = (x + 0.5f) - x2;
       f32 w0 = x01*dy0 - y01*dx0 + bias0;
       f32 w1 = x12*dy1 - y12*dx1 + bias1;
       f32 w2 = x20*dy2 - y20*dx2 + bias2;
@@ -238,9 +246,10 @@ draw_triangle_f32(Image image,
 
 internal void
 draw_triangle3(Image image,
-               s32 x0, s32 y0, u32 c0,
-               s32 x1, s32 y1, u32 c1,
-               s32 x2, s32 y2, u32 c2) {
+               s32 x0, s32 y0, 
+               s32 x1, s32 y1, 
+               s32 x2, s32 y2,
+               u32 c0, u32 c1, u32 c2) {
   s32 min_x = clamp_bot(0, MIN(MIN(x0, x1), x2));
   s32 min_y = clamp_bot(0, MIN(MIN(y0, y1), y2));
   s32 max_x = clamp_top(MAX(MAX(x0, x1), x2), (s32)image.width);
@@ -253,10 +262,7 @@ draw_triangle3(Image image,
   s32 y12 = y2 - y1;
   s32 x20 = x0 - x2;
   s32 y20 = y0 - y2;
-  f32 det = (f32)(x01*y02 - y01*x02);
-  s32 bias0 = (((y01 == 0) && (x01 > 0)) || (y01 < 0)) ? 0 : -1;
-  s32 bias1 = (((y12 == 0) && (x12 > 0)) || (y12 < 0)) ? 0 : -1;
-  s32 bias2 = (((y20 == 0) && (x20 > 0)) || (y20 < 0)) ? 0 : -1;
+  s32 det = x01*y02 - y01*x02;
   for (s32 y = min_y; y < max_y; ++y) {
     s32 dy0 = y - y0;
     s32 dy1 = y - y1;
@@ -265,18 +271,30 @@ draw_triangle3(Image image,
       s32 dx0 = x - x0;
       s32 dx1 = x - x1;
       s32 dx2 = x - x2;
-      f32 w0 = (f32)(x01*dy0 - y01*dx0 + bias0);
-      f32 w1 = (f32)(x12*dy1 - y12*dx1 + bias1);
-      f32 w2 = (f32)(x20*dy2 - y20*dx2 + bias2);
+      s32 w0 = x01*dy0 - y01*dx0;
+      s32 w1 = x12*dy1 - y12*dx1;
+      s32 w2 = x20*dy2 - y20*dx2;
       if ((w0 >= 0.0f) && (w1 >= 0.0f) && (w2 >= 0.0f)) {
-        f32 alpha = w0/det;
-        f32 beta = w1/det;
-        f32 gamma = w2/det;
-        u8 r = (u8)(RED_MASK(c0)*alpha + RED_MASK(c1)*beta + RED_MASK(c2)*gamma);
-        u8 g = (u8)(GREEN_MASK(c0)*alpha + GREEN_MASK(c1)*beta + GREEN_MASK(c2)*gamma);
-        u8 b = (u8)(BLUE_MASK(c0)*alpha + BLUE_MASK(c1)*beta + BLUE_MASK(c2)*gamma);
-        u8 a = 0xFF;
-        u32 color = pack_rgba32(r, g, b, a);
+        f32 t0 = (f32)w0/det;
+        f32 t1 = (f32)w1/det;
+        f32 t2 = (f32)w2/det;
+        u8 r0 = RED_MASK(c0);
+        u8 g0 = GREEN_MASK(c0);
+        u8 b0 = BLUE_MASK(c0);
+        u8 a0 = ALPHA_MASK(c0);
+        u8 r1 = RED_MASK(c1);
+        u8 g1 = GREEN_MASK(c1);
+        u8 b1 = BLUE_MASK(c1);
+        u8 a1 = ALPHA_MASK(c1);
+        u8 r2 = RED_MASK(c2);
+        u8 g2 = GREEN_MASK(c2);
+        u8 b2 = BLUE_MASK(c2);
+        u8 a2 = ALPHA_MASK(c2);
+        u32 r = (u32)(r0*t0 + r1*t1 + r2*t2);
+        u32 g = (u32)(g0*t0 + g1*t1 + g2*t2);
+        u32 b = (u32)(b0*t0 + b1*t1 + b2*t2);
+        u32 a = (u32)(a0*t0 + a1*t1 + a2*t2);
+        u32 color = PACK_RGBA(r, g, b, a);
         image.pixels[y*image.width + x] = color;
       }
     }
@@ -285,9 +303,10 @@ draw_triangle3(Image image,
 
 internal void
 draw_triangle3_f32(Image image,
-                   f32 x0, f32 y0, u32 c0,
-                   f32 x1, f32 y1, u32 c1,
-                   f32 x2, f32 y2, u32 c2) {
+                   f32 x0, f32 y0,
+                   f32 x1, f32 y1,
+                   f32 x2, f32 y2, 
+                   u32 c0, u32 c1, u32 c2) {
   s32 min_x = (s32)clamp_bot(0, floor_f32(MIN(MIN(x0, x1), x2)));
   s32 min_y = (s32)clamp_bot(0, floor_f32(MIN(MIN(y0, y1), y2)));
   s32 max_x = (s32)clamp_top(ceil_f32(MAX(MAX(x0, x1), x2)), image.width);
@@ -305,28 +324,144 @@ draw_triangle3_f32(Image image,
   f32 bias1 = (((y12 == 0.0f) && (x12 > 0.0f)) || (y12 < 0.0f)) ? 0.0f : -0.0001f;
   f32 bias2 = (((y20 == 0.0f) && (x20 > 0.0f)) || (y20 < 0.0f)) ? 0.0f : -0.0001f;
   for (s32 y = min_y; y < max_y; ++y) {
-    f32 dy0 = ((f32)y + 0.5f) - y0;
-    f32 dy1 = ((f32)y + 0.5f) - y1;
-    f32 dy2 = ((f32)y + 0.5f) - y2;
+    f32 dy0 = (y + 0.5f) - y0;
+    f32 dy1 = (y + 0.5f) - y1;
+    f32 dy2 = (y + 0.5f) - y2;
     for (s32 x = min_x; x < max_x; ++x) {
-      f32 dx0 = ((f32)x + 0.5f) - x0;
-      f32 dx1 = ((f32)x + 0.5f) - x1;
-      f32 dx2 = ((f32)x + 0.5f) - x2;
+      f32 dx0 = (x + 0.5f) - x0;
+      f32 dx1 = (x + 0.5f) - x1;
+      f32 dx2 = (x + 0.5f) - x2;
       f32 w0 = x01*dy0 - y01*dx0 + bias0;
       f32 w1 = x12*dy1 - y12*dx1 + bias1;
       f32 w2 = x20*dy2 - y20*dx2 + bias2;
       if ((w0 >= 0.0f) && (w1 >= 0.0f) && (w2 >= 0.0f)) {
-        f32 alpha = w0/det;
-        f32 beta = w1/det;
-        f32 gamma = w2/det;
-        u8 r = (u8)(RED_MASK(c0)*alpha + RED_MASK(c1)*beta + RED_MASK(c2)*gamma);
-        u8 g = (u8)(GREEN_MASK(c0)*alpha + GREEN_MASK(c1)*beta + GREEN_MASK(c2)*gamma);
-        u8 b = (u8)(BLUE_MASK(c0)*alpha + BLUE_MASK(c1)*beta + BLUE_MASK(c2)*gamma);
-        u8 a = 0xFF;
-        u32 color = pack_rgba32(r, g, b, a);
+        f32 t0 = w0/det;
+        f32 t1 = w1/det;
+        f32 t2 = w2/det;
+        u8 r0 = RED_MASK(c0);
+        u8 g0 = GREEN_MASK(c0);
+        u8 b0 = BLUE_MASK(c0);
+        u8 a0 = ALPHA_MASK(c0);
+        u8 r1 = RED_MASK(c1);
+        u8 g1 = GREEN_MASK(c1);
+        u8 b1 = BLUE_MASK(c1);
+        u8 a1 = ALPHA_MASK(c1);
+        u8 r2 = RED_MASK(c2);
+        u8 g2 = GREEN_MASK(c2);
+        u8 b2 = BLUE_MASK(c2);
+        u8 a2 = ALPHA_MASK(c2);
+        u32 r = (u32)(r0*t0 + r1*t1 + r2*t2);
+        u32 g = (u32)(g0*t0 + g1*t1 + g2*t2);
+        u32 b = (u32)(b0*t0 + b1*t1 + b2*t2);
+        u32 a = (u32)(a0*t0 + a1*t1 + a2*t2);
+        u32 color = PACK_RGBA(r, g, b, a);
         image.pixels[y*image.width + x] = color;
       }
     }
+  }
+}
+
+// IMPORTANT: Loaded images are drawn from bottom to top, because
+// they are loaded vertically flipped.
+internal void
+draw_texture(Image dst, Image src, s32 x, s32 y) {
+  s32 min_x = clamp_bot(0, x);
+  s32 min_y = clamp_bot(0, y);
+  s32 max_x = clamp_top(x + src.width, dst.width);
+  s32 max_y = clamp_top(y + src.height, dst.height);
+  for (s32 dy = min_y; dy < max_y; ++dy) {
+    for (s32 dx = min_x; dx < max_x; ++dx) {
+      u32 dst_index = dy*dst.width + dx;
+      u32 src_index = src.width*(src.height-1) - dy*src.width + dx;
+      u32 dst_color = dst.pixels[dst_index];
+      u32 src_color = src.pixels[src_index];
+      dst.pixels[dst_index] = alpha_linear_blend(dst_color, src_color);
+    }
+  }
+}
+
+typedef struct {
+  char *chars;
+  u32 num_glyph_x;
+  u32 num_glyph_y;
+  u32 glyph_width;
+  u32 glyph_height;
+  Image image;
+} Font;
+
+internal Font
+make_font(char *chars, 
+          u32 num_glyph_x, u32 num_glyph_y, 
+          u32 glyph_width, u32 glyph_height,
+          Image image) {
+  Font result = {0};
+  result.chars = chars;
+  result.num_glyph_x = num_glyph_x;
+  result.num_glyph_y = num_glyph_y;
+  result.glyph_width = glyph_width;
+  result.glyph_height = glyph_height;
+  result.image = image;
+  return(result);
+}
+
+internal void
+draw_char(Image image,
+          char c, s32 x, s32 y, 
+          Font font, Vector4 color) {
+  s32 min_x = clamp_bot(0, x);
+  s32 min_y = clamp_bot(0, y);
+  s32 max_x = clamp_top(x + font.glyph_width, image.width);
+  s32 max_y = clamp_top(y + font.glyph_height, image.height);
+  uxx char_index = cstr_index_of(font.chars, c);
+  uxx tile_x = char_index % font.num_glyph_x;
+  uxx tile_y = (uxx)floor_f32((f32)char_index/font.num_glyph_x);
+  u32 *glyph = font.image.pixels - tile_y*font.image.width*font.glyph_height + tile_x*font.glyph_width;
+  for (s32 dy = min_y; dy < max_y; ++dy) {
+    s32 gy = dy - min_y;
+    for (s32 dx = min_x; dx < max_x; ++dx) {
+      s32 gx = dx - min_x;
+      s32 pixel_index = dy*image.width + dx;
+      s32 glyph_index = font.image.width*(font.image.height-1) - gy*font.image.width + gx;
+      u32 pixel_color = image.pixels[pixel_index];
+      u32 glyph_color = glyph[glyph_index];
+      f32 rt = clamp_top(color.r, 1.0f);
+      f32 gt = clamp_top(color.g, 1.0f);
+      f32 bt = clamp_top(color.b, 1.0f);
+      f32 at = clamp_top(color.a, 1.0f);
+      u8 r0 = RED_MASK(glyph_color);
+      u8 g0 = RED_MASK(glyph_color);
+      u8 b0 = RED_MASK(glyph_color);
+      u8 a0 = RED_MASK(glyph_color);
+      u8 r = (u8)(r0*rt);
+      u8 g = (u8)(g0*gt);
+      u8 b = (u8)(b0*bt);
+      u8 a = (u8)(a0*at);
+      glyph_color = PACK_RGBA(r, g, b, a);
+      image.pixels[pixel_index] = alpha_linear_blend(pixel_color, glyph_color);
+    }
+  }
+}
+
+internal void
+draw_text(Image image,
+          char *text, s32 x, s32 y, 
+          Font font, Vector4 color) {
+  s32 gx = x;
+  s32 gy = y;
+  uxx text_len = cstr_len(text);
+  for (uxx i = 0; i < text_len; ++i) {
+    char c = text[i];
+    switch (c) {
+      case '\n': {
+        gx = x;
+        gy += font.glyph_height;
+      } continue;
+      case '\t': {
+        gx += 2*font.glyph_width;
+      } continue;
+    }
+    draw_char(image, c, gx, gy, font, color);
+    gx += font.glyph_width;
   }
 }
 
@@ -414,7 +549,7 @@ load_bmp(char *filename) {
           u8 g = ((color >> green_shift) & 0xFF);
           u8 b = ((color >> blue_shift) & 0xFF);
           u8 a = ((color >> alpha_shift) & 0xFF);
-          result.pixels[i] = pack_rgba32(r, g, b, a);
+          result.pixels[i] = PACK_RGBA(r, g, b, a);
         }
       }
     }
@@ -503,10 +638,9 @@ matrix4x4_quick_inverse(Matrix4x4 m) {
 
 internal Vector2
 project_point_to_screen(Vector2 p, u32 w, u32 h) {
-  Vector2 result = {
-    .x = (p.x + 1.0f)*0.5f*w,
-    .y = (-p.y + 1.0f)*0.5f*h,
-  };
+  Vector2 result = {0};
+  result.x = (p.x + 1.0f)*0.5f*w;
+  result.y = (-p.y + 1.0f)*0.5f*h;
   return(result);
 }
 
@@ -554,9 +688,10 @@ test_draw_mesh(Image back_buffer, Mesh mesh,
       v2.xy = project_point_to_screen(v2.xy, w, h);
 
       draw_triangle3(back_buffer, 
-                     (s32)v0.x, (s32)v0.y, 0xFF0000,
-                     (s32)v1.x, (s32)v1.y, 0x00FF00,
-                     (s32)v2.x, (s32)v2.y, 0x0000FF);
+                     (s32)v0.x, (s32)v0.y,
+                     (s32)v1.x, (s32)v1.y,
+                     (s32)v2.x, (s32)v2.y,
+                     0xFF0000, 0x00FF00, 0x0000FF);
 
       if (line) {
         draw_line(back_buffer, (s32)v0.x, (s32)v0.y, (s32)v1.x, (s32)v1.y, 0x79241f);
@@ -610,10 +745,8 @@ test_draw_mesh_f32(Image back_buffer, Mesh mesh,
       v1.xy = project_point_to_screen(v1.xy, w, h);
       v2.xy = project_point_to_screen(v2.xy, w, h);
 
-      draw_triangle3_f32(back_buffer, 
-                         v0.x, v0.y, 0x00FFFF,
-                         v1.x, v1.y, 0xFF00FF,
-                         v2.x, v2.y, 0xFFFF00);
+      draw_triangle3_f32(back_buffer, v0.x, v0.y, v1.x, v1.y, v2.x, v2.y,
+                         0x00FFFF, 0xFF00FF, 0xFFFF00);
 
       if (line) {
         draw_line(back_buffer, (s32)v0.x, (s32)v0.y, (s32)v1.x, (s32)v1.y, 0x79241f);
@@ -625,102 +758,288 @@ test_draw_mesh_f32(Image back_buffer, Mesh mesh,
 }
 
 internal void
-draw_texture(u32 *dst_buf, u32 dst_w, u32 dst_h,
-             u32 *src_buf, u32 src_w, u32 src_h,
-             s32 x, s32 y) {
-  s32 min_x = clamp_bot(0, x);
-  s32 min_y = clamp_bot(0, y);
-  s32 max_x = clamp_top(x + src_w, dst_w);
-  s32 max_y = clamp_top(y + src_h, dst_h);
-  for (s32 dy = min_y; dy < max_y; ++dy) {
-    for (s32 dx = min_x; dx < max_x; ++dx) {
-      u32 dst_index = dy*dst_w + dx;
-      u32 src_index = src_w*(src_h-1) - dy*src_w + dx;
-      u32 dst_c = dst_buf[dst_index];
-      u32 src_c = src_buf[src_index];
-      dst_buf[dst_index] = alpha_linear_blend(dst_c, src_c);
-    }
-  }
-}
-
-typedef struct {
-  char *chars;
-  u32 num_glyph_x;
-  u32 num_glyph_y;
-  u32 glyph_width;
-  u32 glyph_height;
-  Image image;
-} Font;
-
-internal Font
-make_font(char *chars, 
-          u32 num_glyph_x, u32 num_glyph_y, 
-          u32 glyph_width, u32 glyph_height,
-          Image image) {
-  Font result = {0};
-  result.chars = chars;
-  result.num_glyph_x = num_glyph_x;
-  result.num_glyph_y = num_glyph_y;
-  result.glyph_width = glyph_width;
-  result.glyph_height = glyph_height;
-  result.image = image;
-  return(result);
+test_rect(Image back_buffer, Clock time) {
+  f32 t = abs_t(f32, sin_f32(time.sec));
+  s32 x = 0;
+  s32 y = 0;
+  s32 w = 20;
+  s32 h = 20;
+  s32 offset_x = 0;
+  s32 offset_y = back_buffer.height - h*2;
+  draw_rect(back_buffer, 
+            offset_x + x, offset_y + y, 
+            (s32)(offset_x + (t*(x + w))), (s32)(offset_y + (t*(y + h))), 
+            0xc1c1c1);
+  offset_x = w;
+  draw_rect_f32(back_buffer, 
+                (f32)(offset_x + x), (f32)(offset_y + y), 
+                offset_x + (t*(x + w)), offset_y + (t*(y + h)), 
+                0x79241f);
 }
 
 internal void
-draw_char(Image image,
-          char c, s32 x, s32 y, 
-          Font font, Vector3 color) {
-  s32 min_x = clamp_bot(0, x);
-  s32 min_y = clamp_bot(0, y);
-  s32 max_x = clamp_top(x + font.glyph_width, image.width);
-  s32 max_y = clamp_top(y + font.glyph_height, image.height);
-  uxx char_index = cstr_index_of(font.chars, c);
-  uxx tile_x = char_index % font.num_glyph_x;
-  uxx tile_y = (uxx)floor_f32((f32)char_index/font.num_glyph_x);
-  u32 *glyph = font.image.pixels - tile_y*font.image.width*font.glyph_height + tile_x*font.glyph_width;
-  for (s32 dy = min_y; dy < max_y; ++dy) {
-    s32 gy = dy - min_y;
-    for (s32 dx = min_x; dx < max_x; ++dx) {
-      s32 gx = dx - min_x;
-      s32 pixel_index = dy*image.width + dx;
-      s32 glyph_index = font.image.width*(font.image.height-1) - gy*font.image.width + gx;
-      u32 pixel_color = image.pixels[pixel_index];
-      u32 glyph_color = glyph[glyph_index];
-      f32 rt = clamp_top(color.r, 1.0f);
-      f32 gt = clamp_top(color.g, 1.0f);
-      f32 bt = clamp_top(color.b, 1.0f);
-      u8 r = (u8)(rt*RED_MASK(glyph_color));
-      u8 g = (u8)(gt*GREEN_MASK(glyph_color));
-      u8 b = (u8)(bt*BLUE_MASK(glyph_color));
-      u8 a = ALPHA_MASK(glyph_color);
-      glyph_color = pack_rgba32(r, g, b, a);
-      image.pixels[pixel_index] = alpha_linear_blend(pixel_color, glyph_color);
-    }
-  }
+test_circle(Image back_buffer, Clock time) {
+  f32 circle_rt = 10.0f;
+  f32 circle_r = abs_t(f32, circle_rt*sin_f32(time.sec));
+  draw_circle(back_buffer, 
+              (s32)circle_rt, back_buffer.height - (s32)circle_rt, 
+              (s32)circle_r, 0xc1c1c1);
+  draw_circle_f32(back_buffer, 
+                  3.0f*circle_rt, back_buffer.height - circle_rt, 
+                  circle_r, 0x79241f);
 }
 
 internal void
-draw_text(Image image,
-          char *text, s32 x, s32 y, 
-          Font font, Vector3 color) {
-  s32 gx = x;
-  s32 gy = y;
-  uxx text_len = cstr_len(text);
-  for (uxx i = 0; i < text_len; ++i) {
-    char c = text[i];
-    switch (c) {
-      case '\n': {
-        gx = x;
-        gy += font.glyph_height;
-      } continue;
-      case '\t': {
-        gx += 2*font.glyph_width;
-      } continue;
-    }
-    draw_char(image, c, gx, gy, font, color);
-    gx += font.glyph_width;
-  }
+test_triangle(Image back_buffer, Clock time) {
+  Vector3 v[] = {
+    { -0.5f, -0.5f, 0.0f },
+    { -0.5f,  0.5f, 0.0f },
+    {  0.5f, -0.5f, 0.0f },
+
+    { -0.5f,  0.5f, 0.0f },
+    {  0.5f,  0.5f, 0.0f },
+    {  0.5f, -0.5f, 0.0f },
+  };
+
+  u32 c[] = {
+    0xc1c1c1,
+    0x79241f,
+  };
+  
+  f32 st = abs_t(f32, sin_f32(time.sec)*0.2f);
+
+  Matrix4x4 scale = matrix4x4_scale(make_vector3(st, st, st));
+  Matrix4x4 translate = matrix4x4_translate(0.7f, -0.7f, 0.0f);
+
+  Matrix4x4 model = make_matrix4x4(1.0f);
+  model = matrix4x4_mul(scale, model);
+  model = matrix4x4_mul(translate, model);
+
+  for (s32 vi = 0, ci = 0; vi < array_count(v); vi += 3, ++ci) {
+    s32 vi0 = vi;
+    s32 vi1 = vi+1;
+    s32 vi2 = vi+2;
+
+    Vector4 v0 = vector4_from_vector3(v[vi0], 1.0f);
+    Vector4 v1 = vector4_from_vector3(v[vi1], 1.0f);
+    Vector4 v2 = vector4_from_vector3(v[vi2], 1.0f);
+
+    v0 = matrix4x4_mul_vector4(model, v0);
+    v1 = matrix4x4_mul_vector4(model, v1);
+    v2 = matrix4x4_mul_vector4(model, v2);
+
+    u32 w = back_buffer.width;
+    u32 h = back_buffer.height;
+
+    v0.xy = project_point_to_screen(v0.xy, w, h);
+    v1.xy = project_point_to_screen(v1.xy, w, h);
+    v2.xy = project_point_to_screen(v2.xy, w, h);
+
+    s32 x0 = (s32)v0.x;
+    s32 y0 = (s32)v0.y;
+    s32 x1 = (s32)v1.x;
+    s32 y1 = (s32)v1.y;
+    s32 x2 = (s32)v2.x;
+    s32 y2 = (s32)v2.y;
+
+    draw_triangle(back_buffer, x0, y0, x1, y1, x2, y2, c[ci]);
+  } 
+
+  translate = matrix4x4_translate(0.9f, -0.7f, 0.0f);
+  model = make_matrix4x4(1.0f);
+  model = matrix4x4_mul(scale, model);
+  model = matrix4x4_mul(translate, model);
+
+  for (s32 vi = 0, ci = 0; vi < array_count(v); vi += 3, ++ci) {
+    s32 vi0 = vi;
+    s32 vi1 = vi+1;
+    s32 vi2 = vi+2;
+
+    Vector4 v0 = vector4_from_vector3(v[vi0], 1.0f);
+    Vector4 v1 = vector4_from_vector3(v[vi1], 1.0f);
+    Vector4 v2 = vector4_from_vector3(v[vi2], 1.0f);
+
+    v0 = matrix4x4_mul_vector4(model, v0);
+    v1 = matrix4x4_mul_vector4(model, v1);
+    v2 = matrix4x4_mul_vector4(model, v2);
+
+    u32 w = back_buffer.width;
+    u32 h = back_buffer.height;
+
+    v0.xy = project_point_to_screen(v0.xy, w, h);
+    v1.xy = project_point_to_screen(v1.xy, w, h);
+    v2.xy = project_point_to_screen(v2.xy, w, h);
+
+    f32 x0 = v0.x;
+    f32 y0 = v0.y;
+    f32 x1 = v1.x;
+    f32 y1 = v1.y;
+    f32 x2 = v2.x;
+    f32 y2 = v2.y;
+
+    draw_triangle_f32(back_buffer, x0, y0, x1, y1, x2, y2, c[ci]);
+  } 
+}
+
+internal void
+test_triangle3(Image back_buffer, Clock time) {
+  Vector3 v[] = {
+    { -0.5f, -0.5f, 0.0f },
+    { -0.5f,  0.5f, 0.0f },
+    {  0.5f, -0.5f, 0.0f },
+
+    { -0.5f,  0.5f, 0.0f },
+    {  0.5f,  0.5f, 0.0f },
+    {  0.5f, -0.5f, 0.0f },
+  };
+
+  u32 c[] = {
+    0xFF0000,
+    0x00FF00,
+    0x0000FF,
+
+    0x00FFFF,
+    0xFF00FF,
+    0xFFFF00,
+  };
+
+  f32 st = abs_t(f32, sin_f32(time.sec)*0.2f);
+
+  Matrix4x4 scale = matrix4x4_scale(make_vector3(st, st, st));
+  Matrix4x4 translate = matrix4x4_translate(0.7f, -0.9f, 0.0f);
+
+  Matrix4x4 model = make_matrix4x4(1.0f);
+  model = matrix4x4_mul(scale, model);
+  model = matrix4x4_mul(translate, model);
+
+  for (s32 vi = 0, ci = 0; vi < array_count(v); vi += 3, ci += 3) {
+    s32 vi0 = vi;
+    s32 vi1 = vi+1;
+    s32 vi2 = vi+2;
+
+    Vector4 v0 = vector4_from_vector3(v[vi0], 1.0f);
+    Vector4 v1 = vector4_from_vector3(v[vi1], 1.0f);
+    Vector4 v2 = vector4_from_vector3(v[vi2], 1.0f);
+
+    v0 = matrix4x4_mul_vector4(model, v0);
+    v1 = matrix4x4_mul_vector4(model, v1);
+    v2 = matrix4x4_mul_vector4(model, v2);
+
+    u32 w = back_buffer.width;
+    u32 h = back_buffer.height;
+
+    v0.xy = project_point_to_screen(v0.xy, w, h);
+    v1.xy = project_point_to_screen(v1.xy, w, h);
+    v2.xy = project_point_to_screen(v2.xy, w, h);
+
+    s32 x0 = (s32)v0.x;
+    s32 y0 = (s32)v0.y;
+    s32 x1 = (s32)v1.x;
+    s32 y1 = (s32)v1.y;
+    s32 x2 = (s32)v2.x;
+    s32 y2 = (s32)v2.y;
+
+    s32 ci0 = ci;
+    s32 ci1 = ci+1;
+    s32 ci2 = ci+2;
+
+    u32 c0 = c[ci0];
+    u32 c1 = c[ci1];
+    u32 c2 = c[ci2];
+
+    draw_triangle3(back_buffer, x0, y0, x1, y1, x2, y2, c0, c1, c2);
+  } 
+
+  translate = matrix4x4_translate(0.9f, -0.9f, 0.0f);
+  model = make_matrix4x4(1.0f);
+  model = matrix4x4_mul(scale, model);
+  model = matrix4x4_mul(translate, model);
+
+  for (s32 vi = 0, ci = 0; vi < array_count(v); vi += 3, ci += 3) {
+    s32 vi0 = vi;
+    s32 vi1 = vi+1;
+    s32 vi2 = vi+2;
+
+    Vector4 v0 = vector4_from_vector3(v[vi0], 1.0f);
+    Vector4 v1 = vector4_from_vector3(v[vi1], 1.0f);
+    Vector4 v2 = vector4_from_vector3(v[vi2], 1.0f);
+
+    v0 = matrix4x4_mul_vector4(model, v0);
+    v1 = matrix4x4_mul_vector4(model, v1);
+    v2 = matrix4x4_mul_vector4(model, v2);
+
+    u32 w = back_buffer.width;
+    u32 h = back_buffer.height;
+
+    v0.xy = project_point_to_screen(v0.xy, w, h);
+    v1.xy = project_point_to_screen(v1.xy, w, h);
+    v2.xy = project_point_to_screen(v2.xy, w, h);
+
+    f32 x0 = v0.x;
+    f32 y0 = v0.y;
+    f32 x1 = v1.x;
+    f32 y1 = v1.y;
+    f32 x2 = v2.x;
+    f32 y2 = v2.y;
+
+    s32 ci0 = ci;
+    s32 ci1 = ci+1;
+    s32 ci2 = ci+2;
+
+    u32 c0 = c[ci0];
+    u32 c1 = c[ci1];
+    u32 c2 = c[ci2];
+
+    draw_triangle3_f32(back_buffer, x0, y0, x1, y1, x2, y2, c0, c1, c2);
+  } 
+}
+
+internal void
+test_texture(Image back_buffer, Image texture) {
+  draw_texture(back_buffer, texture, 0, 0);
+}
+
+internal void
+test_text(Image back_buffer, Font font) {
+  s32 x = 0;
+  s32 y = font.glyph_height*2;
+  draw_text(back_buffer, 
+            "0123456789", x,  y, 
+            font, make_vector4(0.75f, 0.75f, 0.75f, 1.0f));
+  y += font.glyph_height;
+  draw_text(back_buffer, 
+            "ABCDEFGHIJKLM", x,  y, 
+            font, make_vector4(0.75f, 0.75f, 0.75f, 0.75f));
+  y += font.glyph_height;
+  draw_text(back_buffer, 
+            "NOPQRSTUVWXYZ", x, y, 
+            font, make_vector4(0.75f, 0.75f, 0.75f, 0.5f));
+  y += font.glyph_height;
+  draw_text(back_buffer, 
+            ".,!?'\"-+=/\\%()<>", x, y, 
+            font, make_vector4(0.75f, 0.75f, 0.75f, 0.25f));
+}
+
+internal void
+draw_debug_info(Image back_buffer, Clock time, Font font) {
+  local char fps_str[256];
+  local char ms_str[256];
+
+  f32 fps = million(1)/time.dt_us;
+  f32 ms = time.dt_us/thousand(1);
+
+  sprintf(fps_str, "%.2f FPS", fps);
+  sprintf(ms_str, "%.2f MS", ms);
+
+  s32 offset_x = back_buffer.width - (s32)cstr_len(fps_str)*font.glyph_width;
+  s32 offset_y = 0;
+
+  draw_text(back_buffer, fps_str, offset_x, offset_y, 
+            font, make_vector4(0.45f, 0.1f, 0.1f, 1.0f));
+  offset_x = back_buffer.width - (s32)cstr_len(ms_str)*font.glyph_width - font.glyph_width;
+  offset_y = offset_y + font.glyph_height;
+  draw_text(back_buffer, ms_str, offset_x, offset_y, 
+            font, make_vector4(0.45f, 0.1f, 0.1f, 1.0f));
 }
 
 struct Krueger_State {
@@ -802,58 +1121,39 @@ KRUEGER_FRAME_PROC(krueger_frame) {
   cam_target = vector3_add(state->cam_p, state->cam_dir);
   Matrix4x4 view = matrix4x4_quick_inverse(matrix4x4_point_at(state->cam_p, cam_target, state->cam_up));
 
-  clear(back_buffer, 0);
-
   Matrix4x4 scale = matrix4x4_scale(make_vector3(1.0f, 1.0f, 1.0f));
   Matrix4x4 rotate = matrix4x4_rotate(make_vector3(1.0f, 1.0f, 0.0f), radians_f32(state->mesh_rot_angle));
   Matrix4x4 translate = matrix4x4_translate(-2.0f, 0.0f, 4.0f);
   Matrix4x4 model = make_matrix4x4(1.0f);
-  model = matrix4x4_mul(scale, model);
-  model = matrix4x4_mul(rotate, model);
-  model = matrix4x4_mul(translate, model);
-  test_draw_mesh(back_buffer, state->mesh, model, view, proj, state->cam_p, false);
 
-  translate = matrix4x4_translate(2.0f, 0.0f, 4.0f);
-  model = make_matrix4x4(1.0f);
-  model = matrix4x4_mul(scale, model);
-  model = matrix4x4_mul(rotate, model);
-  model = matrix4x4_mul(translate, model);
-  test_draw_mesh_f32(back_buffer, state->mesh, model, view, proj, state->cam_p, false);
+  clear(back_buffer, 0);
 
-  f32 circle_rt = 10.0f;
-  f32 circle_r = circle_rt*sin_f32(time.sec);
-  draw_circle(back_buffer, 
-              back_buffer.width/2 - (s32)circle_rt, back_buffer.height/2, 
-              (s32)circle_r, 0x79241f);
-  draw_circle_f32(back_buffer, 
-                  (f32)(back_buffer.width/2) + circle_rt, (f32)(back_buffer.height/2), 
-                  circle_r, 0x79241f);
+  { 
+    model = matrix4x4_mul(scale, model);
+    model = matrix4x4_mul(rotate, model);
+    model = matrix4x4_mul(translate, model);
+    test_draw_mesh(back_buffer, state->mesh, model, view, proj, state->cam_p, false);
+  }
+  {
+    translate = matrix4x4_translate(2.0f, 0.0f, 4.0f);
+    model = make_matrix4x4(1.0f);
+    model = matrix4x4_mul(scale, model);
+    model = matrix4x4_mul(rotate, model);
+    model = matrix4x4_mul(translate, model);
+    test_draw_mesh_f32(back_buffer, state->mesh, model, view, proj, state->cam_p, false);
+  }
+  
+  test_rect(back_buffer, time);
+  test_circle(back_buffer, time);
+  test_triangle(back_buffer, time);
+  test_triangle3(back_buffer, time);
+  test_texture(back_buffer, state->font_image);
+  test_text(back_buffer, state->font);
 
-  draw_text(back_buffer, "0123456789",         0,  0, state->font, make_vector3(0.75f, 0.75f, 0.75f));
-  draw_text(back_buffer, "ABCDEFGHIJKLM",      0,  8, state->font, make_vector3(0.75f, 0.75f, 0.75f));
-  draw_text(back_buffer, "NOPQRSTUVWXYZ",      0, 16, state->font, make_vector3(0.75f, 0.75f, 0.75f));
-  draw_text(back_buffer, ".,!?'\"-+=/\\%()<>", 0, 24, state->font, make_vector3(0.75f, 0.75f, 0.75f));
-
-#if 1
-  // NOTE: Draw Debug Info
-  local char fps_str[256];
-  local char ms_str[256];
-  f32 fps = million(1)/time.dt_us;
-  f32 ms = time.dt_us/thousand(1);
-  sprintf(fps_str, "%.2f FPS", fps);
-  sprintf(ms_str, "%.2f MS", ms);
-
-  s32 offset_x = back_buffer.width - (s32)cstr_len(fps_str)*state->font.glyph_width;
-  // s32 offset_y = back_buffer.height - state->font.glyph_height*2;
-  s32 offset_y = 0;
-  draw_text(back_buffer, fps_str, offset_x, offset_y, state->font, make_vector3(0.45f, 0.1f, 0.1f));
-  offset_x = back_buffer.width - (s32)cstr_len(ms_str)*state->font.glyph_width - state->font.glyph_width;
-  offset_y = offset_y + state->font.glyph_height;
-  draw_text(back_buffer, ms_str, offset_x, offset_y, state->font, make_vector3(0.45f, 0.1f, 0.1f));
-#endif
+  draw_debug_info(back_buffer, time, state->font);
 }
 
 // TODO:
-// - Clipping
 // - Texture Mapping
 // - Depth Buffer
+// - Clipping

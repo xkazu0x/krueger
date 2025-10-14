@@ -141,8 +141,8 @@ main(void) {
 
   char *window_title = "krueger";
 
-  s32 window_width = 1280;
-  s32 window_height = 960;
+  s32 window_width = 960;
+  s32 window_height = 720;
 
   s32 monitor_width = GetSystemMetrics(SM_CXSCREEN);
   s32 monitor_height = GetSystemMetrics(SM_CYSCREEN);
