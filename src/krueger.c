@@ -40,141 +40,8 @@ alpha_linear_blend(u32 dst, u32 src) {
   return(result);
 }
 
-#pragma pack(push, 1)
-typedef struct {
-  u16 type;
-  u32 size;
-  u16 reserved1;
-  u16 reserved2;
-  u32 data_offset;
-} Bmp_File_Header;
-
-typedef struct {
-  u32 header_size;
-  s32 image_width;
-  s32 image_height;
-  u16 num_color_planes;
-  u16 bits_per_pixel;
-  u32 compression;
-  u32 image_size;
-  s32 x_resolution_ppm;
-  s32 y_resolution_ppm;
-  u32 num_colors;
-  u32 num_important_colors;
-} Bmp_Info_Header;
-
-// NOTE: in big-endian
-typedef struct {
-  u32 red_mask;
-  u32 green_mask;
-  u32 blue_mask;
-  u32 alpha_mask;
-} Bmp_Color_Header;
-#pragma pack(pop)
-
-#if COMPILER_MSVC
-#include <intrin.h>
-#endif
-
-internal b32
-bit_scan_forward(u32 *index, u32 mask) {
-  b32 result = false;
-#if COMPILER_MSVC
-  result = _BitScanForward((unsigned long *)index, mask);
-#else
-  for (u32 i = 0; i < 32; ++i) {
-    if (mask & (1 << i)) {
-      *index = i;
-      result = true;
-      break;
-    }
-  }
-#endif
-  return(result);
-}
-
-internal u32 *
-load_bmp(char *filename, u32 *width, u32 *height) {
-  u32 *result = 0;
-  uxx size;
-  void *data = platform_read_file(filename, &size);
-  if (data) {
-    Bmp_File_Header *bmp_file = (Bmp_File_Header *)data;
-    if (bmp_file->type == cstr_encode("BM")) {
-      Bmp_Info_Header *bmp_info = (Bmp_Info_Header *)((u8 *)bmp_file + sizeof(Bmp_File_Header));
-      *width = bmp_info->image_width;
-      *height = bmp_info->image_height;
-      result = (u32 *)((u8 *)data + bmp_file->data_offset);
-      if (bmp_info->header_size > 40) {
-        Bmp_Color_Header *bmp_color = (Bmp_Color_Header *)((u8 *)bmp_info + sizeof(Bmp_Info_Header));
-        u32 red_mask = bmp_color->red_mask;
-        u32 green_mask = bmp_color->green_mask;
-        u32 blue_mask = bmp_color->blue_mask;
-        u32 alpha_mask = ~(red_mask | green_mask | blue_mask);
-        u32 red_shift = 0;
-        u32 green_shift = 0;
-        u32 blue_shift = 0;
-        u32 alpha_shift = 0;
-        assert(bit_scan_forward(&red_shift, red_mask));
-        assert(bit_scan_forward(&green_shift, green_mask));
-        assert(bit_scan_forward(&blue_shift, blue_mask));
-        assert(bit_scan_forward(&alpha_shift, alpha_mask));
-        for (u32 i = 0; i < (*width)*(*height); ++i) {
-          u32 color = result[i];
-          u8 r = ((color >> red_shift) & 0xFF);
-          u8 g = ((color >> green_shift) & 0xFF);
-          u8 b = ((color >> blue_shift) & 0xFF);
-          u8 a = ((color >> alpha_shift) & 0xFF);
-          result[i] = pack_rgba32(r, g, b, a);
-        }
-      }
-    }
-  } else {
-    printf("[ERROR]: load_bmp: failed to read file: %s\n", filename);
-  }
-  return(result);
-}
-
-typedef struct {
-  Vector3 *vertex_buf;
-  u32 *vertex_index_buf;
-} Mesh;
-
-internal Mesh
-load_obj(char *filename) {
-  Mesh mesh = {0};
-  Vector3 *tmp_vertex_buf = 0;
-  FILE *file = fopen(filename, "r");
-  if (file) {
-    char line[1<<8];
-    while (fscanf(file, "%s", line) != EOF) {
-      if (cstr_match(line, "v")) {
-        Vector3 v;
-        fscanf(file, "%f %f %f\n", &v.x, &v.y, &v.z);
-        buf_push(tmp_vertex_buf, v);
-      } else if (cstr_match(line, "f")) {
-        s32 f[3];
-        fscanf(file, "%d %d %d\n", &f[0], &f[1], &f[2]);
-        buf_push(mesh.vertex_index_buf, f[0]);
-        buf_push(mesh.vertex_index_buf, f[1]);
-        buf_push(mesh.vertex_index_buf, f[2]);
-      }
-    }
-    fclose(file);
-    for (u32 i = 0; i < buf_len(mesh.vertex_index_buf); ++i) {
-      u32 vertex_index = mesh.vertex_index_buf[i];
-      Vector3 v = tmp_vertex_buf[vertex_index-1];
-      buf_push(mesh.vertex_buf, v);
-    }
-    buf_free(tmp_vertex_buf);
-  } else {
-    printf("[ERROR]: Failed to open file: %s\n", filename);
-  }
-  return(mesh);
-}
-
 internal void
-fill(Image image, u32 color) {
+clear(Image image, u32 color) {
   for (u32 i = 0; i < (image.width*image.height); ++i) {
     image.pixels[i] = color;
   }
@@ -194,6 +61,47 @@ draw_rect(Image image,
   for (s32 y = min_y; y < max_y; ++y) {
     for (s32 x = min_x; x < max_x; ++x) {
       image.pixels[y*image.width + x] = color;
+    }
+  }
+}
+
+internal void
+draw_circle(Image image,
+            s32 cx, s32 cy, s32 r,
+            u32 color) {
+  r = abs_t(s32, r);
+  s32 min_x = clamp_bot(0, cx - r);
+  s32 min_y = clamp_bot(0, cy - r);
+  s32 max_x = clamp_top(cx + r, (s32)image.width);
+  s32 max_y = clamp_top(cy + r, (s32)image.height);
+  for (s32 y = min_y; y < max_y; ++y) {
+    s32 dy = y - cy;
+    for (s32 x = min_x; x < max_x; ++x) {
+      s32 dx = x - cx;
+      if (dx*dx + dy*dy < r*r) {
+        image.pixels[y*image.width + x] = color;
+      }
+    }
+  }
+}
+
+internal void
+draw_circle_f32(Image image,
+            f32 cx, f32 cy, f32 r,
+            u32 color) {
+  r = abs_t(f32, r);
+  f32 rs = r*r;
+  s32 min_x = (s32)clamp_bot(0, floor_f32(cx - r));
+  s32 min_y = (s32)clamp_bot(0, floor_f32(cy - r));
+  s32 max_x = (s32)clamp_top(ceil_f32(cx + r), image.width);
+  s32 max_y = (s32)clamp_top(ceil_f32(cy + r), image.height);
+  for (s32 y = min_y; y < max_y; ++y) {
+    f32 dy = (y + 0.5f) - cy;
+    for (s32 x = min_x; x < max_x; ++x) {
+      f32 dx = (x + 0.5f) - cx;
+      if (dx*dx + dy*dy < rs) {
+        image.pixels[y*image.width + x] = color;
+      }
     }
   }
 }
@@ -422,13 +330,136 @@ draw_triangle3_f32(Image image,
   }
 }
 
-internal Vector2
-project_point_to_screen(Vector2 p, u32 w, u32 h) {
-  Vector2 result = {
-    .x = (p.x + 1.0f)*0.5f*w,
-    .y = (-p.y + 1.0f)*0.5f*h,
-  };
+#pragma pack(push, 1)
+typedef struct {
+  u16 type;
+  u32 size;
+  u16 reserved1;
+  u16 reserved2;
+  u32 data_offset;
+} Bmp_File_Header;
+
+typedef struct {
+  u32 header_size;
+  s32 image_width;
+  s32 image_height;
+  u16 num_color_planes;
+  u16 bits_per_pixel;
+  u32 compression;
+  u32 image_size;
+  s32 x_resolution_ppm;
+  s32 y_resolution_ppm;
+  u32 num_colors;
+  u32 num_important_colors;
+} Bmp_Info_Header;
+
+// NOTE: in big-endian
+typedef struct {
+  u32 red_mask;
+  u32 green_mask;
+  u32 blue_mask;
+  u32 alpha_mask;
+} Bmp_Color_Header;
+#pragma pack(pop)
+
+#if COMPILER_MSVC
+#include <intrin.h>
+#endif
+
+internal b32
+bit_scan_forward(u32 *index, u32 mask) {
+  b32 result = false;
+#if COMPILER_MSVC
+  result = _BitScanForward((unsigned long *)index, mask);
+#else
+  for (u32 i = 0; i < 32; ++i) {
+    if (mask & (1 << i)) {
+      *index = i;
+      result = true;
+      break;
+    }
+  }
+#endif
   return(result);
+}
+
+internal Image
+load_bmp(char *filename) {
+  Image result = {0};
+  void *data = platform_read_file(filename);
+  if (data) {
+    Bmp_File_Header *bmp_file = (Bmp_File_Header *)data;
+    if (bmp_file->type == cstr_encode("BM")) {
+      Bmp_Info_Header *bmp_info = (Bmp_Info_Header *)((u8 *)bmp_file + sizeof(Bmp_File_Header));
+      result.width = bmp_info->image_width;
+      result.height = bmp_info->image_height;
+      result.pixels = (u32 *)((u8 *)data + bmp_file->data_offset);
+      if (bmp_info->header_size > 40) {
+        Bmp_Color_Header *bmp_color = (Bmp_Color_Header *)((u8 *)bmp_info + sizeof(Bmp_Info_Header));
+        u32 red_mask = bmp_color->red_mask;
+        u32 green_mask = bmp_color->green_mask;
+        u32 blue_mask = bmp_color->blue_mask;
+        u32 alpha_mask = ~(red_mask | green_mask | blue_mask);
+        u32 red_shift = 0;
+        u32 green_shift = 0;
+        u32 blue_shift = 0;
+        u32 alpha_shift = 0;
+        assert(bit_scan_forward(&red_shift, red_mask));
+        assert(bit_scan_forward(&green_shift, green_mask));
+        assert(bit_scan_forward(&blue_shift, blue_mask));
+        assert(bit_scan_forward(&alpha_shift, alpha_mask));
+        for (u32 i = 0; i < (result.width*result.height); ++i) {
+          u32 color = result.pixels[i];
+          u8 r = ((color >> red_shift) & 0xFF);
+          u8 g = ((color >> green_shift) & 0xFF);
+          u8 b = ((color >> blue_shift) & 0xFF);
+          u8 a = ((color >> alpha_shift) & 0xFF);
+          result.pixels[i] = pack_rgba32(r, g, b, a);
+        }
+      }
+    }
+  } else {
+    printf("[ERROR]: load_bmp: failed to read file: %s\n", filename);
+  }
+  return(result);
+}
+
+typedef struct {
+  Vector3 *vertex_buf;
+  u32 *vertex_index_buf;
+} Mesh;
+
+internal Mesh
+load_obj(char *filename) {
+  Mesh mesh = {0};
+  Vector3 *tmp_vertex_buf = 0;
+  FILE *file = fopen(filename, "r");
+  if (file) {
+    char line[1<<8];
+    while (fscanf(file, "%s", line) != EOF) {
+      if (cstr_match(line, "v")) {
+        Vector3 v;
+        fscanf(file, "%f %f %f\n", &v.x, &v.y, &v.z);
+        buf_push(tmp_vertex_buf, v);
+      } else if (cstr_match(line, "f")) {
+        s32 f[3];
+        fscanf(file, "%d %d %d\n", &f[0], &f[1], &f[2]);
+        buf_push(mesh.vertex_index_buf, f[0]);
+        buf_push(mesh.vertex_index_buf, f[1]);
+        buf_push(mesh.vertex_index_buf, f[2]);
+      }
+    }
+    fclose(file);
+    for (u32 i = 0; i < buf_len(mesh.vertex_index_buf); ++i) {
+      u32 vertex_index = mesh.vertex_index_buf[i];
+      Vector3 v = tmp_vertex_buf[vertex_index-1];
+      buf_push(mesh.vertex_buf, v);
+    }
+    buf_free(tmp_vertex_buf);
+  } else {
+    printf("[ERROR]: Failed to open file: %s\n", filename);
+  }
+  return(mesh);
 }
 
 internal Matrix4x4
@@ -467,6 +498,15 @@ matrix4x4_quick_inverse(Matrix4x4 m) {
   result.m[3][0] = -(m.m[3][0]*result.m[0][0] + m.m[3][1]*result.m[1][0] + m.m[3][2]*result.m[2][0]);
   result.m[3][1] = -(m.m[3][0]*result.m[0][1] + m.m[3][1]*result.m[1][1] + m.m[3][2]*result.m[2][1]);
   result.m[3][2] = -(m.m[3][0]*result.m[0][2] + m.m[3][1]*result.m[1][2] + m.m[3][2]*result.m[2][2]);
+  return(result);
+}
+
+internal Vector2
+project_point_to_screen(Vector2 p, u32 w, u32 h) {
+  Vector2 result = {
+    .x = (p.x + 1.0f)*0.5f*w,
+    .y = (-p.y + 1.0f)*0.5f*h,
+  };
   return(result);
 }
 
@@ -712,7 +752,7 @@ KRUEGER_INIT_PROC(krueger_init) {
   Krueger_State *state = push_array(&arena, Krueger_State, 1);
   state->arena = arena;
 
-  state->font_image.pixels = load_bmp("../res/font.bmp", &state->font_image.width, &state->font_image.height);
+  state->font_image = load_bmp("../res/font.bmp");
   char *font_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ "
                      "0123456789.,!?'\"-+=/\\%()<> ";
   state->font = make_font(font_chars, 27, 2, 8, 8, state->font_image);
@@ -737,23 +777,23 @@ KRUEGER_INIT_PROC(krueger_init) {
 
 shared_function
 KRUEGER_FRAME_PROC(krueger_frame) {
-  Digital_Button *kbd = input->kbd;
+  Digital_Button *kbd = input.kbd;
 
   state->cam_vel = make_vector3(0.0f, 0.0f, 0.0f);
   if (kbd[KEY_A].is_down) state->cam_vel = vector3_cross(state->cam_dir, state->cam_up);
   if (kbd[KEY_D].is_down) state->cam_vel = vector3_cross(state->cam_up, state->cam_dir);
   if (kbd[KEY_W].is_down) state->cam_vel = vector3_add(state->cam_vel, state->cam_dir);
   if (kbd[KEY_S].is_down) state->cam_vel = vector3_sub(state->cam_vel, state->cam_dir);
-  state->cam_p = vector3_add(state->cam_p, vector3_mul(state->cam_vel, state->cam_speed*time->dt_sec));
+  state->cam_p = vector3_add(state->cam_p, vector3_mul(state->cam_vel, state->cam_speed*time.dt_sec));
   
   state->cam_rot_vel = 0.0f;
   if (kbd[KEY_H].is_down) state->cam_rot_vel = -1.0f;
   if (kbd[KEY_L].is_down) state->cam_rot_vel = 1.0f;
-  state->cam_yaw += state->cam_rot_speed*state->cam_rot_vel*time->dt_sec;
+  state->cam_yaw += state->cam_rot_speed*state->cam_rot_vel*time.dt_sec;
 
-  state->mesh_rot_angle += state->mesh_rot_speed*time->dt_sec;
+  state->mesh_rot_angle += state->mesh_rot_speed*time.dt_sec;
 
-  f32 aspect_ratio = (f32)back_buffer->height/(f32)back_buffer->width;
+  f32 aspect_ratio = (f32)back_buffer.height/(f32)back_buffer.width;
   Matrix4x4 proj = matrix4x4_perspective(90.0f, aspect_ratio, 0.1f, 100.0f);
 
   Vector3 cam_target = make_vector3(0.0f, 0.0f, 1.0f);
@@ -762,7 +802,7 @@ KRUEGER_FRAME_PROC(krueger_frame) {
   cam_target = vector3_add(state->cam_p, state->cam_dir);
   Matrix4x4 view = matrix4x4_quick_inverse(matrix4x4_point_at(state->cam_p, cam_target, state->cam_up));
 
-  fill(*back_buffer, 0);
+  clear(back_buffer, 0);
 
   Matrix4x4 scale = matrix4x4_scale(make_vector3(1.0f, 1.0f, 1.0f));
   Matrix4x4 rotate = matrix4x4_rotate(make_vector3(1.0f, 1.0f, 0.0f), radians_f32(state->mesh_rot_angle));
@@ -771,36 +811,45 @@ KRUEGER_FRAME_PROC(krueger_frame) {
   model = matrix4x4_mul(scale, model);
   model = matrix4x4_mul(rotate, model);
   model = matrix4x4_mul(translate, model);
-  test_draw_mesh(*back_buffer, state->mesh, model, view, proj, state->cam_p, false);
+  test_draw_mesh(back_buffer, state->mesh, model, view, proj, state->cam_p, false);
 
   translate = matrix4x4_translate(2.0f, 0.0f, 4.0f);
   model = make_matrix4x4(1.0f);
   model = matrix4x4_mul(scale, model);
   model = matrix4x4_mul(rotate, model);
   model = matrix4x4_mul(translate, model);
-  test_draw_mesh_f32(*back_buffer, state->mesh, model, view, proj, state->cam_p, false);
+  test_draw_mesh_f32(back_buffer, state->mesh, model, view, proj, state->cam_p, false);
 
-  draw_text(*back_buffer, "0123456789",         0,  0, state->font, make_vector3(0.75f, 0.75f, 0.75f));
-  draw_text(*back_buffer, "ABCDEFGHIJKLM",      0,  8, state->font, make_vector3(0.75f, 0.75f, 0.75f));
-  draw_text(*back_buffer, "NOPQRSTUVWXYZ",      0, 16, state->font, make_vector3(0.75f, 0.75f, 0.75f));
-  draw_text(*back_buffer, ".,!?'\"-+=/\\%()<>", 0, 24, state->font, make_vector3(0.75f, 0.75f, 0.75f));
+  f32 circle_rt = 10.0f;
+  f32 circle_r = circle_rt*sin_f32(time.sec);
+  draw_circle(back_buffer, 
+              back_buffer.width/2 - (s32)circle_rt, back_buffer.height/2, 
+              (s32)circle_r, 0x79241f);
+  draw_circle_f32(back_buffer, 
+                  (f32)(back_buffer.width/2) + circle_rt, (f32)(back_buffer.height/2), 
+                  circle_r, 0x79241f);
+
+  draw_text(back_buffer, "0123456789",         0,  0, state->font, make_vector3(0.75f, 0.75f, 0.75f));
+  draw_text(back_buffer, "ABCDEFGHIJKLM",      0,  8, state->font, make_vector3(0.75f, 0.75f, 0.75f));
+  draw_text(back_buffer, "NOPQRSTUVWXYZ",      0, 16, state->font, make_vector3(0.75f, 0.75f, 0.75f));
+  draw_text(back_buffer, ".,!?'\"-+=/\\%()<>", 0, 24, state->font, make_vector3(0.75f, 0.75f, 0.75f));
 
 #if 1
   // NOTE: Draw Debug Info
   local char fps_str[256];
   local char ms_str[256];
-  f32 fps = million(1)/time->dt_us;
-  f32 ms = time->dt_us/thousand(1);
+  f32 fps = million(1)/time.dt_us;
+  f32 ms = time.dt_us/thousand(1);
   sprintf(fps_str, "%.2f FPS", fps);
   sprintf(ms_str, "%.2f MS", ms);
 
-  s32 offset_x = back_buffer->width - (s32)cstr_len(fps_str)*state->font.glyph_width;
-  s32 offset_y = back_buffer->height - state->font.glyph_height*2;
-  // s32 offset_y = 0;
-  draw_text(*back_buffer, fps_str, offset_x, offset_y, state->font, make_vector3(0.45f, 0.1f, 0.1f));
-  offset_x = back_buffer->width - (s32)cstr_len(ms_str)*state->font.glyph_width - state->font.glyph_width;
+  s32 offset_x = back_buffer.width - (s32)cstr_len(fps_str)*state->font.glyph_width;
+  // s32 offset_y = back_buffer.height - state->font.glyph_height*2;
+  s32 offset_y = 0;
+  draw_text(back_buffer, fps_str, offset_x, offset_y, state->font, make_vector3(0.45f, 0.1f, 0.1f));
+  offset_x = back_buffer.width - (s32)cstr_len(ms_str)*state->font.glyph_width - state->font.glyph_width;
   offset_y = offset_y + state->font.glyph_height;
-  draw_text(*back_buffer, ms_str, offset_x, offset_y, state->font, make_vector3(0.45f, 0.1f, 0.1f));
+  draw_text(back_buffer, ms_str, offset_x, offset_y, state->font, make_vector3(0.45f, 0.1f, 0.1f));
 #endif
 }
 

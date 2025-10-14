@@ -141,8 +141,8 @@ main(void) {
 
   char *window_title = "krueger";
 
-  s32 window_width = 800;
-  s32 window_height = 600;
+  s32 window_width = 1280;
+  s32 window_height = 960;
 
   s32 monitor_width = GetSystemMetrics(SM_CXSCREEN);
   s32 monitor_height = GetSystemMetrics(SM_CYSCREEN);
@@ -187,15 +187,11 @@ main(void) {
                                 0, 0, window_instance, 0);
   ShowWindow(window, SW_SHOW);
 
-  s32 back_buffer_width = 160;
-  s32 back_buffer_height = 120;
+  s32 back_buffer_width = 320;
+  s32 back_buffer_height = 240;
   uxx back_buffer_size = back_buffer_width*back_buffer_height*sizeof(u32);
-
-  Image back_buffer = {0};
-  back_buffer.width = back_buffer_width;
-  back_buffer.height = back_buffer_height;
-  back_buffer.pixels = platform_reserve(back_buffer_size);
-  platform_commit(back_buffer.pixels, back_buffer_size);
+  u32 *back_buffer_pixels = platform_reserve(back_buffer_size);
+  platform_commit(back_buffer_pixels, back_buffer_size);
 
   BITMAPINFO bitmap_info = {0};
   bitmap_info.bmiHeader.biSize = sizeof(bitmap_info.bmiHeader);
@@ -205,6 +201,9 @@ main(void) {
   bitmap_info.bmiHeader.biBitCount = BITS_PER_PIXEL;
   bitmap_info.bmiHeader.biCompression = BI_RGB;
 
+  Image back_buffer = make_image(back_buffer_pixels, 
+                                 back_buffer_width, 
+                                 back_buffer_height);
   Input input = {0};
   Clock time = {0};
 
@@ -241,7 +240,7 @@ main(void) {
     if (input.kbd[KEY_Q].pressed) quit = true;
     if (input.kbd[KEY_R].pressed) win32_reload_libkrueger(lib_str, lib_copy_str);
 
-    if (krueger_frame) krueger_frame(krueger_state, &back_buffer, &input, &time);
+    if (krueger_frame) krueger_frame(krueger_state, back_buffer, input, time);
     input_reset(&input);
 
     RECT client_rectangle;

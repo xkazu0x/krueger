@@ -67,6 +67,15 @@ typedef struct {
   u32 *pixels;
 } Image;
 
+internal Image
+make_image(u32 *pixels, u32 width, u32 height) {
+  Image image = {0};
+  image.width = width;
+  image.height = height;
+  image.pixels = pixels;
+  return(image);
+}
+
 typedef struct {
   f32 dt_us;
   f32 dt_ms;
@@ -81,7 +90,7 @@ typedef struct Krueger_State Krueger_State;
 #define KRUEGER_INIT_PROC(x) Krueger_State *x(void)
 typedef KRUEGER_INIT_PROC(krueger_init_proc);
 
-#define KRUEGER_FRAME_PROC(x) void x(Krueger_State *state, Image *back_buffer, Input *input, Clock *time)
+#define KRUEGER_FRAME_PROC(x) void x(Krueger_State *state, Image back_buffer, Input input, Clock time)
 typedef KRUEGER_FRAME_PROC(krueger_frame_proc);
 
 #define KRUEGER_PROC_LIST \
