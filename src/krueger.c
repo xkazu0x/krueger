@@ -605,25 +605,25 @@ draw_texture(u32 *dst_buf, u32 dst_w, u32 dst_h,
 
 typedef struct {
   char *chars;
-  u32 glyph_width;
-  u32 glyph_height;
   u32 num_glyph_x;
   u32 num_glyph_y;
-  u32 *glyphs;
+  u32 glyph_width;
+  u32 glyph_height;
+  Image image;
 } Font;
 
 internal Font
 make_font(char *chars, 
-          u32 glyph_width, u32 glyph_height,
           u32 num_glyph_x, u32 num_glyph_y, 
-          u32 *glyphs) {
+          u32 glyph_width, u32 glyph_height,
+          Image image) {
   Font result = {0};
   result.chars = chars;
-  result.glyph_width = glyph_width;
-  result.glyph_height = glyph_height;
   result.num_glyph_x = num_glyph_x;
   result.num_glyph_y = num_glyph_y;
-  result.glyphs = glyphs;
+  result.glyph_width = glyph_width;
+  result.glyph_height = glyph_height;
+  result.image = image;
   return(result);
 }
 
@@ -635,16 +635,16 @@ draw_char(Image image,
   s32 min_y = clamp_bot(0, y);
   s32 max_x = clamp_top(x + font.glyph_width, image.width);
   s32 max_y = clamp_top(y + font.glyph_height, image.height);
-  u32 font_width = font.num_glyph_x*font.glyph_width; 
-  u32 font_height = font.num_glyph_y*font.glyph_height; 
   uxx char_index = cstr_index_of(font.chars, c);
   uxx tile_x = char_index % font.num_glyph_x;
-  uxx tile_y = (uxx)floor_f32((f32)char_index/(f32)font.num_glyph_x);
-  u32 *glyph = font.glyphs - tile_y*font_width*font.glyph_height + tile_x*font.glyph_width;
+  uxx tile_y = (uxx)floor_f32((f32)char_index/font.num_glyph_x);
+  u32 *glyph = font.image.pixels - tile_y*font.image.width*font.glyph_height + tile_x*font.glyph_width;
   for (s32 dy = min_y; dy < max_y; ++dy) {
+    s32 gy = dy - min_y;
     for (s32 dx = min_x; dx < max_x; ++dx) {
+      s32 gx = dx - min_x;
       s32 pixel_index = dy*image.width + dx;
-      s32 glyph_index = font_width*(font_height-1) - (dy-min_y)*font_width + dx-min_x;
+      s32 glyph_index = font.image.width*(font.image.height-1) - gy*font.image.width + gx;
       u32 pixel_color = image.pixels[pixel_index];
       u32 glyph_color = glyph[glyph_index];
       f32 rt = clamp_top(color.r, 1.0f);
@@ -715,7 +715,7 @@ KRUEGER_INIT_PROC(krueger_init) {
   state->font_image.pixels = load_bmp("../res/font.bmp", &state->font_image.width, &state->font_image.height);
   char *font_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ "
                      "0123456789.,!?'\"-+=/\\%()<> ";
-  state->font = make_font(font_chars, 8, 8, 27, 2, state->font_image.pixels);
+  state->font = make_font(font_chars, 27, 2, 8, 8, state->font_image);
 
   state->mesh = load_obj("../res/monkey.obj");
   state->mesh_rot_angle = 0.0f;
@@ -805,7 +805,6 @@ KRUEGER_FRAME_PROC(krueger_frame) {
 }
 
 // TODO:
-// - Fixed Frame Rate
 // - Clipping
 // - Texture Mapping
 // - Depth Buffer

@@ -109,13 +109,20 @@ win32_translate_keycode(u32 keycode) {
 }
 
 internal void
-win32_reload_libkrueger(char *lib_str) {
-  if (libkrueger) FreeLibrary(libkrueger);
-  libkrueger = LoadLibraryA(lib_str);
+win32_reload_libkrueger(char *lib_str, char *lib_copy_str) {
+  if (libkrueger) {
+    FreeLibrary(libkrueger);
+    libkrueger = 0;
+    #define PROC(x) x = 0;
+    KRUEGER_PROC_LIST
+    #undef PROC
+  }
+  CopyFile(lib_str, lib_copy_str, false);
+  libkrueger = LoadLibraryA(lib_copy_str);
   if (libkrueger) {
     #define PROC(x) \
       (*(PROC*)(&(x))) = GetProcAddress(libkrueger, #x); \
-      if (!x) printf("[ERROR]: %s: failed to load proc %s\n", lib_str, #x);
+      if (!(x)) printf("[ERROR]: %s: failed to load proc %s\n", lib_str, #x);
     KRUEGER_PROC_LIST
     #undef PROC
   } else {
@@ -125,9 +132,10 @@ win32_reload_libkrueger(char *lib_str) {
 
 int
 main(void) {
-  char *libkrueger_str = "..\\build\\libkrueger.dll";
-  win32_reload_libkrueger(libkrueger_str);
-  
+  char *lib_str = "..\\build\\libkrueger.dll";
+  char *lib_copy_str = "..\\build\\libkruegerx.dll";
+  win32_reload_libkrueger(lib_str, lib_copy_str);
+
   Krueger_State *krueger_state = 0;
   if (krueger_init) krueger_state = krueger_init();
 
@@ -205,7 +213,7 @@ main(void) {
   us_res = large_integer.QuadPart;
 
   u64 time_start = win32_get_time_us();
-  
+
   for (b32 quit = false; !quit;) {
     MSG message;
     while (PeekMessageA(&message, 0, 0, 0, PM_REMOVE)) {
@@ -231,7 +239,7 @@ main(void) {
     }
 
     if (input.kbd[KEY_Q].pressed) quit = true;
-    if (input.kbd[KEY_R].pressed) win32_reload_libkrueger(libkrueger_str);
+    if (input.kbd[KEY_R].pressed) win32_reload_libkrueger(lib_str, lib_copy_str);
 
     if (krueger_frame) krueger_frame(krueger_state, &back_buffer, &input, &time);
     input_reset(&input);

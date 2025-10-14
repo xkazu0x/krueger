@@ -11,10 +11,10 @@ if "%msvc%"=="1"        set clang=0 && echo [msvc compile]
 if "%clang%"=="1"       set msvc=0 && echo [clang compile]
 
 set cl_common=/D_CRT_SECURE_NO_WARNINGS /nologo /I..\src\ /std:c11 /W4 /wd4100 /wd4200 /wd4310
-set cl_debug=call cl /Od /DBUILD_DEBUG=1 %cl_common%
+set cl_debug=call cl /Od /Z7 /DBUILD_DEBUG=1 %cl_common%
 set cl_release=call cl /O2 /DBUILD_DEBUG=0 %cl_common%
 set cl_shared=/LD
-set cl_link=
+set cl_link=/INCREMENTAL:NO
 set cl_out=/Fe:
 
 set clang_common=-D_CRT_SECURE_NO_WARNINGS -I../src/ -std=c11 -Wall -Wextra -Wno-unused-function -Wno-unused-variable -Wno-unused-parameter
