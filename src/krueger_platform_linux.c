@@ -3,6 +3,7 @@
 
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <sys/sendfile.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <dlfcn.h>
@@ -59,17 +60,6 @@ platform_file_close(Platform_Handle file) {
 }
 
 internal u64
-platform_file_get_size(Platform_Handle file) {
-  u64 result = 0;
-  int fd = (int)file.ptr[0];
-  struct stat st;
-  if (fstat(fd, &st) == 0) {
-    result = st.st_size;
-  }
-  return(result);
-}
-
-internal u64
 platform_file_read(Platform_Handle file, void *buffer, u64 size) {
   int fd = (int)file.ptr[0];
   u64 result = read(fd, buffer, size);
@@ -80,6 +70,38 @@ internal u64
 platform_file_write(Platform_Handle file, void *buffer, u64 size) {
   int fd = (int)file.ptr[0];
   u64 result = write(fd, buffer, size);
+  return(result);
+}
+
+internal u64
+platform_get_file_size(Platform_Handle file) {
+  u64 result = 0;
+  int fd = (int)file.ptr[0];
+  struct stat st;
+  if (fstat(fd, &st) == 0) {
+    result = st.st_size;
+  }
+  return(result);
+}
+
+internal b32
+platform_copy_file_path(char *dst, char *src) {
+  b32 result = false;
+  Platform_Handle src_h = platform_file_open(src, PLATFORM_FILE_READ | PLATFORM_FILE_SHARE_READ);
+  Platform_Handle dst_h = platform_file_open(dst, PLATFORM_FILE_WRITE);
+  if (!platform_handle_match(src_h, PLATFORM_HANDLE_NULL) &&
+      !platform_handle_match(dst_h, PLATFORM_HANDLE_NULL)) {
+    int src_fd = (int)src_h.ptr[0];
+    int dst_fd = (int)dst_h.ptr[0];
+    off_t sendfile_off = 0;
+    u64 size = platform_get_file_size(src_h);
+    u32 write_size = sendfile(dst_fd, src_fd, &sendfile_off, size);
+    if (write_size == size) {
+      result = true;
+    }
+    platform_file_close(src_h);
+    platform_file_close(dst_h);
+  }
   return(result);
 }
 

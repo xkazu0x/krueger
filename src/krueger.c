@@ -522,7 +522,7 @@ internal void
 read_entire_file(Arena *arena, char *filepath, void** buffer, uxx *size) {
   Platform_Handle file = platform_file_open(filepath, PLATFORM_FILE_READ | PLATFORM_FILE_SHARE_READ);
   if (file.ptr[0]) {
-    *size = platform_file_get_size(file);
+    *size = platform_get_file_size(file);
     *buffer = arena_push(arena, *size);
     platform_file_read(file, *buffer, *size);
     platform_file_close(file);

@@ -46,36 +46,26 @@ KRUEGER_PROC_LIST
 
 internal void
 reload_libkrueger(Arena *arena, char *lib_str, char *lib_copy_str) {
-  if (libkrueger.ptr[0]) {
+  if (!platform_handle_match(libkrueger, PLATFORM_HANDLE_NULL)) {
     platform_library_close(libkrueger);
     libkrueger.ptr[0] = 0;
     #define PROC(x) x = 0;
     KRUEGER_PROC_LIST
     #undef PROC
   }
-
-  Platform_Handle src_file = platform_file_open(lib_str, PLATFORM_FILE_READ | PLATFORM_FILE_SHARE_READ);
-  Platform_Handle dst_file = platform_file_open(lib_copy_str, PLATFORM_FILE_WRITE);
-
-  Temp temp = temp_begin(arena);
-  u64 src_size = platform_file_get_size(src_file);
-  void *src_buf = arena_push(arena, src_size);
-  platform_file_read(src_file, src_buf, src_size);
-  platform_file_write(dst_file, src_buf, src_size);
-  temp_end(temp);
-
-  platform_file_close(src_file);
-  platform_file_close(dst_file);
-
-  libkrueger = platform_library_open(lib_copy_str);
-  if (libkrueger.ptr[0]) {
-    #define PROC(x) \
-      x = (x##_proc *)platform_library_load_proc(libkrueger, #x); \
-      if (!(x)) printf("[ERROR]: reload_libkrueger: failed to get proc from %s: %s\n", lib_copy_str, #x);
-    KRUEGER_PROC_LIST
-    #undef PROC
+  if (platform_copy_file_path(lib_str, lib_copy_str)) {
+    libkrueger = platform_library_open(lib_copy_str);
+    if (!platform_handle_match(libkrueger, PLATFORM_HANDLE_NULL)) {
+      #define PROC(x) \
+        x = (x##_proc *)platform_library_load_proc(libkrueger, #x); \
+        if (!(x)) printf("[ERROR]: reload_libkrueger: failed to load proc from library %s: %s\n", lib_copy_str, #x);
+      KRUEGER_PROC_LIST
+      #undef PROC
+    } else {
+      printf("[ERROR]: reload_libkrueger: failed to open library: %s\n", lib_copy_str);
+    }
   } else {
-    printf("[ERROR]: reload_libkrueger: failed to load lib: %s\n", lib_copy_str);
+    printf("[ERROR]: reload_libkrueger: failed to copy file path: from %s to %s\n", lib_str, lib_copy_str);
   }
 }
 
@@ -305,6 +295,7 @@ main(void) {
     time.sec += time.dt_sec;
     time_start = time_end;
   }
+  platform_library_close(libkrueger);
   return(0);
 }
 

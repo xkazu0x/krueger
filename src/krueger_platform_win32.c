@@ -32,7 +32,7 @@ platform_release(void *ptr, uxx size) {
 }
 
 internal Platform_Handle
-platform_file_open(char *filepath, Platform_Access_Flags flags) {
+platform_file_open(char *filepath, Platform_File_Flags flags) {
   Platform_Handle result = {0};
   DWORD desired_access = 0;
   DWORD share_mode = 0;
@@ -57,14 +57,6 @@ platform_file_close(Platform_Handle file) {
 }
 
 internal u64
-platform_file_get_size(Platform_Handle file) {
-  u64 result = 0;
-  HANDLE handle = (HANDLE)file.ptr[0];
-  GetFileSizeEx(handle, (LARGE_INTEGER *)&result);
-  return(result);
-}
-
-internal u64
 platform_file_read(Platform_Handle file, void *buffer, u64 size) {
   u64 result = 0;
   HANDLE handle = (HANDLE)file.ptr[0];
@@ -77,6 +69,20 @@ platform_file_write(Platform_Handle file, void *buffer, u64 size) {
   u64 result = 0;
   HANDLE handle = (HANDLE)file.ptr[0];
   WriteFile(handle, buffer, (DWORD)size, (DWORD *)&result, 0);
+  return(result);
+}
+
+internal u64
+platform_get_file_size(Platform_Handle file) {
+  u64 result = 0;
+  HANDLE handle = (HANDLE)file.ptr[0];
+  GetFileSizeEx(handle, (LARGE_INTEGER *)&result);
+  return(result);
+}
+
+internal b32
+platform_copy_file_path(char *dst, char *src) {
+  b32 result = CopyFileA(dst, src, 0);
   return(result);
 }
 
