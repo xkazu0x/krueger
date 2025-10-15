@@ -364,7 +364,7 @@ typedef struct {
 #define push_array(a, T, c) (T *)arena_push((a), sizeof(T)*(c))
 
 internal Arena arena_alloc(uxx reserve_size);
-internal void arena_free(Arena *arena);
+internal void arena_release(Arena *arena);
 internal void *arena_push(Arena *arena, uxx commit_size);
 
 ////////////////////////

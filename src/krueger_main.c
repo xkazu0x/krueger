@@ -8,10 +8,45 @@
 #define BITS_PER_PIXEL 32
 #include <stdio.h>
 
-global void *libkrueger;
+global Platform_Handle libkrueger;
 #define PROC(x) global x##_proc *x;
 KRUEGER_PROC_LIST
 #undef PROC
+
+internal void
+reload_libkrueger(char *lib_str, char *lib_copy_str) {
+  if (libkrueger.ptr[0]) {
+    platform_library_close(libkrueger);
+    libkrueger.ptr[0] = 0;
+    #define PROC(x) x = 0;
+    KRUEGER_PROC_LIST
+    #undef PROC
+  }
+
+  Platform_Handle src_file = platform_file_open(lib_str, PLATFORM_ACCESS_READ | PLATFORM_ACCESS_SHARE_READ);
+  Platform_Handle dst_file = platform_file_open(lib_copy_str, PLATFORM_ACCESS_WRITE);
+
+  u64 src_size = platform_file_get_size(src_file);
+  void *src_buf = platform_reserve(src_size);
+  platform_commit(src_buf, src_size);
+
+  platform_file_read(src_file, src_buf, src_size);
+  platform_file_write(dst_file, src_buf, src_size);
+
+  platform_file_close(src_file);
+  platform_file_close(dst_file);
+
+  libkrueger = platform_library_open(lib_copy_str);
+  if (libkrueger.ptr[0]) {
+    #define PROC(x) \
+      x = (x##_proc *)platform_library_load_proc(libkrueger, #x); \
+      if (!(x)) printf("[ERROR]: reload_libkrueger: failed to get proc from %s: %s\n", lib_copy_str, #x);
+    KRUEGER_PROC_LIST
+    #undef PROC
+  } else {
+    printf("[ERROR]: reload_libkrueger: failed to load lib: %s\n", lib_copy_str);
+  }
+}
 
 internal void
 process_digital_button(Digital_Button *b, b32 is_down) {
@@ -108,33 +143,11 @@ win32_translate_keycode(u32 keycode) {
   return(result);
 }
 
-internal void
-win32_reload_libkrueger(char *lib_str, char *lib_copy_str) {
-  if (libkrueger) {
-    FreeLibrary(libkrueger);
-    libkrueger = 0;
-    #define PROC(x) x = 0;
-    KRUEGER_PROC_LIST
-    #undef PROC
-  }
-  CopyFile(lib_str, lib_copy_str, false);
-  libkrueger = LoadLibraryA(lib_copy_str);
-  if (libkrueger) {
-    #define PROC(x) \
-      (*(PROC*)(&(x))) = GetProcAddress(libkrueger, #x); \
-      if (!(x)) printf("[ERROR]: %s: failed to load proc %s\n", lib_str, #x);
-    KRUEGER_PROC_LIST
-    #undef PROC
-  } else {
-    printf("[ERROR]: %s: failed to reload\n", lib_str);
-  }
-}
-
 int
 main(void) {
   char *lib_str = "..\\build\\libkrueger.dll";
   char *lib_copy_str = "..\\build\\libkruegerx.dll";
-  win32_reload_libkrueger(lib_str, lib_copy_str);
+  reload_libkrueger(lib_str, lib_copy_str);
 
   Krueger_State *krueger_state = 0;
   if (krueger_init) krueger_state = krueger_init();
@@ -192,6 +205,9 @@ main(void) {
   uxx back_buffer_size = back_buffer_width*back_buffer_height*sizeof(u32);
   u32 *back_buffer_pixels = platform_reserve(back_buffer_size);
   platform_commit(back_buffer_pixels, back_buffer_size);
+  Image back_buffer = make_image(back_buffer_pixels, 
+                                 back_buffer_width, 
+                                 back_buffer_height);
 
   BITMAPINFO bitmap_info = {0};
   bitmap_info.bmiHeader.biSize = sizeof(bitmap_info.bmiHeader);
@@ -201,9 +217,6 @@ main(void) {
   bitmap_info.bmiHeader.biBitCount = BITS_PER_PIXEL;
   bitmap_info.bmiHeader.biCompression = BI_RGB;
 
-  Image back_buffer = make_image(back_buffer_pixels, 
-                                 back_buffer_width, 
-                                 back_buffer_height);
   Input input = {0};
   Clock time = {0};
 
@@ -238,7 +251,7 @@ main(void) {
     }
 
     if (input.kbd[KEY_Q].pressed) quit = true;
-    if (input.kbd[KEY_R].pressed) win32_reload_libkrueger(lib_str, lib_copy_str);
+    if (input.kbd[KEY_R].pressed) reload_libkrueger(lib_str, lib_copy_str);
 
     if (krueger_frame) krueger_frame(krueger_state, back_buffer, input, time);
     input_reset(&input);
@@ -350,16 +363,17 @@ linux_reload_libkrueger(char *lib_str) {
 
 int
 main(void) {
-  char *libkrueger_str = "../build/libkrueger.so";
-  linux_reload_libkrueger(libkrueger_str);
+  char *lib_str = "../build/libkrueger.so";
+  char *lib_copy_str= "../build/libkruegerx.so";
+  reload_libkrueger(lib_str, lib_copy_str);
 
   Krueger_State *krueger_state = 0;
   if (krueger_init) krueger_state = krueger_init();
 
   char *window_title = "krueger";
 
-  s32 window_width = 800;
-  s32 window_height = 600;
+  s32 window_width = 960;
+  s32 window_height = 720;
 
   Display *display = XOpenDisplay(0);
   XAutoRepeatOn(display);
@@ -379,23 +393,23 @@ main(void) {
   XStoreName(display, window, window_title);
   XMapWindow(display, window);
 
-  s32 back_buffer_width = 160;
-  s32 back_buffer_height = 120;
+  s32 back_buffer_width = 320;
+  s32 back_buffer_height = 240;
   uxx back_buffer_size = back_buffer_width*back_buffer_height*sizeof(u32);
+  u32 *back_buffer_pixels = platform_reserve(back_buffer_size);
+  platform_commit(back_buffer_pixels, back_buffer_size);
+  Image back_buffer = make_image(back_buffer_pixels, 
+                                 back_buffer_width, 
+                                 back_buffer_height);
   
-  Image back_buffer = {0};
-  back_buffer.width = back_buffer_width;
-  back_buffer.height = back_buffer_height;
-  back_buffer.pixels = platform_reserve(back_buffer_size);
-  platform_commit(back_buffer.pixels, back_buffer_size);
-  
-  uxx front_buffer_size = window_width*window_height*sizeof(u32);
-
-  Image front_buffer = {0};
-  front_buffer.width = window_width;
-  front_buffer.height = window_height;
-  front_buffer.pixels = platform_reserve(front_buffer_size);
-  platform_commit(front_buffer.pixels, front_buffer_size);
+  s32 front_buffer_width = window_width;
+  s32 front_buffer_height = window_height;
+  uxx front_buffer_size = front_buffer_width*front_buffer_height*sizeof(u32);
+  u32 *front_buffer_pixels = platform_reserve(front_buffer_size);
+  platform_commit(front_buffer_pixels, front_buffer_size);
+  Image front_buffer = make_image(front_buffer_pixels,
+                                  front_buffer_width,
+                                  front_buffer_height);
 
   XImage *image = XCreateImage(display, attributes.visual, attributes.depth, ZPixmap, 0, 
                                (char *)front_buffer.pixels, front_buffer.width, front_buffer.height, 
@@ -421,12 +435,15 @@ main(void) {
           XConfigureEvent *event = (XConfigureEvent *)&base_event;
           window_width = event->width;
           window_height = event->height;
-          platform_release(front_buffer.pixels, front_buffer_size);
-          front_buffer_size = window_width*window_height*sizeof(u32);
-          front_buffer.width = window_width;
-          front_buffer.height = window_height;
-          front_buffer.pixels = platform_reserve(front_buffer_size);
-          platform_commit(front_buffer.pixels, front_buffer_size);
+          platform_release(front_buffer_pixels, front_buffer_size);
+          front_buffer_width = window_width;
+          front_buffer_height = window_height;
+          front_buffer_size = front_buffer_width*front_buffer_height*sizeof(u32);
+          front_buffer_pixels = platform_reserve(front_buffer_size);
+          platform_commit(front_buffer_pixels, front_buffer_size);
+          front_buffer = make_image(front_buffer_pixels, 
+                                    front_buffer_width, 
+                                    front_buffer_height);
           image = XCreateImage(display, attributes.visual, attributes.depth, ZPixmap, 0, 
                                (char *)front_buffer.pixels, front_buffer.width, front_buffer.height, 
                                BITS_PER_PIXEL, front_buffer.width*sizeof(u32));
@@ -449,12 +466,11 @@ main(void) {
     }
 
     if (input.kbd[KEY_Q].pressed) quit = true;
-    if (input.kbd[KEY_R].pressed) linux_reload_libkrueger(libkrueger_str);
+    if (input.kbd[KEY_R].pressed) reload_libkrueger(lib_str, lib_copy_str);
 
-    if (krueger_frame) krueger_frame(krueger_state, &back_buffer, &input, &time);
+    if (krueger_frame) krueger_frame(krueger_state, back_buffer, input, time);
     input_reset(&input);
 
-    // NOTE: nearest-neighbor interpolation
     f32 scale_x = (f32)back_buffer.width/(f32)front_buffer.width;
     f32 scale_y = (f32)back_buffer.height/(f32)front_buffer.height;
     for (u32 y = 0; y < front_buffer.height; ++y) {
@@ -465,14 +481,12 @@ main(void) {
       }
     }
 
-    // NOTE: display front buffer
     GC context = XCreateGC(display, window, 0, 0);
     XPutImage(display, window, context, image, 0, 0, 0, 0, window_width, window_height);
     XFreeGC(display, context);
 
-    // NOTE: compute time
     u64 time_end = linux_get_time_us();
-    time.dt_us = time_end - time_start;
+    time.dt_us = (f32)(time_end - time_start);
     time.dt_ms = time.dt_us/thousand(1);
     time.dt_sec = time.dt_ms/thousand(1);
     time.us += time.dt_us;

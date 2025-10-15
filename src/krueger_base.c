@@ -425,7 +425,7 @@ arena_alloc(uxx reserve_size) {
 }
 
 internal void
-arena_free(Arena *arena) {
+arena_release(Arena *arena) {
   platform_release(arena->memory, arena->reserve_size);
 }
 

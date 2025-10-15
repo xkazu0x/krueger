@@ -28,20 +28,4 @@ platform_release(void *ptr, uxx size) {
   munmap(ptr, size);
 }
 
-internal void *
-platform_read_file(char *filename) {
-  void *result = 0;
-  FILE *file = fopen(filename, "rb");
-  if (file) {
-    fseek(file, 0, SEEK_END);
-    uxx size = ftell(file);
-    fseek(file, 0, SEEK_SET);
-    result = platform_reserve(size);
-    platform_commit(result, size);
-    fread(result, size, 1, file);
-    fclose(file);
-  }
-  return(result);
-}
-
 #endif // KRUEGER_PLATFORM_LINUX_C

@@ -245,11 +245,11 @@ draw_triangle_f32(Image image,
 }
 
 internal void
-draw_triangle3(Image image,
-               s32 x0, s32 y0, 
-               s32 x1, s32 y1, 
-               s32 x2, s32 y2,
-               u32 c0, u32 c1, u32 c2) {
+draw_triangle3c(Image image,
+                s32 x0, s32 y0, 
+                s32 x1, s32 y1, 
+                s32 x2, s32 y2,
+                u32 c0, u32 c1, u32 c2) {
   s32 min_x = clamp_bot(0, MIN(MIN(x0, x1), x2));
   s32 min_y = clamp_bot(0, MIN(MIN(y0, y1), y2));
   s32 max_x = clamp_top(MAX(MAX(x0, x1), x2), (s32)image.width);
@@ -302,11 +302,11 @@ draw_triangle3(Image image,
 }
 
 internal void
-draw_triangle3_f32(Image image,
-                   f32 x0, f32 y0,
-                   f32 x1, f32 y1,
-                   f32 x2, f32 y2, 
-                   u32 c0, u32 c1, u32 c2) {
+draw_triangle3c_f32(Image image,
+                    f32 x0, f32 y0,
+                    f32 x1, f32 y1,
+                    f32 x2, f32 y2, 
+                    u32 c0, u32 c1, u32 c2) {
   s32 min_x = (s32)clamp_bot(0, floor_f32(MIN(MIN(x0, x1), x2)));
   s32 min_y = (s32)clamp_bot(0, floor_f32(MIN(MIN(y0, y1), y2)));
   s32 max_x = (s32)clamp_top(ceil_f32(MAX(MAX(x0, x1), x2)), image.width);
@@ -518,17 +518,32 @@ bit_scan_forward(u32 *index, u32 mask) {
   return(result);
 }
 
+internal void
+read_entire_file(Arena *arena, char *filepath, void** buffer, uxx *size) {
+  Platform_Handle file = platform_file_open(filepath, PLATFORM_ACCESS_READ | PLATFORM_ACCESS_SHARE_READ);
+  if (file.ptr[0]) {
+    *size = platform_file_get_size(file);
+    *buffer = arena_push(arena, *size);
+    platform_file_read(file, *buffer, *size);
+    platform_file_close(file);
+  } else {
+    printf("[ERROR]: read_entire_file: failed to open file: %s", filepath);
+  }
+}
+
 internal Image
-load_bmp(char *filename) {
+load_bmp(Arena *arena, char *filename) {
   Image result = {0};
-  void *data = platform_read_file(filename);
-  if (data) {
-    Bmp_File_Header *bmp_file = (Bmp_File_Header *)data;
+  void *file_data;
+  uxx file_size;
+  read_entire_file(arena, filename, &file_data, &file_size);
+  if (file_data) {
+    Bmp_File_Header *bmp_file = (Bmp_File_Header *)file_data;
     if (bmp_file->type == cstr_encode("BM")) {
       Bmp_Info_Header *bmp_info = (Bmp_Info_Header *)((u8 *)bmp_file + sizeof(Bmp_File_Header));
       result.width = bmp_info->image_width;
       result.height = bmp_info->image_height;
-      result.pixels = (u32 *)((u8 *)data + bmp_file->data_offset);
+      result.pixels = (u32 *)((u8 *)file_data + bmp_file->data_offset);
       if (bmp_info->header_size > 40) {
         Bmp_Color_Header *bmp_color = (Bmp_Color_Header *)((u8 *)bmp_info + sizeof(Bmp_Info_Header));
         u32 red_mask = bmp_color->red_mask;
@@ -687,7 +702,7 @@ test_draw_mesh(Image back_buffer, Mesh mesh,
       v1.xy = project_point_to_screen(v1.xy, w, h);
       v2.xy = project_point_to_screen(v2.xy, w, h);
 
-      draw_triangle3(back_buffer, 
+      draw_triangle3c(back_buffer, 
                      (s32)v0.x, (s32)v0.y,
                      (s32)v1.x, (s32)v1.y,
                      (s32)v2.x, (s32)v2.y,
@@ -745,7 +760,7 @@ test_draw_mesh_f32(Image back_buffer, Mesh mesh,
       v1.xy = project_point_to_screen(v1.xy, w, h);
       v2.xy = project_point_to_screen(v2.xy, w, h);
 
-      draw_triangle3_f32(back_buffer, v0.x, v0.y, v1.x, v1.y, v2.x, v2.y,
+      draw_triangle3c_f32(back_buffer, v0.x, v0.y, v1.x, v1.y, v2.x, v2.y,
                          0x00FFFF, 0xFF00FF, 0xFFFF00);
 
       if (line) {
@@ -792,13 +807,13 @@ test_circle(Image back_buffer, Clock time) {
 internal void
 test_triangle(Image back_buffer, Clock time) {
   Vector3 v[] = {
-    { -0.5f, -0.5f, 0.0f },
-    { -0.5f,  0.5f, 0.0f },
-    {  0.5f, -0.5f, 0.0f },
+    {{ -0.5f, -0.5f, 0.0f }},
+    {{ -0.5f,  0.5f, 0.0f }},
+    {{  0.5f, -0.5f, 0.0f }},
 
-    { -0.5f,  0.5f, 0.0f },
-    {  0.5f,  0.5f, 0.0f },
-    {  0.5f, -0.5f, 0.0f },
+    {{ -0.5f,  0.5f, 0.0f }},
+    {{  0.5f,  0.5f, 0.0f }},
+    {{  0.5f, -0.5f, 0.0f }},
   };
 
   u32 c[] = {
@@ -815,10 +830,10 @@ test_triangle(Image back_buffer, Clock time) {
   model = matrix4x4_mul(scale, model);
   model = matrix4x4_mul(translate, model);
 
-  for (s32 vi = 0, ci = 0; vi < array_count(v); vi += 3, ++ci) {
-    s32 vi0 = vi;
-    s32 vi1 = vi+1;
-    s32 vi2 = vi+2;
+  for (uxx vi = 0, ci = 0; vi < array_count(v); vi += 3, ++ci) {
+    uxx vi0 = vi;
+    uxx vi1 = vi+1;
+    uxx vi2 = vi+2;
 
     Vector4 v0 = vector4_from_vector3(v[vi0], 1.0f);
     Vector4 v1 = vector4_from_vector3(v[vi1], 1.0f);
@@ -850,10 +865,10 @@ test_triangle(Image back_buffer, Clock time) {
   model = matrix4x4_mul(scale, model);
   model = matrix4x4_mul(translate, model);
 
-  for (s32 vi = 0, ci = 0; vi < array_count(v); vi += 3, ++ci) {
-    s32 vi0 = vi;
-    s32 vi1 = vi+1;
-    s32 vi2 = vi+2;
+  for (uxx vi = 0, ci = 0; vi < array_count(v); vi += 3, ++ci) {
+    uxx vi0 = vi;
+    uxx vi1 = vi+1;
+    uxx vi2 = vi+2;
 
     Vector4 v0 = vector4_from_vector3(v[vi0], 1.0f);
     Vector4 v1 = vector4_from_vector3(v[vi1], 1.0f);
@@ -884,13 +899,13 @@ test_triangle(Image back_buffer, Clock time) {
 internal void
 test_triangle3(Image back_buffer, Clock time) {
   Vector3 v[] = {
-    { -0.5f, -0.5f, 0.0f },
-    { -0.5f,  0.5f, 0.0f },
-    {  0.5f, -0.5f, 0.0f },
+    {{ -0.5f, -0.5f, 0.0f }},
+    {{ -0.5f,  0.5f, 0.0f }},
+    {{  0.5f, -0.5f, 0.0f }},
 
-    { -0.5f,  0.5f, 0.0f },
-    {  0.5f,  0.5f, 0.0f },
-    {  0.5f, -0.5f, 0.0f },
+    {{ -0.5f,  0.5f, 0.0f }},
+    {{  0.5f,  0.5f, 0.0f }},
+    {{  0.5f, -0.5f, 0.0f }},
   };
 
   u32 c[] = {
@@ -912,10 +927,10 @@ test_triangle3(Image back_buffer, Clock time) {
   model = matrix4x4_mul(scale, model);
   model = matrix4x4_mul(translate, model);
 
-  for (s32 vi = 0, ci = 0; vi < array_count(v); vi += 3, ci += 3) {
-    s32 vi0 = vi;
-    s32 vi1 = vi+1;
-    s32 vi2 = vi+2;
+  for (uxx vi = 0, ci = 0; vi < array_count(v); vi += 3, ci += 3) {
+    uxx vi0 = vi;
+    uxx vi1 = vi+1;
+    uxx vi2 = vi+2;
 
     Vector4 v0 = vector4_from_vector3(v[vi0], 1.0f);
     Vector4 v1 = vector4_from_vector3(v[vi1], 1.0f);
@@ -939,15 +954,15 @@ test_triangle3(Image back_buffer, Clock time) {
     s32 x2 = (s32)v2.x;
     s32 y2 = (s32)v2.y;
 
-    s32 ci0 = ci;
-    s32 ci1 = ci+1;
-    s32 ci2 = ci+2;
+    uxx ci0 = ci;
+    uxx ci1 = ci+1;
+    uxx ci2 = ci+2;
 
     u32 c0 = c[ci0];
     u32 c1 = c[ci1];
     u32 c2 = c[ci2];
 
-    draw_triangle3(back_buffer, x0, y0, x1, y1, x2, y2, c0, c1, c2);
+    draw_triangle3c(back_buffer, x0, y0, x1, y1, x2, y2, c0, c1, c2);
   } 
 
   translate = matrix4x4_translate(0.9f, -0.9f, 0.0f);
@@ -955,10 +970,10 @@ test_triangle3(Image back_buffer, Clock time) {
   model = matrix4x4_mul(scale, model);
   model = matrix4x4_mul(translate, model);
 
-  for (s32 vi = 0, ci = 0; vi < array_count(v); vi += 3, ci += 3) {
-    s32 vi0 = vi;
-    s32 vi1 = vi+1;
-    s32 vi2 = vi+2;
+  for (uxx vi = 0, ci = 0; vi < array_count(v); vi += 3, ci += 3) {
+    uxx vi0 = vi;
+    uxx vi1 = vi+1;
+    uxx vi2 = vi+2;
 
     Vector4 v0 = vector4_from_vector3(v[vi0], 1.0f);
     Vector4 v1 = vector4_from_vector3(v[vi1], 1.0f);
@@ -982,15 +997,15 @@ test_triangle3(Image back_buffer, Clock time) {
     f32 x2 = v2.x;
     f32 y2 = v2.y;
 
-    s32 ci0 = ci;
-    s32 ci1 = ci+1;
-    s32 ci2 = ci+2;
+    uxx ci0 = ci;
+    uxx ci1 = ci+1;
+    uxx ci2 = ci+2;
 
     u32 c0 = c[ci0];
     u32 c1 = c[ci1];
     u32 c2 = c[ci2];
 
-    draw_triangle3_f32(back_buffer, x0, y0, x1, y1, x2, y2, c0, c1, c2);
+    draw_triangle3c_f32(back_buffer, x0, y0, x1, y1, x2, y2, c0, c1, c2);
   } 
 }
 
@@ -1071,7 +1086,7 @@ KRUEGER_INIT_PROC(krueger_init) {
   Krueger_State *state = push_array(&arena, Krueger_State, 1);
   state->arena = arena;
 
-  state->font_image = load_bmp("../res/font.bmp");
+  state->font_image = load_bmp(&arena, "../res/font.bmp");
   char *font_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ "
                      "0123456789.,!?'\"-+=/\\%()<> ";
   state->font = make_font(font_chars, 27, 2, 8, 8, state->font_image);
@@ -1154,6 +1169,8 @@ KRUEGER_FRAME_PROC(krueger_frame) {
 }
 
 // TODO:
-// - Texture Mapping
+// - Better OBJ Loading
+// - Scaling/Rotating Texture
+// - Triangle Texture Mapping
 // - Depth Buffer
 // - Clipping
