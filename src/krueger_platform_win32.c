@@ -37,15 +37,15 @@ platform_file_open(char *filepath, Platform_Access_Flags flags) {
   DWORD desired_access = 0;
   DWORD share_mode = 0;
   DWORD creation_disposition = OPEN_EXISTING;
-  if (flags & PLATFORM_ACCESS_READ)        desired_access |= GENERIC_READ;
-  if (flags & PLATFORM_ACCESS_WRITE)       desired_access |= GENERIC_WRITE;
-  if (flags & PLATFORM_ACCESS_EXECUTE)     desired_access |= GENERIC_EXECUTE;
-  if (flags & PLATFORM_ACCESS_SHARE_READ)  share_mode |= FILE_SHARE_READ;
-  if (flags & PLATFORM_ACCESS_SHARE_WRITE) share_mode |= FILE_SHARE_WRITE | FILE_SHARE_DELETE;
-  if (flags & PLATFORM_ACCESS_WRITE)       creation_disposition = CREATE_ALWAYS;
+  if (flags & PLATFORM_FILE_READ)        desired_access |= GENERIC_READ;
+  if (flags & PLATFORM_FILE_WRITE)       desired_access |= GENERIC_WRITE;
+  if (flags & PLATFORM_FILE_EXECUTE)     desired_access |= GENERIC_EXECUTE;
+  if (flags & PLATFORM_FILE_SHARE_READ)  share_mode |= FILE_SHARE_READ;
+  if (flags & PLATFORM_FILE_SHARE_WRITE) share_mode |= FILE_SHARE_WRITE | FILE_SHARE_DELETE;
+  if (flags & PLATFORM_FILE_WRITE)       creation_disposition = CREATE_ALWAYS;
   HANDLE handle = CreateFileA(filepath, desired_access, share_mode, 0, creation_disposition, FILE_ATTRIBUTE_NORMAL, 0);
   if (handle != INVALID_HANDLE_VALUE) {
-    result.ptr[0] = (uxx)handle; 
+    result.ptr[0] = (u64)handle; 
   }
   return(result);
 }
@@ -58,32 +58,32 @@ platform_file_close(Platform_Handle file) {
 
 internal u64
 platform_file_get_size(Platform_Handle file) {
+  u64 result = 0;
   HANDLE handle = (HANDLE)file.ptr[0];
-  u64 size = 0;
-  GetFileSizeEx(handle, (LARGE_INTEGER *)&size);
-  return(size);
+  GetFileSizeEx(handle, (LARGE_INTEGER *)&result);
+  return(result);
 }
 
 internal u64
 platform_file_read(Platform_Handle file, void *buffer, u64 size) {
+  u64 result = 0;
   HANDLE handle = (HANDLE)file.ptr[0];
-  u64 read_size = 0;
-  ReadFile(handle, buffer, (DWORD)size, (DWORD *)&read_size, 0);
-  return(read_size);
+  ReadFile(handle, buffer, (DWORD)size, (DWORD *)&result, 0);
+  return(result);
 }
 
 internal u64
 platform_file_write(Platform_Handle file, void *buffer, u64 size) {
+  u64 result = 0;
   HANDLE handle = (HANDLE)file.ptr[0];
-  u64 write_size = 0;
-  WriteFile(handle, buffer, (DWORD)size, (DWORD *)&write_size, 0);
-  return(write_size);
+  WriteFile(handle, buffer, (DWORD)size, (DWORD *)&result, 0);
+  return(result);
 }
 
 internal Platform_Handle
 platform_library_open(char *filepath) {
   Platform_Handle result = {0};
-  result.ptr[0] = (uxx)LoadLibraryA(filepath);
+  result.ptr[0] = (u64)LoadLibraryA(filepath);
   return(result);
 }
 

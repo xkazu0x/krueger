@@ -19,7 +19,7 @@ image_alloc(u32 width, u32 height) {
   return(result);
 }
 
-internal Image
+internal void
 image_release(Image image) {
   uxx image_size = image.width*image.height*sizeof(u32);
   platform_release(image.pixels, image_size);
@@ -54,14 +54,14 @@ reload_libkrueger(Arena *arena, char *lib_str, char *lib_copy_str) {
     #undef PROC
   }
 
-  Platform_Handle src_file = platform_file_open(lib_str, PLATFORM_ACCESS_READ | PLATFORM_ACCESS_SHARE_READ);
-  Platform_Handle dst_file = platform_file_open(lib_copy_str, PLATFORM_ACCESS_WRITE);
+  Platform_Handle src_file = platform_file_open(lib_str, PLATFORM_FILE_READ | PLATFORM_FILE_SHARE_READ);
+  Platform_Handle dst_file = platform_file_open(lib_copy_str, PLATFORM_FILE_WRITE);
 
   Temp temp = temp_begin(arena);
-    u64 src_size = platform_file_get_size(src_file);
-    void *src_buf = arena_push(arena, src_size);
-    platform_file_read(src_file, src_buf, src_size);
-    platform_file_write(dst_file, src_buf, src_size);
+  u64 src_size = platform_file_get_size(src_file);
+  void *src_buf = arena_push(arena, src_size);
+  platform_file_read(src_file, src_buf, src_size);
+  platform_file_write(dst_file, src_buf, src_size);
   temp_end(temp);
 
   platform_file_close(src_file);
@@ -311,7 +311,6 @@ main(void) {
 #elif PLATFORM_LINUX
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
-#include <dlfcn.h>
 #include <time.h>
 
 internal u64
@@ -372,21 +371,6 @@ linux_translate_keycode(KeySym keycode) {
   return(result);
 }
 
-internal void
-linux_reload_libkrueger(char *lib_str) {
-  if (libkrueger) dlclose(libkrueger);
-  libkrueger = dlopen(lib_str, RTLD_NOW);
-  if (libkrueger) {
-    #define PROC(x) \
-      x = dlsym(libkrueger, #x); \
-      if (!x) printf("[ERROR]: %s\n", dlerror());
-    KRUEGER_PROC_LIST;
-    #undef PROC
-  } else {
-    printf("[ERROR]: %s\n", dlerror());
-  }
-}
-
 int
 main(void) {
   Arena arena = arena_alloc(MB(64));
@@ -404,7 +388,7 @@ main(void) {
   s32 window_height = 720;
 
   Display *display = XOpenDisplay(0);
-  XAutoRepeatOn(display);
+  XAutoRepeatOff(display);
 
   Window root = XDefaultRootWindow(display);
   Window window = XCreateSimpleWindow(display, root, 0, 0, window_width, window_height, 0, 0, 0);
@@ -449,7 +433,7 @@ main(void) {
           window_width = event->width;
           window_height = event->height;
           image_release(front_buffer);
-          image_alloc(window_width, window_height);
+          front_buffer = image_alloc(window_width, window_height);
           image = XCreateImage(display, attributes.visual, attributes.depth, ZPixmap, 0, 
                                (char *)front_buffer.pixels, front_buffer.width, front_buffer.height, 
                                BITS_PER_PIXEL, front_buffer.width*sizeof(u32));
@@ -499,7 +483,7 @@ main(void) {
   XAutoRepeatOn(display);
   XCloseDisplay(display);
 
-  dlclose(libkrueger);
+  platform_library_close(libkrueger);
   return(0);
 }
 

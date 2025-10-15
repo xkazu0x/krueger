@@ -520,7 +520,7 @@ bit_scan_forward(u32 *index, u32 mask) {
 
 internal void
 read_entire_file(Arena *arena, char *filepath, void** buffer, uxx *size) {
-  Platform_Handle file = platform_file_open(filepath, PLATFORM_ACCESS_READ | PLATFORM_ACCESS_SHARE_READ);
+  Platform_Handle file = platform_file_open(filepath, PLATFORM_FILE_READ | PLATFORM_FILE_SHARE_READ);
   if (file.ptr[0]) {
     *size = platform_file_get_size(file);
     *buffer = arena_push(arena, *size);
