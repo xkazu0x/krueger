@@ -87,7 +87,7 @@ platform_get_file_size(Platform_Handle file) {
 internal b32
 platform_copy_file_path(char *dst, char *src) {
   b32 result = false;
-  Platform_Handle src_h = platform_file_open(src, PLATFORM_FILE_READ | PLATFORM_FILE_SHARE_READ);
+  Platform_Handle src_h = platform_file_open(src, PLATFORM_FILE_READ);
   Platform_Handle dst_h = platform_file_open(dst, PLATFORM_FILE_WRITE);
   if (!platform_handle_match(src_h, PLATFORM_HANDLE_NULL) &&
       !platform_handle_match(dst_h, PLATFORM_HANDLE_NULL)) {

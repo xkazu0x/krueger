@@ -45,27 +45,31 @@ KRUEGER_PROC_LIST
 #undef PROC
 
 internal void
-reload_libkrueger(Arena *arena, char *lib_str, char *lib_copy_str) {
-  if (!platform_handle_match(libkrueger, PLATFORM_HANDLE_NULL)) {
-    platform_library_close(libkrueger);
-    libkrueger.ptr[0] = 0;
-    #define PROC(x) x = 0;
-    KRUEGER_PROC_LIST
-    #undef PROC
-  }
-  if (platform_copy_file_path(lib_str, lib_copy_str)) {
-    libkrueger = platform_library_open(lib_copy_str);
+libkrueger_load(char *dst_path, char *src_path) {
+  if (platform_copy_file_path(dst_path, src_path)) {
+    libkrueger = platform_library_open(dst_path);
     if (!platform_handle_match(libkrueger, PLATFORM_HANDLE_NULL)) {
       #define PROC(x) \
         x = (x##_proc *)platform_library_load_proc(libkrueger, #x); \
-        if (!(x)) printf("[ERROR]: reload_libkrueger: failed to load proc from library %s: %s\n", lib_copy_str, #x);
+        if (!(x)) printf("[ERROR]: reload_libkrueger: failed to load proc from library %s: %s\n", dst_path, #x);
       KRUEGER_PROC_LIST
       #undef PROC
     } else {
-      printf("[ERROR]: reload_libkrueger: failed to open library: %s\n", lib_copy_str);
+      printf("[ERROR]: libkrueger_load: failed to open library: %s\n", dst_path);
     }
   } else {
-    printf("[ERROR]: reload_libkrueger: failed to copy file path: from %s to %s\n", lib_str, lib_copy_str);
+    printf("[ERROR]: libkrueger_load: failed to copy file path: from [%s] to [%s]\n", src_path, dst_path);
+  }
+}
+
+internal void
+libkrueger_unload(void) {
+  if (!platform_handle_match(libkrueger, PLATFORM_HANDLE_NULL)) {
+    platform_library_close(libkrueger);
+    libkrueger.ptr[0] = 0;
+#define PROC(x) x = 0;
+    KRUEGER_PROC_LIST
+    #undef PROC
   }
 }
 
@@ -168,9 +172,9 @@ int
 main(void) {
   Arena arena = arena_alloc(MB(64)); 
 
-  char *lib_str = "..\\build\\libkrueger.dll";
-  char *lib_copy_str = "..\\build\\libkruegerx.dll";
-  reload_libkrueger(&arena, lib_str, lib_copy_str);
+  char *src_lib_path = "..\\build\\libkrueger.dll";
+  char *dst_lib_path = "..\\build\\libkruegerx.dll";
+  libkrueger_load(dst_lib_path, src_lib_path);
 
   Krueger_State *krueger_state = 0;
   if (krueger_init) krueger_state = krueger_init();
@@ -267,7 +271,10 @@ main(void) {
     }
 
     if (input.kbd[KEY_Q].pressed) quit = true;
-    if (input.kbd[KEY_R].pressed) reload_libkrueger(&arena, lib_str, lib_copy_str);
+    if (input.kbd[KEY_R].pressed) {
+      libkrueger_unload();
+      libkrueger_load(dst_lib_path, src_lib_path);
+    }
 
     if (krueger_frame) krueger_frame(krueger_state, back_buffer, input, time);
     input_reset(&input);
@@ -295,7 +302,7 @@ main(void) {
     time.sec += time.dt_sec;
     time_start = time_end;
   }
-  platform_library_close(libkrueger);
+  libkrueger_unload();
   return(0);
 }
 
@@ -366,9 +373,9 @@ int
 main(void) {
   Arena arena = arena_alloc(MB(64));
 
-  char *lib_str = "../build/libkrueger.so";
-  char *lib_copy_str= "../build/libkruegerx.so";
-  reload_libkrueger(&arena, lib_str, lib_copy_str);
+  char *src_lib_path = "../build/libkrueger.so";
+  char *dst_lib_path= "../build/libkruegerx.so";
+  libkrueger_load(dst_lib_path, src_lib_path);
 
   Krueger_State *krueger_state = 0;
   if (krueger_init) krueger_state = krueger_init();
@@ -447,7 +454,10 @@ main(void) {
     }
 
     if (input.kbd[KEY_Q].pressed) quit = true;
-    if (input.kbd[KEY_R].pressed) reload_libkrueger(&arena, lib_str, lib_copy_str);
+    if (input.kbd[KEY_R].pressed) {
+      libkrueger_unload();
+      libkrueger_load(dst_lib_path, src_lib_path);
+    }
 
     if (krueger_frame) krueger_frame(krueger_state, back_buffer, input, time);
     input_reset(&input);
@@ -467,14 +477,13 @@ main(void) {
     time.sec += time.dt_sec;
     time_start = time_end;
   }
-
   XUnmapWindow(display, window);
   XDestroyWindow(display, window);
 
   XAutoRepeatOn(display);
   XCloseDisplay(display);
-
-  platform_library_close(libkrueger);
+  
+  libkrueger_unload();
   return(0);
 }
 
