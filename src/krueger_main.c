@@ -8,13 +8,44 @@
 #define BITS_PER_PIXEL 32
 #include <stdio.h>
 
+internal Image
+image_alloc(u32 width, u32 height) {
+  Image result = {0};
+  result.width = width;
+  result.height = height;
+  uxx image_size = width*height*sizeof(u32);
+  result.pixels = platform_reserve(image_size);
+  platform_commit(result.pixels, image_size);
+  return(result);
+}
+
+internal Image
+image_release(Image image) {
+  uxx image_size = image.width*image.height*sizeof(u32);
+  platform_release(image.pixels, image_size);
+  image.width = 0;
+  image.height = 0;
+  image.pixels = 0;
+}
+
+internal void
+image_copy(Image dst, Image src) {
+  for (u32 y = 0; y < dst.height; ++y) {
+    for (u32 x = 0; x < dst.width; ++x) {
+      u32 nx = x*src.width/dst.width;
+      u32 ny = y*src.height/dst.height;
+      dst.pixels[y*dst.width + x] = src.pixels[ny*src.width + nx];
+    }
+  }
+}
+
 global Platform_Handle libkrueger;
 #define PROC(x) global x##_proc *x;
 KRUEGER_PROC_LIST
 #undef PROC
 
 internal void
-reload_libkrueger(char *lib_str, char *lib_copy_str) {
+reload_libkrueger(Arena *arena, char *lib_str, char *lib_copy_str) {
   if (libkrueger.ptr[0]) {
     platform_library_close(libkrueger);
     libkrueger.ptr[0] = 0;
@@ -26,12 +57,12 @@ reload_libkrueger(char *lib_str, char *lib_copy_str) {
   Platform_Handle src_file = platform_file_open(lib_str, PLATFORM_ACCESS_READ | PLATFORM_ACCESS_SHARE_READ);
   Platform_Handle dst_file = platform_file_open(lib_copy_str, PLATFORM_ACCESS_WRITE);
 
-  u64 src_size = platform_file_get_size(src_file);
-  void *src_buf = platform_reserve(src_size);
-  platform_commit(src_buf, src_size);
-
-  platform_file_read(src_file, src_buf, src_size);
-  platform_file_write(dst_file, src_buf, src_size);
+  Temp temp = temp_begin(arena);
+    u64 src_size = platform_file_get_size(src_file);
+    void *src_buf = arena_push(arena, src_size);
+    platform_file_read(src_file, src_buf, src_size);
+    platform_file_write(dst_file, src_buf, src_size);
+  temp_end(temp);
 
   platform_file_close(src_file);
   platform_file_close(dst_file);
@@ -145,9 +176,11 @@ win32_translate_keycode(u32 keycode) {
 
 int
 main(void) {
+  Arena arena = arena_alloc(MB(64)); 
+
   char *lib_str = "..\\build\\libkrueger.dll";
   char *lib_copy_str = "..\\build\\libkruegerx.dll";
-  reload_libkrueger(lib_str, lib_copy_str);
+  reload_libkrueger(&arena, lib_str, lib_copy_str);
 
   Krueger_State *krueger_state = 0;
   if (krueger_init) krueger_state = krueger_init();
@@ -200,19 +233,12 @@ main(void) {
                                 0, 0, window_instance, 0);
   ShowWindow(window, SW_SHOW);
 
-  s32 back_buffer_width = 320;
-  s32 back_buffer_height = 240;
-  uxx back_buffer_size = back_buffer_width*back_buffer_height*sizeof(u32);
-  u32 *back_buffer_pixels = platform_reserve(back_buffer_size);
-  platform_commit(back_buffer_pixels, back_buffer_size);
-  Image back_buffer = make_image(back_buffer_pixels, 
-                                 back_buffer_width, 
-                                 back_buffer_height);
+  Image back_buffer = image_alloc(320, 240);
 
   BITMAPINFO bitmap_info = {0};
   bitmap_info.bmiHeader.biSize = sizeof(bitmap_info.bmiHeader);
-  bitmap_info.bmiHeader.biWidth = back_buffer_width;
-  bitmap_info.bmiHeader.biHeight = -back_buffer_height;
+  bitmap_info.bmiHeader.biWidth = back_buffer.width;
+  bitmap_info.bmiHeader.biHeight = -((s32)back_buffer.height);
   bitmap_info.bmiHeader.biPlanes = 1;
   bitmap_info.bmiHeader.biBitCount = BITS_PER_PIXEL;
   bitmap_info.bmiHeader.biCompression = BI_RGB;
@@ -251,7 +277,7 @@ main(void) {
     }
 
     if (input.kbd[KEY_Q].pressed) quit = true;
-    if (input.kbd[KEY_R].pressed) reload_libkrueger(lib_str, lib_copy_str);
+    if (input.kbd[KEY_R].pressed) reload_libkrueger(&arena, lib_str, lib_copy_str);
 
     if (krueger_frame) krueger_frame(krueger_state, back_buffer, input, time);
     input_reset(&input);
@@ -363,9 +389,11 @@ linux_reload_libkrueger(char *lib_str) {
 
 int
 main(void) {
+  Arena arena = arena_alloc(MB(64));
+
   char *lib_str = "../build/libkrueger.so";
   char *lib_copy_str= "../build/libkruegerx.so";
-  reload_libkrueger(lib_str, lib_copy_str);
+  reload_libkrueger(&arena, lib_str, lib_copy_str);
 
   Krueger_State *krueger_state = 0;
   if (krueger_init) krueger_state = krueger_init();
@@ -393,23 +421,8 @@ main(void) {
   XStoreName(display, window, window_title);
   XMapWindow(display, window);
 
-  s32 back_buffer_width = 320;
-  s32 back_buffer_height = 240;
-  uxx back_buffer_size = back_buffer_width*back_buffer_height*sizeof(u32);
-  u32 *back_buffer_pixels = platform_reserve(back_buffer_size);
-  platform_commit(back_buffer_pixels, back_buffer_size);
-  Image back_buffer = make_image(back_buffer_pixels, 
-                                 back_buffer_width, 
-                                 back_buffer_height);
-  
-  s32 front_buffer_width = window_width;
-  s32 front_buffer_height = window_height;
-  uxx front_buffer_size = front_buffer_width*front_buffer_height*sizeof(u32);
-  u32 *front_buffer_pixels = platform_reserve(front_buffer_size);
-  platform_commit(front_buffer_pixels, front_buffer_size);
-  Image front_buffer = make_image(front_buffer_pixels,
-                                  front_buffer_width,
-                                  front_buffer_height);
+  Image back_buffer = image_alloc(320, 240);
+  Image front_buffer = image_alloc(window_width, window_height); 
 
   XImage *image = XCreateImage(display, attributes.visual, attributes.depth, ZPixmap, 0, 
                                (char *)front_buffer.pixels, front_buffer.width, front_buffer.height, 
@@ -435,15 +448,8 @@ main(void) {
           XConfigureEvent *event = (XConfigureEvent *)&base_event;
           window_width = event->width;
           window_height = event->height;
-          platform_release(front_buffer_pixels, front_buffer_size);
-          front_buffer_width = window_width;
-          front_buffer_height = window_height;
-          front_buffer_size = front_buffer_width*front_buffer_height*sizeof(u32);
-          front_buffer_pixels = platform_reserve(front_buffer_size);
-          platform_commit(front_buffer_pixels, front_buffer_size);
-          front_buffer = make_image(front_buffer_pixels, 
-                                    front_buffer_width, 
-                                    front_buffer_height);
+          image_release(front_buffer);
+          image_alloc(window_width, window_height);
           image = XCreateImage(display, attributes.visual, attributes.depth, ZPixmap, 0, 
                                (char *)front_buffer.pixels, front_buffer.width, front_buffer.height, 
                                BITS_PER_PIXEL, front_buffer.width*sizeof(u32));
@@ -466,20 +472,12 @@ main(void) {
     }
 
     if (input.kbd[KEY_Q].pressed) quit = true;
-    if (input.kbd[KEY_R].pressed) reload_libkrueger(lib_str, lib_copy_str);
+    if (input.kbd[KEY_R].pressed) reload_libkrueger(&arena, lib_str, lib_copy_str);
 
     if (krueger_frame) krueger_frame(krueger_state, back_buffer, input, time);
     input_reset(&input);
-
-    f32 scale_x = (f32)back_buffer.width/(f32)front_buffer.width;
-    f32 scale_y = (f32)back_buffer.height/(f32)front_buffer.height;
-    for (u32 y = 0; y < front_buffer.height; ++y) {
-      for (u32 x = 0; x < front_buffer.width; ++x) {
-        u32 nearest_x = (u32)(x*scale_x);
-        u32 nearest_y = (u32)(y*scale_y);
-        front_buffer.pixels[y*front_buffer.width + x] = back_buffer.pixels[nearest_y*back_buffer.width + nearest_x];
-      }
-    }
+    
+    image_copy(front_buffer, back_buffer);
 
     GC context = XCreateGC(display, window, 0, 0);
     XPutImage(display, window, context, image, 0, 0, 0, 0, window_width, window_height);

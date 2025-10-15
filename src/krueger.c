@@ -1086,9 +1086,10 @@ KRUEGER_INIT_PROC(krueger_init) {
   Krueger_State *state = push_array(&arena, Krueger_State, 1);
   state->arena = arena;
 
-  state->font_image = load_bmp(&arena, "../res/font.bmp");
   char *font_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ "
                      "0123456789.,!?'\"-+=/\\%()<> ";
+
+  state->font_image = load_bmp(&arena, "../res/font.bmp");
   state->font = make_font(font_chars, 27, 2, 8, 8, state->font_image);
 
   state->mesh = load_obj("../res/monkey.obj");

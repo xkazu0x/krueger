@@ -437,6 +437,20 @@ arena_push(Arena *arena, uxx commit_size) {
   return(result);
 }
 
+internal Temp
+temp_begin(Arena *arena) {
+  Temp result = {0};
+  result.arena = arena;
+  result.commit_size = arena->commit_size;
+  return(result);
+}
+
+internal void
+temp_end(Temp temp) {
+  Arena *arena = temp.arena;
+  arena->commit_size = temp.commit_size;
+}
+
 ////////////////////////
 // NOTE: Stretchy Buffer
 

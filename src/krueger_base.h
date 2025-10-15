@@ -4,7 +4,7 @@
 //////////////////////////////////
 // NOTE: Standard Library Includes
 
-#include <stdlib.h> // TODO: remove this
+#include <stdlib.h> // TODO: remove, only stretchy buffer needs it
 #include <stdint.h>
 #include <stddef.h>
 #include <float.h>
@@ -361,11 +361,19 @@ typedef struct {
   u8 *memory;
 } Arena;
 
+typedef struct {
+  Arena *arena;
+  uxx commit_size;
+} Temp;
+
 #define push_array(a, T, c) (T *)arena_push((a), sizeof(T)*(c))
 
 internal Arena arena_alloc(uxx reserve_size);
 internal void arena_release(Arena *arena);
 internal void *arena_push(Arena *arena, uxx commit_size);
+
+internal Temp temp_begin(Arena *arena);
+internal void temp_end(Temp temp);
 
 ////////////////////////
 // NOTE: Stretchy Buffer

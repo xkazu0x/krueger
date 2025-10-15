@@ -2,7 +2,6 @@
 #define KRUEGER_PLATFORM_LINUX_C
 
 #include <sys/mman.h>
-#include <stdio.h> // TODO: remove this
 
 internal void *
 platform_reserve(uxx size) {
