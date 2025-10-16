@@ -1,6 +1,7 @@
 #include "krueger_base.h"
 #include "krueger_platform.h"
 #include "krueger_shared.h"
+#include "krueger.h"
 
 #include "krueger_base.c"
 #include "krueger_platform.c"
@@ -32,13 +33,6 @@ alpha_linear_blend(u32 dst, u32 src) {
 
   u32 result = PACK_RGBA(r, g, b, a);
   return(result);
-}
-
-internal void
-clear(Image image, u32 color) {
-  for (u32 i = 0; i < (image.width*image.height); ++i) {
-    image.pixels[i] = color;
-  }
 }
 
 internal void
@@ -380,27 +374,19 @@ draw_texture(Image dst, Image src, s32 x, s32 y) {
   }
 }
 
-typedef struct {
-  char *chars;
-  u32 num_glyph_x;
-  u32 num_glyph_y;
-  u32 glyph_width;
-  u32 glyph_height;
-  Image image;
-} Font;
-
 internal Font
 make_font(char *chars, 
           u32 num_glyph_x, u32 num_glyph_y, 
           u32 glyph_width, u32 glyph_height,
           Image image) {
-  Font result = {0};
-  result.chars = chars;
-  result.num_glyph_x = num_glyph_x;
-  result.num_glyph_y = num_glyph_y;
-  result.glyph_width = glyph_width;
-  result.glyph_height = glyph_height;
-  result.image = image;
+  Font result = {
+    .chars = chars,
+    .num_glyph_x = num_glyph_x,
+    .num_glyph_y = num_glyph_y,
+    .glyph_width = glyph_width,
+    .glyph_height = glyph_height,
+    .image = image,
+  };
   return(result);
 }
 
@@ -488,7 +474,6 @@ typedef struct {
   u32 num_important_colors;
 } Bmp_Info_Header;
 
-// NOTE: in big-endian
 typedef struct {
   u32 red_mask;
   u32 green_mask;
@@ -521,7 +506,7 @@ bit_scan_forward(u32 *index, u32 mask) {
 internal void
 read_entire_file(Arena *arena, char *filepath, void** buffer, uxx *size) {
   Platform_Handle file = platform_file_open(filepath, PLATFORM_FILE_READ | PLATFORM_FILE_SHARE_READ);
-  if (file.ptr[0]) {
+  if (!platform_handle_match(file, PLATFORM_HANDLE_NULL)) {
     *size = platform_get_file_size(file);
     *buffer = arena_push(arena, *size);
     platform_file_read(file, *buffer, *size);
@@ -573,11 +558,6 @@ load_bmp(Arena *arena, char *filename) {
   }
   return(result);
 }
-
-typedef struct {
-  Vector3 *vertex_buf;
-  u32 *vertex_index_buf;
-} Mesh;
 
 internal Mesh
 load_obj(char *filename) {
@@ -660,15 +640,17 @@ project_point_to_screen(Vector2 p, u32 w, u32 h) {
 }
 
 internal void
-test_draw_mesh(Image back_buffer, Mesh mesh,
-               Matrix4x4 model, Matrix4x4 view, Matrix4x4 proj,
-               Vector3 cam_p, b32 line) {
-  for (u32 vertex_index = 0;
-       vertex_index < buf_len(mesh.vertex_buf);
-       vertex_index += 3) {
-    Vector4 v0 = vector4_from_vector3(mesh.vertex_buf[vertex_index], 1.0f);
-    Vector4 v1 = vector4_from_vector3(mesh.vertex_buf[vertex_index+1], 1.0f);
-    Vector4 v2 = vector4_from_vector3(mesh.vertex_buf[vertex_index+2], 1.0f);
+test_mesh(Image back_buffer, Mesh mesh,
+          Matrix4x4 model, Matrix4x4 view, Matrix4x4 proj,
+          Vector3 cam_p) {
+  for (uxx vi = 0; vi < buf_len(mesh.vertex_buf); vi += 3) {
+    uxx vi0 = vi;
+    uxx vi1 = vi+1;
+    uxx vi2 = vi+2;
+
+    Vector4 v0 = vector4_from_vector3(mesh.vertex_buf[vi0], 1.0f);
+    Vector4 v1 = vector4_from_vector3(mesh.vertex_buf[vi1], 1.0f);
+    Vector4 v2 = vector4_from_vector3(mesh.vertex_buf[vi2], 1.0f);
 
     v0 = matrix4x4_mul_vector4(model, v0);
     v1 = matrix4x4_mul_vector4(model, v1);
@@ -681,8 +663,19 @@ test_draw_mesh(Image back_buffer, Mesh mesh,
     Vector3 cam_ray = vector3_sub(v0.xyz, cam_p);
 
     f32 scalar = vector3_dot(normal, cam_ray);
-
     if (scalar < 0.0f) {
+#if 0
+      Vector3 light_dir = vector3_normalize(make_vector3(0.0f, 0.0f, -1.0f));
+      f32 dp = vector3_dot(normal, light_dir);
+      f32 ct = (dp + 1.0f)/2.0f;
+      u8 r = (u8)(0xc1*ct);
+      u8 g = (u8)(0xc1*ct);
+      u8 b = (u8)(0xc1*ct);
+      u32 color = (r << 16) | (g << 8) | (b << 0);
+#else
+      u32 color = 0xc1c1c1;
+#endif
+
       v0 = matrix4x4_mul_vector4(view, v0);
       v1 = matrix4x4_mul_vector4(view, v1);
       v2 = matrix4x4_mul_vector4(view, v2);
@@ -702,72 +695,20 @@ test_draw_mesh(Image back_buffer, Mesh mesh,
       v1.xy = project_point_to_screen(v1.xy, w, h);
       v2.xy = project_point_to_screen(v2.xy, w, h);
 
-      draw_triangle3c(back_buffer, 
-                     (s32)v0.x, (s32)v0.y,
-                     (s32)v1.x, (s32)v1.y,
-                     (s32)v2.x, (s32)v2.y,
-                     0xFF0000, 0x00FF00, 0x0000FF);
+      s32 x0 = (s32)v0.x;
+      s32 y0 = (s32)v0.y;
+      s32 x1 = (s32)v1.x;
+      s32 y1 = (s32)v1.y;
+      s32 x2 = (s32)v2.x;
+      s32 y2 = (s32)v2.y;
 
-      if (line) {
-        draw_line(back_buffer, (s32)v0.x, (s32)v0.y, (s32)v1.x, (s32)v1.y, 0x79241f);
-        draw_line(back_buffer, (s32)v1.x, (s32)v1.y, (s32)v2.x, (s32)v2.y, 0x79241f);
-        draw_line(back_buffer, (s32)v2.x, (s32)v2.y, (s32)v0.x, (s32)v0.y, 0x79241f);
-      }
-    }
-  }
-}
+      draw_triangle(back_buffer, x0, y0, x1, y1, x2, y2, color);
 
-internal void
-test_draw_mesh_f32(Image back_buffer, Mesh mesh, 
-                   Matrix4x4 model, Matrix4x4 view, Matrix4x4 proj,
-                   Vector3 cam_p, b32 line) {
-  for (u32 vertex_index = 0;
-       vertex_index < buf_len(mesh.vertex_buf);
-       vertex_index += 3) {
-    Vector4 v0 = vector4_from_vector3(mesh.vertex_buf[vertex_index], 1.0f);
-    Vector4 v1 = vector4_from_vector3(mesh.vertex_buf[vertex_index+1], 1.0f);
-    Vector4 v2 = vector4_from_vector3(mesh.vertex_buf[vertex_index+2], 1.0f);
-
-    v0 = matrix4x4_mul_vector4(model, v0);
-    v1 = matrix4x4_mul_vector4(model, v1);
-    v2 = matrix4x4_mul_vector4(model, v2);
-
-    Vector3 d01 = vector3_sub(v1.xyz, v0.xyz);
-    Vector3 d02 = vector3_sub(v2.xyz, v0.xyz);
-
-    Vector3 normal = vector3_normalize(vector3_cross(d01, d02));
-    Vector3 cam_ray = vector3_sub(v0.xyz, cam_p);
-
-    f32 scalar = vector3_dot(normal, cam_ray);
-
-    if (scalar < 0.0f) {
-      v0 = matrix4x4_mul_vector4(view, v0);
-      v1 = matrix4x4_mul_vector4(view, v1);
-      v2 = matrix4x4_mul_vector4(view, v2);
-
-      v0 = matrix4x4_mul_vector4(proj, v0);
-      v1 = matrix4x4_mul_vector4(proj, v1);
-      v2 = matrix4x4_mul_vector4(proj, v2);
-
-      v0 = vector4_div(v0, v0.w);
-      v1 = vector4_div(v1, v1.w);
-      v2 = vector4_div(v2, v2.w);
-
-      u32 w = back_buffer.width;
-      u32 h = back_buffer.height;
-
-      v0.xy = project_point_to_screen(v0.xy, w, h);
-      v1.xy = project_point_to_screen(v1.xy, w, h);
-      v2.xy = project_point_to_screen(v2.xy, w, h);
-
-      draw_triangle3c_f32(back_buffer, v0.x, v0.y, v1.x, v1.y, v2.x, v2.y,
-                         0x00FFFF, 0xFF00FF, 0xFFFF00);
-
-      if (line) {
-        draw_line(back_buffer, (s32)v0.x, (s32)v0.y, (s32)v1.x, (s32)v1.y, 0x79241f);
-        draw_line(back_buffer, (s32)v1.x, (s32)v1.y, (s32)v2.x, (s32)v2.y, 0x79241f);
-        draw_line(back_buffer, (s32)v2.x, (s32)v2.y, (s32)v0.x, (s32)v0.y, 0x79241f);
-      }
+#if 1
+      draw_line(back_buffer, x0, y0, x1, y1, 0x79241f);
+      draw_line(back_buffer, x1, y1, x2, y2, 0x79241f);
+      draw_line(back_buffer, x2, y2, x0, y0, 0x79241f);
+#endif
     }
   }
 }
@@ -1057,28 +998,6 @@ draw_debug_info(Image back_buffer, Clock time, Font font) {
             font, make_vector4(0.45f, 0.1f, 0.1f, 1.0f));
 }
 
-struct Krueger_State {
-  Arena arena;
-
-  Image font_image;
-  Font font;
-
-  Mesh mesh;
-  f32 mesh_rot_angle;
-  f32 mesh_rot_speed;
-
-  Vector3 cam_p;
-  Vector3 cam_up;
-  Vector3 cam_dir;
-
-  Vector3 cam_vel;
-  f32 cam_speed;
-
-  f32 cam_rot_vel;
-  f32 cam_rot_speed;
-  f32 cam_yaw;
-};
-
 shared_function
 KRUEGER_INIT_PROC(krueger_init) {
   Arena arena = arena_alloc(MB(64));
@@ -1120,7 +1039,7 @@ KRUEGER_FRAME_PROC(krueger_frame) {
   if (kbd[KEY_W].is_down) state->cam_vel = vector3_add(state->cam_vel, state->cam_dir);
   if (kbd[KEY_S].is_down) state->cam_vel = vector3_sub(state->cam_vel, state->cam_dir);
   state->cam_p = vector3_add(state->cam_p, vector3_mul(state->cam_vel, state->cam_speed*time.dt_sec));
-  
+
   state->cam_rot_vel = 0.0f;
   if (kbd[KEY_H].is_down) state->cam_rot_vel = -1.0f;
   if (kbd[KEY_L].is_down) state->cam_rot_vel = 1.0f;
@@ -1139,26 +1058,16 @@ KRUEGER_FRAME_PROC(krueger_frame) {
 
   Matrix4x4 scale = matrix4x4_scale(make_vector3(1.0f, 1.0f, 1.0f));
   Matrix4x4 rotate = matrix4x4_rotate(make_vector3(1.0f, 1.0f, 0.0f), radians_f32(state->mesh_rot_angle));
-  Matrix4x4 translate = matrix4x4_translate(-2.0f, 0.0f, 4.0f);
+  Matrix4x4 translate = matrix4x4_translate(0.0f, 0.0f, 4.0f);
+
   Matrix4x4 model = make_matrix4x4(1.0f);
+  model = matrix4x4_mul(scale, model);
+  model = matrix4x4_mul(rotate, model);
+  model = matrix4x4_mul(translate, model);
 
-  clear(back_buffer, 0);
+  image_fill(back_buffer, 0);
 
-  { 
-    model = matrix4x4_mul(scale, model);
-    model = matrix4x4_mul(rotate, model);
-    model = matrix4x4_mul(translate, model);
-    test_draw_mesh(back_buffer, state->mesh, model, view, proj, state->cam_p, false);
-  }
-  {
-    translate = matrix4x4_translate(2.0f, 0.0f, 4.0f);
-    model = make_matrix4x4(1.0f);
-    model = matrix4x4_mul(scale, model);
-    model = matrix4x4_mul(rotate, model);
-    model = matrix4x4_mul(translate, model);
-    test_draw_mesh_f32(back_buffer, state->mesh, model, view, proj, state->cam_p, false);
-  }
-  
+  test_mesh(back_buffer, state->mesh, model, view, proj, state->cam_p);
   test_rect(back_buffer, time);
   test_circle(back_buffer, time);
   test_triangle(back_buffer, time);

@@ -58,18 +58,18 @@ platform_file_close(Platform_Handle file) {
 
 internal u64
 platform_file_read(Platform_Handle file, void *buffer, u64 size) {
-  u64 result = 0;
+  u64 read_size = 0;
   HANDLE handle = (HANDLE)file.ptr[0];
-  ReadFile(handle, buffer, (DWORD)size, (DWORD *)&result, 0);
-  return(result);
+  ReadFile(handle, buffer, (DWORD)size, (DWORD *)&read_size, 0);
+  return(read_size);
 }
 
 internal u64
 platform_file_write(Platform_Handle file, void *buffer, u64 size) {
-  u64 result = 0;
+  u64 write_size = 0;
   HANDLE handle = (HANDLE)file.ptr[0];
-  WriteFile(handle, buffer, (DWORD)size, (DWORD *)&result, 0);
-  return(result);
+  WriteFile(handle, buffer, (DWORD)size, (DWORD *)&write_size, 0);
+  return(write_size);
 }
 
 internal u64
@@ -82,7 +82,7 @@ platform_get_file_size(Platform_Handle file) {
 
 internal b32
 platform_copy_file_path(char *dst, char *src) {
-  b32 result = CopyFileA(dst, src, 0);
+  b32 result = CopyFileA(src, dst, 0);
   return(result);
 }
 

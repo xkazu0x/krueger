@@ -69,11 +69,30 @@ typedef struct {
 
 internal Image
 make_image(u32 *pixels, u32 width, u32 height) {
-  Image image = {0};
-  image.width = width;
-  image.height = height;
-  image.pixels = pixels;
+  Image image = {
+    .width = width,
+    .height = height,
+    .pixels = pixels,
+  };
   return(image);
+}
+
+internal void
+image_fill(Image image, u32 color) {
+  for (uxx i = 0; i < image.width*image.height; ++i) {
+    image.pixels[i] = color;
+  }
+}
+
+internal void
+image_copy(Image dst, Image src) {
+  for (u32 y = 0; y < dst.height; ++y) {
+    for (u32 x = 0; x < dst.width; ++x) {
+      u32 nx = x*src.width/dst.width;
+      u32 ny = y*src.height/dst.height;
+      dst.pixels[y*dst.width + x] = src.pixels[ny*src.width + nx];
+    }
+  }
 }
 
 typedef struct {

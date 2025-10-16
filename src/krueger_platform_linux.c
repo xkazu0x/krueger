@@ -62,15 +62,15 @@ platform_file_close(Platform_Handle file) {
 internal u64
 platform_file_read(Platform_Handle file, void *buffer, u64 size) {
   int fd = (int)file.ptr[0];
-  u64 result = read(fd, buffer, size);
-  return(result);
+  u64 read_size = read(fd, buffer, size);
+  return(read_size);
 }
 
 internal u64
 platform_file_write(Platform_Handle file, void *buffer, u64 size) {
   int fd = (int)file.ptr[0];
-  u64 result = write(fd, buffer, size);
-  return(result);
+  u64 write_size = write(fd, buffer, size);
+  return(write_size);
 }
 
 internal u64

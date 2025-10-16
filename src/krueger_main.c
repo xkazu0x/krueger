@@ -6,38 +6,15 @@
 #include "krueger_platform.c"
 
 #define BITS_PER_PIXEL 32
+
+#define BACK_BUFFER_WIDTH  320
+#define BACK_BUFFER_HEIGHT 240
+
+#define WINDOW_SCALE  3
+#define WINDOW_WIDTH  WINDOW_SCALE*BACK_BUFFER_WIDTH
+#define WINDOW_HEIGHT WINDOW_SCALE*BACK_BUFFER_HEIGHT
+
 #include <stdio.h>
-
-internal Image
-image_alloc(u32 width, u32 height) {
-  Image result = {0};
-  result.width = width;
-  result.height = height;
-  uxx image_size = width*height*sizeof(u32);
-  result.pixels = platform_reserve(image_size);
-  platform_commit(result.pixels, image_size);
-  return(result);
-}
-
-internal void
-image_release(Image image) {
-  uxx image_size = image.width*image.height*sizeof(u32);
-  platform_release(image.pixels, image_size);
-  image.width = 0;
-  image.height = 0;
-  image.pixels = 0;
-}
-
-internal void
-image_copy(Image dst, Image src) {
-  for (u32 y = 0; y < dst.height; ++y) {
-    for (u32 x = 0; x < dst.width; ++x) {
-      u32 nx = x*src.width/dst.width;
-      u32 ny = y*src.height/dst.height;
-      dst.pixels[y*dst.width + x] = src.pixels[ny*src.width + nx];
-    }
-  }
-}
 
 global Platform_Handle libkrueger;
 #define PROC(x) global x##_proc *x;
@@ -66,10 +43,6 @@ internal void
 libkrueger_unload(void) {
   if (!platform_handle_match(libkrueger, PLATFORM_HANDLE_NULL)) {
     platform_library_close(libkrueger);
-    libkrueger.ptr[0] = 0;
-#define PROC(x) x = 0;
-    KRUEGER_PROC_LIST
-    #undef PROC
   }
 }
 
@@ -105,17 +78,17 @@ win32_get_time_us() {
 
 internal LRESULT CALLBACK
 win32_window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
-    LRESULT result = 0;
-    switch (message) {
-        case WM_CLOSE:
-        case WM_DESTROY: {
-            PostQuitMessage(0);
-        } break;
-        default: {
-            result = DefWindowProcA(window, message, wparam, lparam);
-        }
+  LRESULT result = 0;
+  switch (message) {
+    case WM_CLOSE:
+    case WM_DESTROY: {
+      PostQuitMessage(0);
+    } break;
+    default: {
+      result = DefWindowProcA(window, message, wparam, lparam);
     }
-    return(result);
+  }
+  return(result);
 }
 
 internal Keycode
@@ -170,8 +143,6 @@ win32_translate_keycode(u32 keycode) {
 
 int
 main(void) {
-  Arena arena = arena_alloc(MB(64)); 
-
   char *src_lib_path = "..\\build\\libkrueger.dll";
   char *dst_lib_path = "..\\build\\libkruegerx.dll";
   libkrueger_load(dst_lib_path, src_lib_path);
@@ -181,8 +152,8 @@ main(void) {
 
   char *window_title = "krueger";
 
-  s32 window_width = 960;
-  s32 window_height = 720;
+  s32 window_width = WINDOW_WIDTH;
+  s32 window_height = WINDOW_HEIGHT;
 
   s32 monitor_width = GetSystemMetrics(SM_CXSCREEN);
   s32 monitor_height = GetSystemMetrics(SM_CYSCREEN);
@@ -227,7 +198,15 @@ main(void) {
                                 0, 0, window_instance, 0);
   ShowWindow(window, SW_SHOW);
 
-  Image back_buffer = image_alloc(320, 240);
+  u32 back_buffer_width = BACK_BUFFER_WIDTH;
+  u32 back_buffer_height = BACK_BUFFER_HEIGHT;
+  uxx back_buffer_size = back_buffer_width*back_buffer_height*sizeof(u32);
+  u32 *back_buffer_pixels = platform_reserve(back_buffer_size);
+  platform_commit(back_buffer_pixels, back_buffer_size);
+  Image back_buffer = make_image(back_buffer_pixels,
+                                 back_buffer_width,
+                                 back_buffer_height);
+  image_fill(back_buffer, 0);
 
   BITMAPINFO bitmap_info = {0};
   bitmap_info.bmiHeader.biSize = sizeof(bitmap_info.bmiHeader);
@@ -371,8 +350,6 @@ linux_translate_keycode(KeySym keycode) {
 
 int
 main(void) {
-  Arena arena = arena_alloc(MB(64));
-
   char *src_lib_path = "../build/libkrueger.so";
   char *dst_lib_path= "../build/libkruegerx.so";
   libkrueger_load(dst_lib_path, src_lib_path);
@@ -382,8 +359,8 @@ main(void) {
 
   char *window_title = "krueger";
 
-  s32 window_width = 960;
-  s32 window_height = 720;
+  s32 window_width = WINDOW_WIDTH;
+  s32 window_height = WINDOW_HEIGHT;
 
   Display *display = XOpenDisplay(0);
   XAutoRepeatOff(display);
@@ -403,8 +380,21 @@ main(void) {
   XStoreName(display, window, window_title);
   XMapWindow(display, window);
 
-  Image back_buffer = image_alloc(320, 240);
-  Image front_buffer = image_alloc(window_width, window_height); 
+  u32 back_buffer_width = BACK_BUFFER_WIDTH;
+  u32 back_buffer_height = BACK_BUFFER_HEIGHT;
+  uxx back_buffer_size = back_buffer_width*back_buffer_height*sizeof(u32);
+  u32 *back_buffer_pixels = platform_reserve(back_buffer_size);
+  platform_commit(back_buffer_pixels, back_buffer_size);
+  Image back_buffer = make_image(back_buffer_pixels, back_buffer_width, back_buffer_height);
+  image_fill(back_buffer, 0);
+
+  u32 front_buffer_width = window_width;
+  u32 front_buffer_height = window_height;
+  uxx front_buffer_size = front_buffer_width*front_buffer_height*sizeof(u32);
+  u32 *front_buffer_pixels = platform_reserve(front_buffer_size);
+  platform_commit(front_buffer_pixels, front_buffer_size);
+  Image front_buffer = make_image(front_buffer_pixels, front_buffer_width, front_buffer_height);
+  image_fill(front_buffer, 0);
 
   XImage *image = XCreateImage(display, attributes.visual, attributes.depth, ZPixmap, 0, 
                                (char *)front_buffer.pixels, front_buffer.width, front_buffer.height, 
@@ -430,8 +420,13 @@ main(void) {
           XConfigureEvent *event = (XConfigureEvent *)&base_event;
           window_width = event->width;
           window_height = event->height;
-          image_release(front_buffer);
-          front_buffer = image_alloc(window_width, window_height);
+          platform_release(front_buffer_pixels, front_buffer_size);
+          front_buffer_width = window_width;
+          front_buffer_height = window_height;
+          front_buffer_size = front_buffer_width*front_buffer_height*sizeof(u32);
+          front_buffer_pixels = platform_reserve(front_buffer_size);
+          platform_commit(front_buffer_pixels, front_buffer_size);
+          front_buffer = make_image(front_buffer_pixels, front_buffer_width, front_buffer_height);
           image = XCreateImage(display, attributes.visual, attributes.depth, ZPixmap, 0, 
                                (char *)front_buffer.pixels, front_buffer.width, front_buffer.height, 
                                BITS_PER_PIXEL, front_buffer.width*sizeof(u32));
@@ -461,7 +456,7 @@ main(void) {
 
     if (krueger_frame) krueger_frame(krueger_state, back_buffer, input, time);
     input_reset(&input);
-    
+
     image_copy(front_buffer, back_buffer);
 
     GC context = XCreateGC(display, window, 0, 0);
