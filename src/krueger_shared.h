@@ -1,56 +1,6 @@
 #ifndef KRUEGER_SHARED_H
 #define KRUEGER_SHARED_H
 
-typedef u32 Keycode;
-enum {
-  KEY_NULL,
-
-  KEY_0,
-  KEY_1,
-  KEY_2,
-  KEY_3,
-  KEY_4,
-  KEY_5,
-  KEY_6,
-  KEY_7,
-  KEY_8,
-  KEY_9,
-
-  KEY_A,
-  KEY_B,
-  KEY_C,
-  KEY_D,
-  KEY_E,
-  KEY_F,
-  KEY_G,
-  KEY_H,
-  KEY_I,
-  KEY_J,
-  KEY_K,
-  KEY_L,
-  KEY_M,
-  KEY_N,
-  KEY_O,
-  KEY_P,
-  KEY_Q,
-  KEY_R,
-  KEY_S,
-  KEY_T,
-  KEY_U,
-  KEY_V,
-  KEY_W,
-  KEY_X,
-  KEY_Y,
-  KEY_Z,
-
-  KEY_UP,
-  KEY_LEFT,
-  KEY_DOWN,
-  KEY_RIGHT,
-
-  KEY_MAX,
-};
-
 typedef struct {
   b32 is_down;
   b32 pressed;
@@ -75,6 +25,25 @@ make_image(u32 *pixels, u32 width, u32 height) {
     .pixels = pixels,
   };
   return(image);
+}
+
+internal Image
+image_alloc(s32 w, s32 h) {
+  uxx buf_size = w*h*sizeof(u32);
+  u32 *buf = platform_reserve(buf_size);
+  platform_commit(buf, buf_size);
+  Image result = {
+    .width = w,
+    .height = h,
+    .pixels = buf,
+  };
+  return(result);
+}
+
+internal void
+image_release(Image image) {
+  uxx image_size = image.width*image.height*sizeof(u32);
+  platform_release(image.pixels, image_size);
 }
 
 internal void

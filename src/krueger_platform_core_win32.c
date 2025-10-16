@@ -1,13 +1,20 @@
-#ifndef KRUEGER_PLATFORM_WIN32_C
-#define KRUEGER_PLATFORM_WIN32_C
+#ifndef KRUEGER_PLATFORM_CORE_WIN32_C
+#define KRUEGER_PLATFORM_CORE_WIN32_C
 
-#ifndef NO_MIN_MAX
-#define NO_MIN_MAX
-#endif
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <windows.h>
+internal void
+platform_init_core(void) {
+  LARGE_INTEGER large_integer;
+  QueryPerformanceFrequency(&large_integer);
+  win32_us_res = large_integer.QuadPart;
+}
+
+internal u64
+platform_get_time_us(void) {
+  LARGE_INTEGER large_integer;
+  QueryPerformanceCounter(&large_integer);
+  u64 result = large_integer.QuadPart*million(1)/win32_us_res;
+  return(result);
+}
 
 internal void *
 platform_reserve(uxx size) {
@@ -106,4 +113,4 @@ platform_library_close(Platform_Handle lib) {
   FreeLibrary(module);
 }
 
-#endif // KRUEGER_PLATFORM_WIN32_C
+#endif // KRUEGER_PLATFORM_CORE_WIN32_C

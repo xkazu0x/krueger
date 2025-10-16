@@ -1,18 +1,24 @@
 #ifndef KRUEGER_PLATFORM_C
 #define KRUEGER_PLATFORM_C
 
-internal b32
-platform_handle_match(Platform_Handle a, Platform_Handle b) {
-  b32 result = (a.ptr[0] == b.ptr[0]);
-  return(result);
-}
+#include "krueger_platform_core.c"
 
 #if PLATFORM_WINDOWS
-#include "krueger_platform_win32.c"
+#include "krueger_platform_core_win32.c"
 #elif PLATFORM_LINUX
-#include "krueger_platform_linux.c"
+#include "krueger_platform_core_linux.c"
 #else
-#error current platform is not supported
+#error platform core not supported for the current platform
+#endif
+
+#if PLATFORM_GFX
+#if PLATFORM_WINDOWS
+#include "krueger_platform_gfx_win32.c"
+#elif PLATFORM_LINUX
+#include "krueger_platform_gfx_linux.c"
+#else
+#error platform gfx not implemented for the current platform
+#endif
 #endif
 
 #endif // KRUEGER_PLATFORM_C

@@ -1,12 +1,21 @@
-#ifndef KRUEGER_PLATFORM_LINUX_C
-#define KRUEGER_PLATFORM_LINUX_C
+#ifndef KRUEGER_PLATFORM_CORE_LINUX_C
+#define KRUEGER_PLATFORM_CORE_LINUX_C
 
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <sys/sendfile.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <dlfcn.h>
+internal void
+platform_init_core(void) {
+  struct timespec clock;
+  clock_gettime(CLOCK_MONOTONIC, &clock);
+  u64 result = clock.tv_sec*million(1) + clock.tv_nsec/thousand(1); 
+  return(result);
+}
+
+internal u64
+platform_get_time_us(void) {
+  LARGE_INTEGER large_integer;
+  QueryPerformanceCounter(&large_integer);
+  u64 result = large_integer.QuadPart*million(1)/win32_us_res;
+  return(result);
+}
 
 internal void *
 platform_reserve(uxx size) {
@@ -125,4 +134,4 @@ platform_library_close(Platform_Handle lib) {
   dlclose(so);
 }
 
-#endif // KRUEGER_PLATFORM_LINUX_C
+#endif // KRUEGER_PLATFORM_CORE_LINUX_C

@@ -1,8 +1,10 @@
+// NOTE: [h]
 #include "krueger_base.h"
 #include "krueger_platform.h"
 #include "krueger_shared.h"
 #include "krueger.h"
 
+// NOTE: [c]
 #include "krueger_base.c"
 #include "krueger_platform.c"
 
