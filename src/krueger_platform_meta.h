@@ -1,8 +1,6 @@
 #ifndef KRUEGER_PLATFORM_META_H
 #define KRUEGER_PLATFORM_META_H
 
-#define BITS_PER_PIXEL 32
-
 typedef u32 Keycode;
 enum {
   KEY_NULL,

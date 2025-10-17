@@ -175,10 +175,10 @@ draw_triangle(Image image,
               s32 x1, s32 y1, 
               s32 x2, s32 y2, 
               u32 color) {
-  s32 min_x = clamp_bot(0, MIN(MIN(x0, x1), x2));
-  s32 min_y = clamp_bot(0, MIN(MIN(y0, y1), y2));
-  s32 max_x = clamp_top(MAX(MAX(x0, x1), x2), (s32)image.width);
-  s32 max_y = clamp_top(MAX(MAX(y0, y1), y2), (s32)image.height);
+  s32 min_x = clamp_bot(0, min(min(x0, x1), x2));
+  s32 min_y = clamp_bot(0, min(min(y0, y1), y2));
+  s32 max_x = clamp_top(max(max(x0, x1), x2), (s32)image.width);
+  s32 max_y = clamp_top(max(max(y0, y1), y2), (s32)image.height);
   s32 x01 = x1 - x0;
   s32 y01 = y1 - y0;
   s32 x12 = x2 - x1;
@@ -209,10 +209,10 @@ draw_triangle_f32(Image image,
                   f32 x1, f32 y1,
                   f32 x2, f32 y2,
                   u32 color) {
-  s32 min_x = (s32)clamp_bot(0, floor_f32(MIN(MIN(x0, x1), x2)));
-  s32 min_y = (s32)clamp_bot(0, floor_f32(MIN(MIN(y0, y1), y2)));
-  s32 max_x = (s32)clamp_top(ceil_f32(MAX(MAX(x0, x1), x2)), image.width);
-  s32 max_y = (s32)clamp_top(ceil_f32(MAX(MAX(y0, y1), y2)), image.height);
+  s32 min_x = (s32)clamp_bot(0, floor_f32(min(min(x0, x1), x2)));
+  s32 min_y = (s32)clamp_bot(0, floor_f32(min(min(y0, y1), y2)));
+  s32 max_x = (s32)clamp_top(ceil_f32(max(max(x0, x1), x2)), image.width);
+  s32 max_y = (s32)clamp_top(ceil_f32(max(max(y0, y1), y2)), image.height);
   f32 x01 = x1 - x0;
   f32 y01 = y1 - y0;
   f32 x12 = x2 - x1;
@@ -246,10 +246,10 @@ draw_triangle3c(Image image,
                 s32 x1, s32 y1, 
                 s32 x2, s32 y2,
                 u32 c0, u32 c1, u32 c2) {
-  s32 min_x = clamp_bot(0, MIN(MIN(x0, x1), x2));
-  s32 min_y = clamp_bot(0, MIN(MIN(y0, y1), y2));
-  s32 max_x = clamp_top(MAX(MAX(x0, x1), x2), (s32)image.width);
-  s32 max_y = clamp_top(MAX(MAX(y0, y1), y2), (s32)image.height);
+  s32 min_x = clamp_bot(0, min(min(x0, x1), x2));
+  s32 min_y = clamp_bot(0, min(min(y0, y1), y2));
+  s32 max_x = clamp_top(max(max(x0, x1), x2), (s32)image.width);
+  s32 max_y = clamp_top(max(max(y0, y1), y2), (s32)image.height);
   s32 x01 = x1 - x0;
   s32 y01 = y1 - y0;
   s32 x02 = x2 - x0;
@@ -303,10 +303,10 @@ draw_triangle3c_f32(Image image,
                     f32 x1, f32 y1,
                     f32 x2, f32 y2, 
                     u32 c0, u32 c1, u32 c2) {
-  s32 min_x = (s32)clamp_bot(0, floor_f32(MIN(MIN(x0, x1), x2)));
-  s32 min_y = (s32)clamp_bot(0, floor_f32(MIN(MIN(y0, y1), y2)));
-  s32 max_x = (s32)clamp_top(ceil_f32(MAX(MAX(x0, x1), x2)), image.width);
-  s32 max_y = (s32)clamp_top(ceil_f32(MAX(MAX(y0, y1), y2)), image.height);
+  s32 min_x = (s32)clamp_bot(0, floor_f32(min(min(x0, x1), x2)));
+  s32 min_y = (s32)clamp_bot(0, floor_f32(min(min(y0, y1), y2)));
+  s32 max_x = (s32)clamp_top(ceil_f32(max(max(x0, x1), x2)), image.width);
+  s32 max_y = (s32)clamp_top(ceil_f32(max(max(y0, y1), y2)), image.height);
   f32 x01 = x1 - x0;
   f32 y01 = y1 - y0;
   f32 x02 = x2 - x0;

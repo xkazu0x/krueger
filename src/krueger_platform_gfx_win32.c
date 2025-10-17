@@ -101,7 +101,7 @@ platform_create_window(Platform_Window_Desc *desc) {
     .hInstance = window_instance,
     .hIcon = LoadIcon(0, IDI_APPLICATION),
     .hCursor = LoadCursor(0, IDC_ARROW),
-    .hbrBackground = CreateSolidBrush(RGB(255, 0, 255)),
+    .hbrBackground = CreateSolidBrush(RGB(0, 0, 0)),
     .lpszMenuName = 0,
     .lpszClassName = "krueger_window_class",
   };

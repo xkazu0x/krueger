@@ -1,6 +1,8 @@
 #ifndef KRUEGER_PLATFORM_GFX_H
 #define KRUEGER_PLATFORM_GFX_H
 
+#define BITS_PER_PIXEL 32
+
 typedef u32 Platform_Event_Type;
 enum {
   PLATFORM_EVENT_QUIT,
