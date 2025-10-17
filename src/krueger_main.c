@@ -1,4 +1,4 @@
-// NOTE: platform options
+// NOTE: platform features
 #define PLATFORM_GFX 1
 
 // NOTE: [h]
@@ -10,38 +10,42 @@
 #include "krueger_base.c"
 #include "krueger_platform.c"
 
+// NOTE: constants
+#define WINDOW_TITLE "krueger"
+#define WINDOW_SCALE  3
+
 #define BACK_BUFFER_WIDTH  320
 #define BACK_BUFFER_HEIGHT 240
 
-#define WINDOW_SCALE  3
 #define WINDOW_WIDTH  WINDOW_SCALE*BACK_BUFFER_WIDTH
 #define WINDOW_HEIGHT WINDOW_SCALE*BACK_BUFFER_HEIGHT
 
-#include <stdio.h>
-
+// NOTE: globals
 global Platform_Handle libkrueger;
 #define PROC(x) global x##_proc *x;
 KRUEGER_PROC_LIST
 #undef PROC
 
+#include <stdio.h>
+
 internal void
-libkrueger_reload(char *dst_path, char *src_path) {
+libkrueger_reload(String8 dst_path, String8 src_path) {
   if (!platform_handle_match(libkrueger, PLATFORM_HANDLE_NULL)) {
     platform_library_close(libkrueger);
   }
-  if (platform_copy_file_path(dst_path, src_path)) {
-    libkrueger = platform_library_open(dst_path);
+  if (platform_copy_file_path((char *)dst_path.str, (char *)src_path.str)) {
+    libkrueger = platform_library_open((char *)dst_path.str);
     if (!platform_handle_match(libkrueger, PLATFORM_HANDLE_NULL)) {
       #define PROC(x) \
         x = (x##_proc *)platform_library_load_proc(libkrueger, #x); \
-        if (!(x)) printf("[ERROR]: reload_libkrueger: failed to load proc from library %s: %s\n", dst_path, #x);
+        if (!(x)) printf("[ERROR]: reload_libkrueger: failed to load proc from library %s: %s\n", dst_path.str, #x);
       KRUEGER_PROC_LIST
       #undef PROC
     } else {
-      printf("[ERROR]: libkrueger_load: failed to open library: %s\n", dst_path);
+      printf("[ERROR]: libkrueger_load: failed to open library: %s\n", dst_path.str);
     }
   } else {
-    printf("[ERROR]: libkrueger_load: failed to copy file path: from [%s] to [%s]\n", src_path, dst_path);
+    printf("[ERROR]: libkrueger_load: failed to copy file path: from [%s] to [%s]\n", src_path.str, dst_path.str);
   }
 }
 
@@ -65,8 +69,29 @@ int
 main(void) {
   platform_init_core();
 
-  char *src_lib_path = "..\\build\\libkrueger.dll";
-  char *dst_lib_path = "..\\build\\libkruegerx.dll";
+  Arena arena = arena_alloc(MB(1));
+  String8 exec_file_path = platform_get_exec_file_path(&arena);
+
+  u8 *exec_file_name = exec_file_path.str;
+  for (u8 *scan = exec_file_path.str; *scan; ++scan) {
+    if (char_is_slash(*scan)) {
+      exec_file_name = scan + 1;
+    }
+  }
+
+  String8 path = str8_range(exec_file_path.str, exec_file_name);
+
+#if PLATFORM_WINDOWS
+  String8 src_lib_name = str8_lit("libkrueger.dll");
+  String8 dst_lib_name = str8_lit("libkruegerx.dll");
+#elif PLATFORM_LINUX
+  String8 src_lib_name = str8_lit("libkrueger.so");
+  String8 dst_lib_name = str8_lit("libkruegerx.so");
+#endif
+
+  String8 src_lib_path = str8_cat(&arena, path, src_lib_name);
+  String8 dst_lib_path = str8_cat(&arena, path, dst_lib_name);
+
   libkrueger_reload(dst_lib_path, src_lib_path);
 
   Krueger_State *krueger_state = 0;

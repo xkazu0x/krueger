@@ -464,8 +464,17 @@ buf__grow(const void *buf, uxx new_len, uxx elem_size) {
   return(header->ptr);
 }
 
-///////////////
-// NOTE: String
+//////////////////////////
+// NOTE: Character Helpers
+
+internal b32
+char_is_slash(u8 c) {
+  b32 result = (c == '/') || (c == '\\');
+  return(result);
+}
+
+/////////////////////////
+// NOTE: C-String Helpers
 
 internal uxx
 cstr_len(char *cstr) {
@@ -514,6 +523,50 @@ cstr_encode(char *cstr) {
   for (uxx i = 0; i < len; ++i) {
     result |= cstr[i] << i*8;
   }
+  return(result);
+}
+
+////////////////////////////
+// NOTE: String Constructors
+
+internal String8
+make_str8(u8 *str, u32 len) {
+  String8 result = {
+    .len = len,
+    .str = str,
+  };
+  return(result);
+}
+
+internal String8
+str8_range(u8 *first, u8 *last) {
+  String8 result = {
+    .len = last - first,
+    .str = first,
+  };
+  return(result);
+}
+
+internal String8
+str8_cstr(char *cstr) {
+  String8 result = {
+    .len = cstr_len(cstr),
+    .str = (u8 *)cstr,
+  };
+  return(result);
+}
+
+//////////////////////////
+// NOTE: String Formatting
+
+internal String8
+str8_cat(Arena *arena, String8 a, String8 b) {
+  String8 result;
+  result.len = a.len + b.len,
+  result.str = push_array(arena, u8, result.len + 1);
+  memmove(result.str, a.str, a.len);
+  memmove(result.str + a.len, b.str, b.len);
+  result.str[result.len] = 0;
   return(result);
 }
 

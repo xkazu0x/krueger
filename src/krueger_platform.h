@@ -6,7 +6,6 @@
 #endif
 
 #include "krueger_platform_meta.h"
-
 #include "krueger_platform_core.h"
 #ifdef PLATFORM_GFX
 #include "krueger_platform_gfx.h"

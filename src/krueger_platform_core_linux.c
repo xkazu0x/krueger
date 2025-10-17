@@ -9,6 +9,15 @@ platform_init_core(void) {
   return(result);
 }
 
+internal String8
+platform_get_exec_file_path(Arena *arena) {
+  char *path = push_array(arena, char, PATH_MAX);
+  ssize_t length = readlink("/proc/self/exe", path, PATH_MAX);
+  if (length != -1) path[length] = 0;
+  String8 result = str8_cstr(path);
+  return(result);
+}
+
 internal u64
 platform_get_time_us(void) {
   LARGE_INTEGER large_integer;

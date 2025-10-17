@@ -25,6 +25,8 @@ internal b32 platform_handle_match(Platform_Handle a, Platform_Handle b);
 // NOTE: Implemented Per-Platform
 
 internal void platform_init_core(void);
+
+internal String8 platform_get_exec_file_path(Arena *arena);
 internal u64 platform_get_time_us(void);
 
 internal void *platform_reserve(uxx size);

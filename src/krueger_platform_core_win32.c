@@ -5,14 +5,22 @@ internal void
 platform_init_core(void) {
   LARGE_INTEGER large_integer;
   QueryPerformanceFrequency(&large_integer);
-  win32_us_res = large_integer.QuadPart;
+  win32_core_state.us_res = large_integer.QuadPart;
+}
+
+internal String8
+platform_get_exec_file_path(Arena *arena) {
+  char *path = push_array(arena, char, MAX_PATH);
+  GetModuleFileName(0, path, MAX_PATH);
+  String8 result = str8_cstr(path);
+  return(result);
 }
 
 internal u64
 platform_get_time_us(void) {
   LARGE_INTEGER large_integer;
   QueryPerformanceCounter(&large_integer);
-  u64 result = large_integer.QuadPart*million(1)/win32_us_res;
+  u64 result = large_integer.QuadPart*million(1)/win32_core_state.us_res;
   return(result);
 }
 

@@ -567,13 +567,13 @@ load_obj(char *filename) {
   Vector3 *tmp_vertex_buf = 0;
   FILE *file = fopen(filename, "r");
   if (file) {
-    char line[1<<8];
-    while (fscanf(file, "%s", line) != EOF) {
-      if (cstr_match(line, "v")) {
+    char str[1<<8];
+    while (fscanf(file, "%s", str) != EOF) {
+      if (cstr_match(str, "v")) {
         Vector3 v;
         fscanf(file, "%f %f %f\n", &v.x, &v.y, &v.z);
         buf_push(tmp_vertex_buf, v);
-      } else if (cstr_match(line, "f")) {
+      } else if (cstr_match(str, "f")) {
         s32 f[3];
         fscanf(file, "%d %d %d\n", &f[0], &f[1], &f[2]);
         buf_push(mesh.vertex_index_buf, f[0]);
