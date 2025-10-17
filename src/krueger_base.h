@@ -9,6 +9,7 @@
 #include <stddef.h>
 #include <float.h>
 #include <math.h>
+#include <string.h>
 
 ///////////////////////////////
 // NOTE: Clang Context Cracking

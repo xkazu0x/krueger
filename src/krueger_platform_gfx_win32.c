@@ -131,6 +131,10 @@ platform_create_window(Platform_Window_Desc *desc) {
 }
 
 internal void
+platform_destroy_window(void) {
+}
+
+internal void
 platform_display_back_buffer(u32 *buffer, s32 buffer_w, s32 buffer_h) {
   HWND window = win32_gfx_state.window; 
   BITMAPINFO *bitmap_info = &win32_gfx_state.bitmap_info;

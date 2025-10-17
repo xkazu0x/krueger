@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 #include <sys/sendfile.h>
 #include <unistd.h>
+#include <limits.h>
 #include <fcntl.h>
 #include <dlfcn.h>
 #include <time.h>

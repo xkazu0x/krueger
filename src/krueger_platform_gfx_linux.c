@@ -67,7 +67,7 @@ platform_create_window(Platform_Window_Desc *desc) {
   u32 event_masks = StructureNotifyMask | FocusChangeMask | KeyPressMask | KeyReleaseMask;
   XSelectInput(display, window, event_masks);
 
-  Atom wm_delete_window = XInternAtom(linux_gfx_state.display, "WM_DELETE_WINDOW", false);
+  Atom wm_delete_window = XInternAtom(display, "WM_DELETE_WINDOW", false);
   XSetWMProtocols(display, window, &wm_delete_window, 1);
 
   XWindowAttributes attributes = {0};
@@ -89,11 +89,17 @@ platform_create_window(Platform_Window_Desc *desc) {
   
   linux_gfx_state.display = display;
   linux_gfx_state.window = window;
-  linux_gfx_state.wm_window_delete = wm_window_delete;
+  linux_gfx_state.wm_delete_window = wm_delete_window;
   linux_gfx_state.front_buffer_w = front_buffer_w;
   linux_gfx_state.front_buffer_h = front_buffer_h;
+  linux_gfx_state.front_buffer_size = front_buffer_size;
   linux_gfx_state.front_buffer = front_buffer;
   linux_gfx_state.image = image;
+}
+
+internal void
+platform_destroy_window(void) {
+  XAutoRepeatOn(linux_gfx_state.display);
 }
 
 internal void
@@ -102,10 +108,10 @@ platform_display_back_buffer(u32 *buffer, s32 buffer_w, s32 buffer_h) {
   s32 front_buffer_h = linux_gfx_state.front_buffer_h;
   u32 *front_buffer = linux_gfx_state.front_buffer;
 
-  for (u32 y = 0; y < front_buffer_h; ++y) {
-    for (u32 x = 0; x < front_buffer_w; ++x) {
-      u32 nx = x*buffer_w/front_buffer_w;
-      u32 ny = y*buffer_h/front_buffer_h;
+  for (s32 y = 0; y < front_buffer_h; ++y) {
+    for (s32 x = 0; x < front_buffer_w; ++x) {
+      s32 nx = x*buffer_w/front_buffer_w;
+      s32 ny = y*buffer_h/front_buffer_h;
       front_buffer[y*front_buffer_w + x] = buffer[ny*buffer_w + nx];
     }
   }
@@ -124,14 +130,14 @@ platform_update_window_events(void) {
   if (buf_len(platform_event_buf) > 0) {
     buf_clear(platform_event_buf);
   }
-
-  while (XPending(display)) {
+  
+  while (XPending(linux_gfx_state.display)) {
     XEvent base_event = {0};
-    XNextEvent(display, &base_event);
+    XNextEvent(linux_gfx_state.display, &base_event);
     switch (base_event.type) {
       case ClientMessage: {
         XClientMessageEvent *event = (XClientMessageEvent *)&base_event;
-        if ((Atom)event->data.l[0] == wm_delete_window) {
+        if ((Atom)event->data.l[0] == linux_gfx_state.wm_delete_window) {
           Platform_Event push_event = {
             .type = PLATFORM_EVENT_QUIT,
           };
@@ -140,25 +146,23 @@ platform_update_window_events(void) {
       } break;
       case ConfigureNotify: {
         XConfigureEvent *event = (XConfigureEvent *)&base_event;
+        platform_release(linux_gfx_state.front_buffer, linux_gfx_state.front_buffer_size);
+        linux_gfx_state.front_buffer_w = event->width;
+        linux_gfx_state.front_buffer_h = event->height;
+        linux_gfx_state.front_buffer_size = event->width*event->height*sizeof(u32);
+        linux_gfx_state.front_buffer = platform_reserve(linux_gfx_state.front_buffer_size);
+        platform_commit(linux_gfx_state.front_buffer, linux_gfx_state.front_buffer_size);
 
-        s32 *front_buffer_w = &linux_gfx_state.front_buffer_w;
-        s32 *front_buffer_h = &linux_gfx_state.front_buffer_h;
-        u32 *front_buffer = linux_gfx_state.front_buffer;
-        uxx front_buffer_size = (*front_buffer_w)*(*front_buffer_h)*sizeof(u32);
-        platform_release(front_buffer_pixels, front_buffer_size);
+        XWindowAttributes attributes = {0};
+        XGetWindowAttributes(linux_gfx_state.display, linux_gfx_state.window, &attributes);
 
-        *front_buffer_w = event->width;
-        *front_buffer_h = event->height;
-        front_buffer_size = (*front_buffer_w)*(*front_buffer_h)*sizeof(u32);
-        front_buffer = platform_reserve(front_buffer_size);
-        platform_commit(front_buffer, front_buffer_size);
-
-        Display *display = linux_gfx_state.display;
-        XImage *image = linux_gfx_state.image;
-
-        image = XCreateImage(display, attributes.visual, attributes.depth, ZPixmap, 0, 
-                             (char *)front_buffer, *front_buffer_w, *front_buffer_h, 
-                             BITS_PER_PIXEL, (*front_buffer_w)*sizeof(u32));
+        linux_gfx_state.image = XCreateImage(linux_gfx_state.display, 
+                                             attributes.visual, attributes.depth, ZPixmap, 0, 
+                                             (char *)linux_gfx_state.front_buffer, 
+                                             linux_gfx_state.front_buffer_w, 
+                                             linux_gfx_state.front_buffer_h, 
+                                             BITS_PER_PIXEL, 
+                                             linux_gfx_state.front_buffer_w*sizeof(u32));
       } break;
       case KeyPress: 
       case KeyRelease: {
@@ -167,7 +171,7 @@ platform_update_window_events(void) {
         KeySym keysym = XLookupKeysym(event, 0);
         Keycode keycode = linux_translate_keycode(keysym);
         Platform_Event push_event = {
-          .type = (is_down) ? PLATFORM_EVENT_KEY_PRESS : PLATFORM_EVENT_KEY_RELEASE;
+          .type = (is_down) ? PLATFORM_EVENT_KEY_PRESS : PLATFORM_EVENT_KEY_RELEASE,
           .keycode = keycode,
         };
         buf_push(platform_event_buf, push_event);

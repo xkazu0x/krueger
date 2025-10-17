@@ -145,5 +145,7 @@ main(void) {
 
     input_reset(&input);
   }
+
+  platform_destroy_window();
   return(0);
 }

@@ -29,6 +29,7 @@ global Platform_Event *platform_event_buf;
 // NOTE: Implemented Per-Platform
 
 internal void platform_create_window(Platform_Window_Desc *desc);
+internal void platform_destroy_window(void);
 internal void platform_display_back_buffer(u32 *buffer, s32 buffer_w, s32 buffer_h);
 internal void platform_update_window_events(void);
 

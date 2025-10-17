@@ -3,10 +3,6 @@
 
 internal void
 platform_init_core(void) {
-  struct timespec clock;
-  clock_gettime(CLOCK_MONOTONIC, &clock);
-  u64 result = clock.tv_sec*million(1) + clock.tv_nsec/thousand(1); 
-  return(result);
 }
 
 internal String8
@@ -20,9 +16,9 @@ platform_get_exec_file_path(Arena *arena) {
 
 internal u64
 platform_get_time_us(void) {
-  LARGE_INTEGER large_integer;
-  QueryPerformanceCounter(&large_integer);
-  u64 result = large_integer.QuadPart*million(1)/win32_us_res;
+  struct timespec clock;
+  clock_gettime(CLOCK_MONOTONIC, &clock);
+  u64 result = clock.tv_sec*million(1) + clock.tv_nsec/thousand(1); 
   return(result);
 }
 

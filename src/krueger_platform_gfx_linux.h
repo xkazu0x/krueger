@@ -10,6 +10,7 @@ typedef struct {
   Atom wm_delete_window;
   s32 front_buffer_w;
   s32 front_buffer_h;
+  uxx front_buffer_size;
   u32 *front_buffer;
   XImage *image;
 } Linux_Gfx_State;
