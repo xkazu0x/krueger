@@ -3,23 +3,32 @@
 
 internal u32
 alpha_linear_blend(u32 dst, u32 src) {
-  u32 r0 = mask_red(dst); 
-  u32 g0 = mask_green(dst);
-  u32 b0 = mask_blue(dst);
-  u32 a0 = mask_alpha(dst);
+  u8 r0 = mask_red(dst); 
+  u8 g0 = mask_green(dst);
+  u8 b0 = mask_blue(dst);
+  u8 a0 = mask_alpha(dst);
 
-  u32 r1 = mask_red(src); 
-  u32 g1 = mask_green(src);
-  u32 b1 = mask_blue(src);
-  u32 a1 = mask_alpha(src);
+  u8 r1 = mask_red(src); 
+  u8 g1 = mask_green(src);
+  u8 b1 = mask_blue(src);
+  u8 a1 = mask_alpha(src);
 
   u8 r = lerp_t(u8, r0, r1, a1/255.0f);
   u8 g = lerp_t(u8, g0, g1, a1/255.0f);
   u8 b = lerp_t(u8, b0, b1, a1/255.0f);
-  u8 a = (u8)a0;
+  u8 a = a0;
 
   u32 result = pack_rgba32(r, g, b, a);
   return(result);
+}
+
+internal void
+fill(Image image, u32 color) {
+  for (u32 y = 0; y < image.height; ++y) {
+    for (u32 x = 0; x < image.width; ++x) {
+      image.pixels[y*image.pitch + x] = color;
+    }
+  }
 }
 
 internal void
@@ -341,8 +350,7 @@ draw_triangle3c_f32(Image image,
 }
 
 internal void
-draw_texture(Image dst, Image src,
-             s32 x, s32 y) {
+draw_texture(Image dst, Image src, s32 x, s32 y) {
   s32 min_x = clamp_bot(0, x);
   s32 min_y = clamp_bot(0, y);
   s32 max_x = clamp_top(x + src.width, dst.width);
@@ -353,6 +361,28 @@ draw_texture(Image dst, Image src,
       s32 sx = dx - min_x;
       u32 dst_index = dy*dst.pitch + dx;
       u32 src_index = sy*src.pitch + sx;
+      u32 dst_color = dst.pixels[dst_index];
+      u32 src_color = src.pixels[src_index];
+      dst.pixels[dst_index] = alpha_linear_blend(dst_color, src_color);
+    }
+  }
+}
+
+internal void
+draw_texturex(Image dst, Image src,
+              s32 x, s32 y, f32 sx, f32 sy) {
+  f32 sw = sx*src.width;
+  f32 sh = sy*src.height;
+  s32 min_x = clamp_bot(0, x);
+  s32 min_y = clamp_bot(0, y);
+  s32 max_x = clamp_top(round_t(u32, x + sw), dst.width);
+  s32 max_y = clamp_top(round_t(u32, y + sh), dst.height);
+  for (s32 dy = min_y; dy < max_y; ++dy) {
+    f32 ny = (dy - min_y)/sh;
+    for (s32 dx = min_x; dx < max_x; ++dx) {
+      f32 nx = (dx - min_x)/sw;
+      u32 dst_index = dy*dst.pitch + dx;
+      u32 src_index = (u32)(ny*src.height)*src.pitch + (u32)(nx*src.width);
       u32 dst_color = dst.pixels[dst_index];
       u32 src_color = src.pixels[src_index];
       dst.pixels[dst_index] = alpha_linear_blend(dst_color, src_color);
@@ -375,14 +405,14 @@ draw_texturec(Image dst, Image src,
       u32 src_index = sy*src.pitch + sx;
       u32 dst_color = dst.pixels[dst_index];
       u32 src_color = src.pixels[src_index];
-      f32 rt = mask_red(src_color)/255.0f;
-      f32 gt = mask_green(src_color)/255.0f;
-      f32 bt = mask_blue(src_color)/255.0f;
-      f32 at = mask_alpha(src_color)/255.0f;
-      u8 r = (u8)(rt*mask_red(c));
-      u8 g = (u8)(gt*mask_green(c));
-      u8 b = (u8)(bt*mask_blue(c));
-      u8 a = (u8)(at*mask_alpha(c));
+      f32 rt = mask_red(c)/255.0f;
+      f32 gt = mask_green(c)/255.0f;
+      f32 bt = mask_blue(c)/255.0f;
+      f32 at = mask_alpha(c)/255.0f;
+      u8 r = (u8)(rt*mask_red(src_color));
+      u8 g = (u8)(gt*mask_green(src_color));
+      u8 b = (u8)(bt*mask_blue(src_color));
+      u8 a = (u8)(at*mask_alpha(src_color));
       src_color = pack_rgba32(r, g, b, a);
       dst.pixels[dst_index] = alpha_linear_blend(dst_color, src_color);
     }
@@ -390,20 +420,46 @@ draw_texturec(Image dst, Image src,
 }
 
 internal void
-draw_char(Image image,
-          char c, s32 x, s32 y, 
-          Font font, u32 color) {
-  uxx char_index = cstr_index_of(font.chars, c);
-  u32 tile_x = font.glyph_w*(char_index % font.num_char_x);
-  u32 tile_y = font.glyph_h*((u32)floor_f32((f32)char_index/(f32)font.num_char_x));
-  Image glyph = make_subimage(font.image, tile_x, tile_y, font.glyph_w, font.glyph_h);
-  draw_texturec(image, glyph, x, y, color);
+draw_texturexc(Image dst, Image src,
+              s32 x, s32 y,
+              f32 sx, f32 sy,
+              u32 c) {
+  f32 sw = sx*src.width;
+  f32 sh = sy*src.height;
+  s32 min_x = clamp_bot(0, x);
+  s32 min_y = clamp_bot(0, y);
+  s32 max_x = clamp_top(round_t(u32, x + sw), dst.width);
+  s32 max_y = clamp_top(round_t(u32, y + sh), dst.height);
+  for (s32 dy = min_y; dy < max_y; ++dy) {
+    f32 ny = (dy - min_y)/sh;
+    for (s32 dx = min_x; dx < max_x; ++dx) {
+      f32 nx = (dx - min_x)/sw;
+      u32 dst_index = dy*dst.pitch + dx;
+      u32 src_index = (u32)(ny*src.height)*src.pitch + (u32)(nx*src.width);
+      u32 dst_color = dst.pixels[dst_index];
+      u32 src_color = src.pixels[src_index];
+      f32 rt = mask_red(c)/255.0f;
+      f32 gt = mask_green(c)/255.0f;
+      f32 bt = mask_blue(c)/255.0f;
+      f32 at = mask_alpha(c)/255.0f;
+      u8 r = (u8)(rt*mask_red(src_color));
+      u8 g = (u8)(gt*mask_green(src_color));
+      u8 b = (u8)(bt*mask_blue(src_color));
+      u8 a = (u8)(at*mask_alpha(src_color));
+      src_color = pack_rgba32(r, g, b, a);
+      dst.pixels[dst_index] = alpha_linear_blend(dst_color, src_color);
+    }
+  }
 }
+
+internal Image font_get_glyph(Font font, char c);
 
 internal void
 draw_text(Image image,
           char *text, s32 x, s32 y, 
           Font font, u32 color) {
+  s32 gw = font.glyph_w;
+  s32 gh = font.glyph_h;
   s32 gx = x;
   s32 gy = y;
   uxx text_len = cstr_len(text);
@@ -412,14 +468,41 @@ draw_text(Image image,
     switch (c) {
       case '\n': {
         gx = x;
-        gy += font.glyph_h;
+        gy += gh;
       } continue;
       case '\t': {
-        gx += 2*font.glyph_w;
+        gx += 2*gw;
       } continue;
     }
-    draw_char(image, c, gx, gy, font, color);
-    gx += font.glyph_w;
+    Image glyph = font_get_glyph(font, c);
+    draw_texturec(image, glyph, gx, gy, color);
+    gx += gw;
+  }
+}
+
+internal void
+draw_textx(Image image,
+           char *text, s32 x, s32 y, 
+           Font font, f32 sx, f32 sy, u32 color) {
+  s32 gw = round_t(s32, font.glyph_w*sx);
+  s32 gh = round_t(s32, font.glyph_h*sy);
+  s32 gx = x;
+  s32 gy = y;
+  uxx text_len = cstr_len(text);
+  for (uxx i = 0; i < text_len; ++i) {
+    char c = text[i];
+    switch (c) {
+      case '\n': {
+        gx = x;
+        gy += gh;
+      } continue;
+      case '\t': {
+        gx += 2*gw;
+      } continue;
+    }
+    Image glyph = font_get_glyph(font, c);
+    draw_texturexc(image, glyph, gx, gy, sx, sy, color);
+    gx += gw;
   }
 }
 

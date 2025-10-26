@@ -19,6 +19,9 @@ typedef union {
   struct {
     f32 x, y;
   };
+  struct {
+    f32 u, v;
+  };
   f32 buf[2];
 } Vector2;
 

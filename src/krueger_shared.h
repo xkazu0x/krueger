@@ -32,15 +32,6 @@ make_subimage(Image image,
   return(result);
 }
 
-internal void
-image_fill(Image image, u32 color) {
-  for (u32 y = 0; y < image.height; ++y)  {
-    for (u32 x = 0; x < image.width; ++x) {
-      image.pixels[y*image.pitch + x] = color;
-    }
-  }
-}
-
 typedef struct {
   b32 is_down;
   b32 pressed;

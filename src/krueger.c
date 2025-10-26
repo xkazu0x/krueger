@@ -22,6 +22,15 @@ make_font(char *chars, u32 num_char_x, u32 num_char_y,
   return(result);
 }
 
+internal Image
+font_get_glyph(Font font, char c) {
+  uxx char_index = cstr_index_of(font.chars, c);
+  u32 tile_x = font.glyph_w*(char_index % font.num_char_x);
+  u32 tile_y = font.glyph_h*((u32)floor_f32((f32)char_index/(f32)font.num_char_x));
+  Image result = make_subimage(font.image, tile_x, tile_y, font.glyph_w, font.glyph_h);
+  return(result);
+}
+
 #pragma pack(push, 1)
 typedef struct {
   u16 type;
@@ -304,16 +313,15 @@ test_mesh(Image back_buffer, Mesh mesh, Krueger_State *state, u32 width, u32 hei
 
     f32 scalar = vector3_dot(normal, cam_ray);
     if (scalar < 0.0f) {
+      u32 color = 0xc1c1c1;
 #if 0
       Vector3 light_dir = vector3_normalize(make_vector3(0.0f, 0.0f, -1.0f));
       f32 dp = vector3_dot(normal, light_dir);
       f32 ct = (dp + 1.0f)/2.0f;
-      u8 r = (u8)(0xc1*ct);
-      u8 g = (u8)(0xc1*ct);
-      u8 b = (u8)(0xc1*ct);
+      u8 r = (u8)(mask_red(color)*ct);
+      u8 g = (u8)(mask_green(color)*ct);
+      u8 b = (u8)(mask_blue(color)*ct);
       u32 color = (r << 16) | (g << 8) | (b << 0);
-#else
-      u32 color = 0xc1c1c1;
 #endif
 
       v0 = matrix4x4_mul_vector4(view, v0);
@@ -345,9 +353,10 @@ test_mesh(Image back_buffer, Mesh mesh, Krueger_State *state, u32 width, u32 hei
       draw_triangle(back_buffer, x0, y0, x1, y1, x2, y2, color);
 
 #if 1
-      draw_line(back_buffer, x0, y0, x1, y1, 0x79241f);
-      draw_line(back_buffer, x1, y1, x2, y2, 0x79241f);
-      draw_line(back_buffer, x2, y2, x0, y0, 0x79241f);
+      u32 line_color = 0x79241f;
+      draw_line(back_buffer, x0, y0, x1, y1, line_color);
+      draw_line(back_buffer, x1, y1, x2, y2, line_color);
+      draw_line(back_buffer, x2, y2, x0, y0, line_color);
 #endif
     }
   }
@@ -411,14 +420,12 @@ test_triangle(Image back_buffer, Clock time) {
   model = matrix4x4_mul(scale, model);
   model = matrix4x4_mul(translate, model);
 
-  for (uxx vi = 0, ci = 0; vi < array_count(v); vi += 3, ++ci) {
-    uxx vi0 = vi;
-    uxx vi1 = vi+1;
-    uxx vi2 = vi+2;
-
-    Vector4 v0 = vector4_from_vector3(v[vi0], 1.0f);
-    Vector4 v1 = vector4_from_vector3(v[vi1], 1.0f);
-    Vector4 v2 = vector4_from_vector3(v[vi2], 1.0f);
+  for (uxx vertex_index = 0, color_index = 0;
+       vertex_index < array_count(v);
+       vertex_index += 3, color_index += 1) {
+    Vector4 v0 = vector4_from_vector3(v[vertex_index+0], 1.0f);
+    Vector4 v1 = vector4_from_vector3(v[vertex_index+1], 1.0f);
+    Vector4 v2 = vector4_from_vector3(v[vertex_index+2], 1.0f);
 
     v0 = matrix4x4_mul_vector4(model, v0);
     v1 = matrix4x4_mul_vector4(model, v1);
@@ -438,7 +445,7 @@ test_triangle(Image back_buffer, Clock time) {
     s32 x2 = (s32)v2.x;
     s32 y2 = (s32)v2.y;
 
-    draw_triangle(back_buffer, x0, y0, x1, y1, x2, y2, c[ci]);
+    draw_triangle(back_buffer, x0, y0, x1, y1, x2, y2, c[color_index]);
   } 
 
   translate = matrix4x4_translate(0.9f, -0.7f, 0.0f);
@@ -446,14 +453,12 @@ test_triangle(Image back_buffer, Clock time) {
   model = matrix4x4_mul(scale, model);
   model = matrix4x4_mul(translate, model);
 
-  for (uxx vi = 0, ci = 0; vi < array_count(v); vi += 3, ++ci) {
-    uxx vi0 = vi;
-    uxx vi1 = vi+1;
-    uxx vi2 = vi+2;
-
-    Vector4 v0 = vector4_from_vector3(v[vi0], 1.0f);
-    Vector4 v1 = vector4_from_vector3(v[vi1], 1.0f);
-    Vector4 v2 = vector4_from_vector3(v[vi2], 1.0f);
+  for (uxx vertex_index = 0, color_index = 0;
+       vertex_index < array_count(v);
+       vertex_index += 3, color_index += 1) {
+    Vector4 v0 = vector4_from_vector3(v[vertex_index+0], 1.0f);
+    Vector4 v1 = vector4_from_vector3(v[vertex_index+1], 1.0f);
+    Vector4 v2 = vector4_from_vector3(v[vertex_index+2], 1.0f);
 
     v0 = matrix4x4_mul_vector4(model, v0);
     v1 = matrix4x4_mul_vector4(model, v1);
@@ -473,12 +478,12 @@ test_triangle(Image back_buffer, Clock time) {
     f32 x2 = v2.x;
     f32 y2 = v2.y;
 
-    draw_triangle_f32(back_buffer, x0, y0, x1, y1, x2, y2, c[ci]);
+    draw_triangle_f32(back_buffer, x0, y0, x1, y1, x2, y2, c[color_index]);
   } 
 }
 
 internal void
-test_triangle3(Image back_buffer, Clock time) {
+test_triangle3c(Image back_buffer, Clock time) {
   Vector3 v[] = {
     {{ -0.5f, -0.5f, 0.0f }},
     {{ -0.5f,  0.5f, 0.0f }},
@@ -508,14 +513,12 @@ test_triangle3(Image back_buffer, Clock time) {
   model = matrix4x4_mul(scale, model);
   model = matrix4x4_mul(translate, model);
 
-  for (uxx vi = 0, ci = 0; vi < array_count(v); vi += 3, ci += 3) {
-    uxx vi0 = vi;
-    uxx vi1 = vi+1;
-    uxx vi2 = vi+2;
-
-    Vector4 v0 = vector4_from_vector3(v[vi0], 1.0f);
-    Vector4 v1 = vector4_from_vector3(v[vi1], 1.0f);
-    Vector4 v2 = vector4_from_vector3(v[vi2], 1.0f);
+  for (uxx vertex_index = 0, color_index = 0;
+       vertex_index < array_count(v);
+       vertex_index += 3, color_index += 3) {
+    Vector4 v0 = vector4_from_vector3(v[vertex_index+0], 1.0f);
+    Vector4 v1 = vector4_from_vector3(v[vertex_index+1], 1.0f);
+    Vector4 v2 = vector4_from_vector3(v[vertex_index+2], 1.0f);
 
     v0 = matrix4x4_mul_vector4(model, v0);
     v1 = matrix4x4_mul_vector4(model, v1);
@@ -535,13 +538,9 @@ test_triangle3(Image back_buffer, Clock time) {
     s32 x2 = (s32)v2.x;
     s32 y2 = (s32)v2.y;
 
-    uxx ci0 = ci;
-    uxx ci1 = ci+1;
-    uxx ci2 = ci+2;
-
-    u32 c0 = c[ci0];
-    u32 c1 = c[ci1];
-    u32 c2 = c[ci2];
+    u32 c0 = c[color_index+0];
+    u32 c1 = c[color_index+1];
+    u32 c2 = c[color_index+2];
 
     draw_triangle3c(back_buffer, x0, y0, x1, y1, x2, y2, c0, c1, c2);
   } 
@@ -551,14 +550,12 @@ test_triangle3(Image back_buffer, Clock time) {
   model = matrix4x4_mul(scale, model);
   model = matrix4x4_mul(translate, model);
 
-  for (uxx vi = 0, ci = 0; vi < array_count(v); vi += 3, ci += 3) {
-    uxx vi0 = vi;
-    uxx vi1 = vi+1;
-    uxx vi2 = vi+2;
-
-    Vector4 v0 = vector4_from_vector3(v[vi0], 1.0f);
-    Vector4 v1 = vector4_from_vector3(v[vi1], 1.0f);
-    Vector4 v2 = vector4_from_vector3(v[vi2], 1.0f);
+  for (uxx vertex_index = 0, color_index = 0;
+       vertex_index < array_count(v);
+       vertex_index += 3, color_index += 3) {
+    Vector4 v0 = vector4_from_vector3(v[vertex_index+0], 1.0f);
+    Vector4 v1 = vector4_from_vector3(v[vertex_index+1], 1.0f);
+    Vector4 v2 = vector4_from_vector3(v[vertex_index+2], 1.0f);
 
     v0 = matrix4x4_mul_vector4(model, v0);
     v1 = matrix4x4_mul_vector4(model, v1);
@@ -578,36 +575,45 @@ test_triangle3(Image back_buffer, Clock time) {
     f32 x2 = v2.x;
     f32 y2 = v2.y;
 
-    uxx ci0 = ci;
-    uxx ci1 = ci+1;
-    uxx ci2 = ci+2;
-
-    u32 c0 = c[ci0];
-    u32 c1 = c[ci1];
-    u32 c2 = c[ci2];
+    u32 c0 = c[color_index+0];
+    u32 c1 = c[color_index+1];
+    u32 c2 = c[color_index+2];
 
     draw_triangle3c_f32(back_buffer, x0, y0, x1, y1, x2, y2, c0, c1, c2);
   } 
 }
 
 internal void
-test_texture(Image back_buffer, Image texture) {
-  draw_texture(back_buffer, texture, 8, 8);
+test_texture(Image dst, Font font) {
+  draw_texture(dst, font.image, 8, 8);
 }
 
 internal void
 test_text(Image back_buffer, Font font) {
-  s32 x = 8;
-  s32 y = font.glyph_h*2;
+  s32 x, y;
+
+  x = 8;
+  y = font.glyph_h*2;
   y += font.glyph_h;
   draw_text(back_buffer, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", x,  y, font, 0xffc1c1c1);
   y += font.glyph_h;
   draw_text(back_buffer, "0123456789.,!?'\"-+=/\\%()<>", x, y, font, 0xaac1c1c1);
+
+  char *text = "KRUEGER";
+  uxx text_len = cstr_len(text);
+  f32 sx = 3.0f;
+  f32 sy = 1.0f;
+  s32 w = round_t(s32, text_len*font.glyph_w*sx);
+  s32 h = round_t(s32, font.glyph_h*sy);
+  x = (back_buffer.width - w)/2;
+  y = (back_buffer.height - h)/2;
+  draw_textx(back_buffer, "KRUEGER", x, y, font, sx, sy, 0xff606060);
 }
 
 internal void
 draw_debug_info(Image back_buffer, Clock time, Font font) {
   s32 x, y;
+  u32 color;
 
   f32 fps = million(1)/time.dt_us;
   f32 ms = time.dt_us/thousand(1);
@@ -617,14 +623,15 @@ draw_debug_info(Image back_buffer, Clock time, Font font) {
 
   sprintf(fps_str, "%.2f FPS", fps);
   sprintf(ms_str, "%.2f MS", ms);
-
+  
+  color = 0xff79241f;
   x = back_buffer.width - (s32)cstr_len(fps_str)*font.glyph_w - font.glyph_w;
   y = font.glyph_h;
-  draw_text(back_buffer, fps_str, x, y, font, 0xff79241f);
+  draw_text(back_buffer, fps_str, x, y, font, color);
 
   x = back_buffer.width - (s32)cstr_len(ms_str)*font.glyph_w - font.glyph_w*2;
   y += font.glyph_h;
-  draw_text(back_buffer, ms_str, x, y, font, 0xff79241f);
+  draw_text(back_buffer, ms_str, x, y, font, color);
 }
 
 shared_function
@@ -681,22 +688,24 @@ KRUEGER_FRAME_PROC(krueger_frame) {
   state->cam_rot_vel = 0.0f;
 
   state->mesh_rot_angle += state->mesh_rot_speed*time->dt;
+  
+  Image draw_buffer = *back_buffer;
+  fill(draw_buffer, 0x00);
 
-  image_fill(*back_buffer, 0);
+  test_mesh(draw_buffer, state->mesh, state, draw_buffer.width, draw_buffer.height);
 
-  test_mesh(*back_buffer, state->mesh, state, back_buffer->width, back_buffer->height);
-  test_rect(*back_buffer, *time);
-  test_circle(*back_buffer, *time);
-  test_triangle(*back_buffer, *time);
-  test_triangle3(*back_buffer, *time);
-  test_texture(*back_buffer, state->font_image);
-  test_text(*back_buffer, state->font);
+  test_rect(draw_buffer, *time);
+  test_circle(draw_buffer, *time);
+  test_triangle(draw_buffer, *time);
+  test_triangle3c(draw_buffer, *time);
+  test_texture(draw_buffer, state->font);
+  test_text(draw_buffer, state->font);
 
-  draw_debug_info(*back_buffer, *time, state->font);
+  draw_debug_info(draw_buffer, *time, state->font);
 }
 
 // TODO:
-// - Scaling/Rotating Texture
+// - Rotating Texture
 // - Triangle Texture Mapping
 // - Depth Buffer
 // - Clipping

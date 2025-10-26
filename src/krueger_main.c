@@ -113,9 +113,10 @@ memory_alloc(uxx permanent_memory_size, uxx transient_memory_size) {
 
 internal Image
 image_alloc(u32 width, u32 height) {
-  uxx img_size = width*height*sizeof(u32);
-  u32 *pixels = platform_reserve(img_size);
-  platform_commit(pixels, img_size);
+  uxx size = width*height*sizeof(u32);
+  u32 *pixels = platform_reserve(size);
+  platform_commit(pixels, size);
+  mem_zero(pixels, size);
   Image result = make_image(pixels, width, height);
   return(result);
 }
@@ -158,11 +159,9 @@ main(void) {
     if (lib.krueger_init) lib.krueger_init(&memory);
 
     Image back_buffer = image_alloc(BACK_BUFFER_WIDTH, BACK_BUFFER_HEIGHT);
-    image_fill(back_buffer, 0x00);
-
     Input input = {0};
-
     Clock time = {0};
+
     time.dt = 1.0f/FPS;
 
     u64 time_start = platform_get_time_us();
