@@ -2,8 +2,9 @@
 #define KRUEGER_PLATFORM_CORE_WIN32_H
 
 #define NO_MIN_MAX
-#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+
+#pragma comment(lib, "winmm")
 
 typedef struct {
   u64 us_res;

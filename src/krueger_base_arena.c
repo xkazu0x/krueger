@@ -1,44 +1,43 @@
 #ifndef KRUEGER_BASE_ARENA_C
 #define KRUEGER_BASE_ARENA_C
 
-//////////////
-// NOTE: Arena
-
 internal Arena
-arena_alloc(uxx reserve_size) {
-  Arena result = {0};
-  result.reserve_size = reserve_size;
-  result.commit_size = 0;
-  result.memory = platform_reserve(reserve_size);
-  platform_commit(result.memory, reserve_size);
+make_arena(u8 *buf, uxx res_size) {
+  Arena result = {
+    .res_size = res_size,
+    .cmt_size = 0,
+    .buf = buf,
+  };
+  return(result);
+}
+
+internal void *
+arena_push(Arena *arena, uxx cmt_size) {
+  assert((arena->cmt_size + cmt_size) <= arena->res_size);
+  void *result = (void *)(arena->buf + arena->cmt_size);
+  arena->cmt_size += cmt_size;
   return(result);
 }
 
 internal void
-arena_release(Arena *arena) {
-  platform_release(arena->memory, arena->reserve_size);
-}
-
-internal void *
-arena_push(Arena *arena, uxx commit_size) {
-  assert((arena->commit_size + commit_size) <= arena->reserve_size);
-  void *result = (void *)(arena->memory + arena->commit_size);
-  arena->commit_size += commit_size;
-  return(result);
+arena_clear(Arena *arena) {
+  mem_zero(arena->buf, arena->cmt_size);
+  arena->cmt_size = 0;
 }
 
 internal Temp
 temp_begin(Arena *arena) {
-  Temp result = {0};
-  result.arena = arena;
-  result.commit_size = arena->commit_size;
+  Temp result = {
+    .arena = arena,
+    .cmt_size = arena->cmt_size,
+  };
   return(result);
 }
 
 internal void
 temp_end(Temp temp) {
   Arena *arena = temp.arena;
-  arena->commit_size = temp.commit_size;
+  arena->cmt_size = temp.cmt_size;
 }
 
 #endif // KRUEGER_BASE_ARENA_C

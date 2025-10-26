@@ -1,9 +1,6 @@
 #ifndef KRUEGER_BASE_MATH_C
 #define KRUEGER_BASE_MATH_C
 
-/////////////
-// NOTE: Math
-
 internal f32
 lerp_f32(f32 a, f32 b, f32 t) {
   f32 result = a + t*(b - a);
@@ -328,10 +325,10 @@ vector4_lerp(Vector4 a, Vector4 b, f32 t) {
 internal Matrix4x4
 make_matrix4x4(f32 d) {
   Matrix4x4 result = {0};
-  result.m[0][0] = d;
-  result.m[1][1] = d;
-  result.m[2][2] = d;
-  result.m[3][3] = d;
+  result.buf[0][0] = d;
+  result.buf[1][1] = d;
+  result.buf[2][2] = d;
+  result.buf[3][3] = d;
   return(result);
 }
 
@@ -340,30 +337,30 @@ matrix4x4_perspective(f32 fov_deg, f32 aspect_ratio, f32 z_near, f32 z_far) {
   // NOTE: Row Major
   Matrix4x4 result = make_matrix4x4(1.0f);
   f32 fov_rad = 1.0f / tan_f32(radians_f32(fov_deg*0.5f));
-  result.m[0][0] = fov_rad*aspect_ratio;
-  result.m[1][1] = fov_rad;
-  result.m[2][2] = z_far / (z_far - z_near);
-  result.m[2][3] = 1.0f;
-  result.m[3][2] = (z_far*z_near) / (z_far - z_near);
-  result.m[3][3] = 0.0f;
+  result.buf[0][0] = fov_rad*aspect_ratio;
+  result.buf[1][1] = fov_rad;
+  result.buf[2][2] = z_far / (z_far - z_near);
+  result.buf[2][3] = 1.0f;
+  result.buf[3][2] = (z_far*z_near) / (z_far - z_near);
+  result.buf[3][3] = 0.0f;
   return(result);
 }
 
 internal Matrix4x4
 matrix4x4_scale(Vector3 scale) {
   Matrix4x4 result = make_matrix4x4(1.0f);
-  result.m[0][0] = scale.x;
-  result.m[1][1] = scale.y;
-  result.m[2][2] = scale.z;
+  result.buf[0][0] = scale.x;
+  result.buf[1][1] = scale.y;
+  result.buf[2][2] = scale.z;
   return(result);
 }
 
 internal Matrix4x4
 matrix4x4_translate(f32 x, f32 y, f32 z) {
   Matrix4x4 result = make_matrix4x4(1.0f);
-  result.m[3][0] = x;
-  result.m[3][1] = y;
-  result.m[3][2] = z;
+  result.buf[3][0] = x;
+  result.buf[3][1] = y;
+  result.buf[3][2] = z;
   return(result);
 }
 
@@ -374,15 +371,15 @@ matrix4x4_rotate(Vector3 axis, f32 t) {
   f32 sin_theta = sin_f32(t);
   f32 cos_theta = cos_f32(t);
   f32 cos_value = 1.0f - cos_theta;
-  result.m[0][0] = (axis.x*axis.x*cos_value) + cos_theta;
-  result.m[0][1] = (axis.x*axis.y*cos_value) + (axis.z*sin_theta);
-  result.m[0][2] = (axis.x*axis.z*cos_value) - (axis.y*sin_theta);
-  result.m[1][0] = (axis.y*axis.x*cos_value) - (axis.z*sin_theta);
-  result.m[1][1] = (axis.y*axis.y*cos_value) + cos_theta;
-  result.m[1][2] = (axis.y*axis.z*cos_value) + (axis.x*sin_theta);
-  result.m[2][0] = (axis.z*axis.x*cos_value) + (axis.y*sin_theta);
-  result.m[2][1] = (axis.z*axis.y*cos_value) - (axis.x*sin_theta);
-  result.m[2][2] = (axis.z*axis.z*cos_value) + cos_theta;
+  result.buf[0][0] = (axis.x*axis.x*cos_value) + cos_theta;
+  result.buf[0][1] = (axis.x*axis.y*cos_value) + (axis.z*sin_theta);
+  result.buf[0][2] = (axis.x*axis.z*cos_value) - (axis.y*sin_theta);
+  result.buf[1][0] = (axis.y*axis.x*cos_value) - (axis.z*sin_theta);
+  result.buf[1][1] = (axis.y*axis.y*cos_value) + cos_theta;
+  result.buf[1][2] = (axis.y*axis.z*cos_value) + (axis.x*sin_theta);
+  result.buf[2][0] = (axis.z*axis.x*cos_value) + (axis.y*sin_theta);
+  result.buf[2][1] = (axis.z*axis.y*cos_value) - (axis.x*sin_theta);
+  result.buf[2][2] = (axis.z*axis.z*cos_value) + cos_theta;
   return(result);
 }
 
@@ -391,10 +388,10 @@ matrix4x4_mul(Matrix4x4 a, Matrix4x4 b) {
   Matrix4x4 result = {0};
   for (u32 j = 0; j < 4; ++j) {
     for (u32 i = 0; i < 4; ++i) {
-      result.m[i][j] = (a.m[0][j]*b.m[i][0] +
-        a.m[1][j]*b.m[i][1] +
-        a.m[2][j]*b.m[i][2] +
-        a.m[3][j]*b.m[i][3]);
+      result.buf[i][j] = (a.buf[0][j]*b.buf[i][0] +
+        a.buf[1][j]*b.buf[i][1] +
+        a.buf[2][j]*b.buf[i][2] +
+        a.buf[3][j]*b.buf[i][3]);
     }
   }
   return(result);
@@ -403,10 +400,10 @@ matrix4x4_mul(Matrix4x4 a, Matrix4x4 b) {
 internal Vector4
 matrix4x4_mul_vector4(Matrix4x4 m, Vector4 v) {
   Vector4 result = {
-    .x = v.x*m.m[0][0] + v.y*m.m[1][0] + v.z*m.m[2][0] + m.m[3][0],
-    .y = v.x*m.m[0][1] + v.y*m.m[1][1] + v.z*m.m[2][1] + m.m[3][1],
-    .z = v.x*m.m[0][2] + v.y*m.m[1][2] + v.z*m.m[2][2] + m.m[3][2],
-    .w = v.x*m.m[0][3] + v.y*m.m[1][3] + v.z*m.m[2][3] + m.m[3][3],
+    .x = v.x*m.buf[0][0] + v.y*m.buf[1][0] + v.z*m.buf[2][0] + m.buf[3][0],
+    .y = v.x*m.buf[0][1] + v.y*m.buf[1][1] + v.z*m.buf[2][1] + m.buf[3][1],
+    .z = v.x*m.buf[0][2] + v.y*m.buf[1][2] + v.z*m.buf[2][2] + m.buf[3][2],
+    .w = v.x*m.buf[0][3] + v.y*m.buf[1][3] + v.z*m.buf[2][3] + m.buf[3][3],
   };
   return(result);
 }

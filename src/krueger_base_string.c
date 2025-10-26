@@ -5,8 +5,38 @@
 // NOTE: Character Helpers
 
 internal b32
+char_is_space(u8 c) {
+  b32 result = ((c == ' ') || (c == '\r') || (c == '\n') || (c == '\t') || (c == '\v') || (c == '\f'));
+  return(result);
+}
+
+internal b32
+char_is_upper(u8 c) {
+  b32 result = ((c >= 'a') && (c <= 'z'));
+  return(result);
+}
+
+internal b32
+char_is_lower(u8 c) {
+  b32 result = ((c >= 'A') && (c <= 'Z'));
+  return(result);
+}
+
+internal b32
+char_is_alpha(u8 c) {
+  b32 result = (char_is_upper(c) || char_is_lower(c));
+  return(result);
+}
+
+internal b32
+char_is_digit(u8 c) {
+  b32 result = ((c >= '0') && (c <= '9'));
+  return(result);
+}
+
+internal b32
 char_is_slash(u8 c) {
-  b32 result = (c == '/') || (c == '\\');
+  b32 result = ((c == '/') || (c == '\\'));
   return(result);
 }
 
@@ -67,7 +97,7 @@ cstr_encode(char *cstr) {
 // NOTE: String Constructors
 
 internal String8
-make_str8(u8 *str, u32 len) {
+make_str8(u8 *str, uxx len) {
   String8 result = {
     .len = len,
     .str = str,
@@ -93,6 +123,67 @@ str8_cstr(char *cstr) {
   return(result);
 }
 
+////////////////////////
+// NOTE: String Matching
+
+internal b32
+str8_match(String8 a, String8 b) {
+  b32 result = false;
+  if (a.len == b.len) {
+    result = true;
+    uxx len = min(a.len, b.len);
+    for (uxx i = 0; i < len; ++i) {
+      u8 at = a.str[i];
+      u8 bt = b.str[i];
+      if (at != bt) {
+        result = false;
+        break;
+      }
+    }
+  }
+  return(result);
+}
+
+internal uxx
+str8_index_of_last(String8 str, u8 c) {
+  u8 *tmp_ptr = str.str;
+  for (uxx i = 0; i < str.len; ++i) {
+    u8 *str_ptr = str.str + i;
+    if (*str_ptr == c) {
+      tmp_ptr = str_ptr;
+    }
+  }
+  uxx result = tmp_ptr - str.str;
+  return(result);
+}
+
+///////////////////////
+// NOTE: String Slicing
+
+internal String8
+str8_substr(String8 str, uxx min, uxx max) {
+  min = clamp_top(min, str.len);
+  max = clamp_top(max, str.len);
+  str.str += min;
+  str.len = max - min;
+  return(str);
+}
+
+internal String8
+str8_skip(String8 str, uxx amt) {
+  amt = clamp_top(amt, str.len);
+  str.str += amt;
+  str.len -= amt;
+  return(str);
+}
+
+internal String8
+str8_chop(String8 str, uxx amt) {
+  amt = clamp_top(amt, str.len);
+  str.len -= amt;
+  return(str);
+}
+
 //////////////////////////
 // NOTE: String Formatting
 
@@ -100,10 +191,42 @@ internal String8
 str8_cat(Arena *arena, String8 a, String8 b) {
   String8 result;
   result.len = a.len + b.len,
-  result.str = push_array(arena, u8, result.len + 1);
-  memmove(result.str, a.str, a.len);
-  memmove(result.str + a.len, b.str, b.len);
+  result.str = arena_push_array(arena, u8, result.len + 1);
+  mem_copy(result.str, a.str, a.len);
+  mem_copy(result.str + a.len, b.str, b.len);
   result.str[result.len] = 0;
+  return(result);
+}
+
+////////////////////////
+
+internal u32
+u32_from_str8(String8 str) {
+  u32 result = 0;
+  for (uxx i = 0; i < str.len; ++i) {
+    u8 c = str.str[i];
+    if (char_is_digit(c)) {
+      result *= 10;
+      result += c - '0';
+    }
+  }
+  return(result);
+}
+
+internal f32
+f32_from_str8(String8 str) {
+  // TODO: This may cause overflow.
+  f32 result = 0.0f;
+  f32 sign = 1.0f;
+  if (str.str[0] == '-') sign = -1.0f;
+  for (uxx i = 0; i < str.len; ++i) {
+    u8 c = str.str[i];
+    if (char_is_digit(c)) {
+      result *= 10.0f;
+      result += c - '0';
+    }
+  }
+  result = sign*result/million(1.0f);
   return(result);
 }
 

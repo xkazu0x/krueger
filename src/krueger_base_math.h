@@ -1,9 +1,6 @@
 #ifndef KRUEGER_BASE_MATH_H
 #define KRUEGER_BASE_MATH_H
 
-/////////////
-// NOTE: Math
-
 #define sqrt_f32(x) sqrtf(x)
 #define pow_f32(a, b) powf((a), (b))
 #define floor_f32(x) floorf(x)
@@ -17,8 +14,11 @@ internal f32 lerp_f32(f32 a, f32 b, f32 t);
 ////////////////
 // NOTE: Vector2
 
-typedef struct {
-  f32 x, y;
+typedef union {
+  struct {
+    f32 x, y;
+  };
+  f32 buf[2];
 } Vector2;
 
 internal Vector2 make_vector2(f32 x, f32 y);
@@ -51,6 +51,7 @@ typedef union {
     Vector2 rg;
     f32 _b0;
   };
+  f32 buf[3];
 } Vector3;
 
 internal Vector3 make_vector3(f32 x, f32 y, f32 z);
@@ -92,6 +93,7 @@ typedef union {
     Vector2 rg;
     Vector2 ba;
   };
+  f32 buf[4];
 } Vector4;
 
 internal Vector4 make_vector4(f32 x, f32 y, f32 z, f32 w);
@@ -111,7 +113,7 @@ internal Vector4 vector4_lerp(Vector4 a, Vector4 b, f32 t);
 // NOTE: Matrix4x4
 
 typedef struct {
-  f32 m[4][4]; // NOTE: Column Major
+  f32 buf[4][4]; // NOTE: Column Major
 } Matrix4x4;
 
 internal Matrix4x4 make_matrix4x4(f32 d);

@@ -1,6 +1,20 @@
 #ifndef KRUEGER_BASE_CORE_H
 #define KRUEGER_BASE_CORE_H
 
+//////////////////////////////////
+// NOTE: Standard Library Includes
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdarg.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <float.h>
+#include <math.h>
+#include <string.h>
+#undef min
+#undef max
+
 //////////////////////
 // NOTE: Helper Macros
 
@@ -25,6 +39,9 @@
 #define assert(x) (void)(x)
 #endif
 
+#define invalid_path    assert(!"invalid path!")
+#define not_implemented assert(!"not implemented!")
+
 #define array_count(x) (sizeof(x)/sizeof(*(x)))
 
 #define KB(n) (((u64)(n))<<10)
@@ -39,10 +56,19 @@
 #define max(a, b) ((a)>(b)?(a):(b))
 #define clamp_top(a, x) min(a, x);
 #define clamp_bot(x, b) max(x, b);
+#define clamp(a, x, b) (((x)<(a))?(a):((x)>(b))?(b):(x))
+
+#define mem_copy(dst, src, size) memmove((dst), (src), (size))
+#define mem_set(dst, byte, size) memset((dst), (byte), (size))
+#define mem_cmp(a, b, size)      memcmp((a), (b), (size))
+
+#define mem_zero(dst, size)  mem_set((dst), 0, (size))
+#define mem_zero_struct(dst) mem_set((dst), 0, sizeof(*dst))
 
 #define swap_t(T, a, b) do { T t__ = a; a = b; b = t__; } while (0)
 #define sign_t(T, x) ((T)((x) > 0) - (T)((x) < 0))
 #define abs_t(T, x) (sign_t(T, x)*(x))
+#define round_t(T, x) (T)(x + 0.5f)
 
 #define square(x) ((x)*(x))
 #define radians_f32(x) ((x)*pi32/180.0f)

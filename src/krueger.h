@@ -3,20 +3,24 @@
 
 typedef struct {
   char *chars;
-  u32 num_glyph_x;
-  u32 num_glyph_y;
-  u32 glyph_width;
-  u32 glyph_height;
+  u32 num_char_x;
+  u32 num_char_y;
+  u32 glyph_w;
+  u32 glyph_h;
   Image image;
 } Font;
 
 typedef struct {
-  Vector3 *vertex_buf;
-  u32 *vertex_index_buf;
+  u32 vertex_count;
+  Vector3 *vertices;
+
+  u32 vertex_index_count;
+  u32 *vertex_indices;
 } Mesh;
 
-struct Krueger_State {
-  Arena arena;
+typedef struct {
+  Arena main_arena;
+  Arena temp_arena;
   
   Image font_image;
   Font font;
@@ -35,6 +39,6 @@ struct Krueger_State {
   f32 cam_rot_vel;
   f32 cam_rot_speed;
   f32 cam_yaw;
-};
+} Krueger_State;
 
 #endif // KRUEGER_H

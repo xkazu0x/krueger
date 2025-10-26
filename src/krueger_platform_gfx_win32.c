@@ -132,6 +132,7 @@ platform_create_window(Platform_Window_Desc *desc) {
 
 internal void
 platform_destroy_window(void) {
+  DestroyWindow(win32_gfx_state.window);
 }
 
 internal void
@@ -155,29 +156,35 @@ platform_display_back_buffer(u32 *buffer, s32 buffer_w, s32 buffer_h) {
 
 internal void
 platform_update_window_events(void) {
-  if (buf_len(platform_event_buf) > 0) {
-    buf_clear(platform_event_buf);
-  }
+  arr_clear(&platform_events);
   MSG message;
   while (PeekMessageA(&message, 0, 0, 0, PM_REMOVE)) {
     switch (message.message) {
       case WM_QUIT: {
-        Platform_Event push_event = {
+        Platform_Event_Quit quit_event = {
           .type = PLATFORM_EVENT_QUIT,
         };
-        buf_push(platform_event_buf, push_event);
+        Platform_Event push_event = {
+          .type = quit_event.type,
+          .quit = quit_event,
+        };
+        arr_push(&platform_events, push_event);
       } break;
       case WM_SYSKEYDOWN:
       case WM_SYSKEYUP:
       case WM_KEYDOWN:
       case WM_KEYUP: {
-        b32 is_down = ((message.lParam & (1 << 31)) == 0);
+        b32 is_down = ((message.lParam&(1<<31)) == 0);
         Keycode keycode = win32_translate_keycode((u32)message.wParam);
-        Platform_Event push_event = {
+        Platform_Event_Key key_event = {
           .type = (is_down) ? PLATFORM_EVENT_KEY_PRESS : PLATFORM_EVENT_KEY_RELEASE,
           .keycode = keycode,
         };
-        buf_push(platform_event_buf, push_event);
+        Platform_Event push_event = {
+          .type = key_event.type,
+          .key = key_event,
+        };
+        arr_push(&platform_events, push_event);
         TranslateMessage(&message);
         DispatchMessageA(&message);
       } break;

@@ -12,8 +12,20 @@ enum {
 
 typedef struct {
   Platform_Event_Type type;
+} Platform_Event_Quit;
+
+typedef struct {
+  Platform_Event_Type type;
   Keycode keycode;
+} Platform_Event_Key;
+
+typedef union {
+  Platform_Event_Type type;
+  Platform_Event_Quit quit;
+  Platform_Event_Key key;
 } Platform_Event;
+
+arr_def(Platform_Event)
 
 typedef struct {
   char *window_title;
@@ -25,7 +37,13 @@ typedef struct {
 
 /////////////////////////
 // NOTE: Global Variables
-global Platform_Event *platform_event_buf;
+
+global Platform_Event_Array platform_events;
+
+//////////////////////////////////
+// NOTE: Helpers, Implemented Once
+
+internal void platform_gfx_init(void);
 
 /////////////////////////////////
 // NOTE: Implemented Per-Platform

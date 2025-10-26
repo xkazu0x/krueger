@@ -1,39 +1,36 @@
-// NOTE: [h]
 #include "krueger_base.h"
 #include "krueger_platform.h"
-#include "krueger_shared.h"
-#include "krueger.h"
 
-// NOTE: [c]
 #include "krueger_base.c"
 #include "krueger_platform.c"
 
-#include <stdio.h>
+#include "krueger_shared.h"
+#include "krueger.h"
 
-#define ALPHA_MASK(x) (((x) >> 24) & 0xFF)
-#define RED_MASK(x)   (((x) >> 16) & 0xFF)
-#define GREEN_MASK(x) (((x) >>  8) & 0xFF)
-#define BLUE_MASK(x)  (((x) >>  0) & 0xFF)
-#define PACK_RGBA(r, g, b, a) ((a << 24) | (r << 16) | (g << 8) | (b << 0))
+#define mask_alpha(x) (((x) >> 24) & 0xFF)
+#define mask_red(x)   (((x) >> 16) & 0xFF)
+#define mask_green(x) (((x) >>  8) & 0xFF)
+#define mask_blue(x)  (((x) >>  0) & 0xFF)
+#define pack_rgba32(r, g, b, a) ((a << 24) | (r << 16) | (g << 8) | (b << 0))
 
 internal u32
 alpha_linear_blend(u32 dst, u32 src) {
-  u8 r0 = RED_MASK(dst); 
-  u8 g0 = GREEN_MASK(dst);
-  u8 b0 = BLUE_MASK(dst);
-  u8 a0 = ALPHA_MASK(dst);
+  u8 r0 = mask_red(dst); 
+  u8 g0 = mask_green(dst);
+  u8 b0 = mask_blue(dst);
+  u8 a0 = mask_alpha(dst);
 
-  u8 r1 = RED_MASK(src); 
-  u8 g1 = GREEN_MASK(src);
-  u8 b1 = BLUE_MASK(src);
-  u8 a1 = ALPHA_MASK(src);
+  u8 r1 = mask_red(src); 
+  u8 g1 = mask_green(src);
+  u8 b1 = mask_blue(src);
+  u8 a1 = mask_alpha(src);
 
   u8 r = (u8)lerp_f32(r0, r1, a1/255.0f);
   u8 g = (u8)lerp_f32(g0, g1, a1/255.0f);
   u8 b = (u8)lerp_f32(b0, b1, a1/255.0f);
   u8 a = a0;
 
-  u32 result = PACK_RGBA(r, g, b, a);
+  u32 result = pack_rgba32(r, g, b, a);
   return(result);
 }
 
@@ -103,9 +100,9 @@ draw_circle_f32(Image image,
   s32 max_x = (s32)clamp_top(ceil_f32(cx + r), image.width);
   s32 max_y = (s32)clamp_top(ceil_f32(cy + r), image.height);
   for (s32 y = min_y; y < max_y; ++y) {
-    f32 dy = (y + 0.5f) - cy;
+    f32 dy = round_t(f32, y) - cy;
     for (s32 x = min_x; x < max_x; ++x) {
-      f32 dx = (x + 0.5f) - cx;
+      f32 dx = round_t(f32, x) - cx;
       if (dx*dx + dy*dy < r*r) {
         image.pixels[y*image.width + x] = color;
       }
@@ -223,13 +220,13 @@ draw_triangle_f32(Image image,
   f32 bias1 = (((y12 == 0.0f) && (x12 > 0.0f)) || (y12 < 0.0f)) ? 0.0f : -0.0001f;
   f32 bias2 = (((y20 == 0.0f) && (x20 > 0.0f)) || (y20 < 0.0f)) ? 0.0f : -0.0001f;
   for (s32 y = min_y; y < max_y; ++y) {
-    f32 dy0 = (y + 0.5f) - y0;
-    f32 dy1 = (y + 0.5f) - y1;
-    f32 dy2 = (y + 0.5f) - y2;
+    f32 dy0 = round_t(f32, y) - y0;
+    f32 dy1 = round_t(f32, y) - y1;
+    f32 dy2 = round_t(f32, y) - y2;
     for (s32 x = min_x; x < max_x; ++x) {
-      f32 dx0 = (x + 0.5f) - x0;
-      f32 dx1 = (x + 0.5f) - x1;
-      f32 dx2 = (x + 0.5f) - x2;
+      f32 dx0 = round_t(f32, x) - x0;
+      f32 dx1 = round_t(f32, x) - x1;
+      f32 dx2 = round_t(f32, x) - x2;
       f32 w0 = x01*dy0 - y01*dx0 + bias0;
       f32 w1 = x12*dy1 - y12*dx1 + bias1;
       f32 w2 = x20*dy2 - y20*dx2 + bias2;
@@ -274,23 +271,23 @@ draw_triangle3c(Image image,
         f32 t0 = (f32)w0/det;
         f32 t1 = (f32)w1/det;
         f32 t2 = (f32)w2/det;
-        u8 r0 = RED_MASK(c0);
-        u8 g0 = GREEN_MASK(c0);
-        u8 b0 = BLUE_MASK(c0);
-        u8 a0 = ALPHA_MASK(c0);
-        u8 r1 = RED_MASK(c1);
-        u8 g1 = GREEN_MASK(c1);
-        u8 b1 = BLUE_MASK(c1);
-        u8 a1 = ALPHA_MASK(c1);
-        u8 r2 = RED_MASK(c2);
-        u8 g2 = GREEN_MASK(c2);
-        u8 b2 = BLUE_MASK(c2);
-        u8 a2 = ALPHA_MASK(c2);
+        u8 r0 = mask_red(c0);
+        u8 g0 = mask_green(c0);
+        u8 b0 = mask_blue(c0);
+        u8 a0 = mask_alpha(c0);
+        u8 r1 = mask_red(c1);
+        u8 g1 = mask_green(c1);
+        u8 b1 = mask_blue(c1);
+        u8 a1 = mask_alpha(c1);
+        u8 r2 = mask_red(c2);
+        u8 g2 = mask_green(c2);
+        u8 b2 = mask_blue(c2);
+        u8 a2 = mask_alpha(c2);
         u32 r = (u32)(r0*t0 + r1*t1 + r2*t2);
         u32 g = (u32)(g0*t0 + g1*t1 + g2*t2);
         u32 b = (u32)(b0*t0 + b1*t1 + b2*t2);
         u32 a = (u32)(a0*t0 + a1*t1 + a2*t2);
-        u32 color = PACK_RGBA(r, g, b, a);
+        u32 color = pack_rgba32(r, g, b, a);
         image.pixels[y*image.width + x] = color;
       }
     }
@@ -320,13 +317,13 @@ draw_triangle3c_f32(Image image,
   f32 bias1 = (((y12 == 0.0f) && (x12 > 0.0f)) || (y12 < 0.0f)) ? 0.0f : -0.0001f;
   f32 bias2 = (((y20 == 0.0f) && (x20 > 0.0f)) || (y20 < 0.0f)) ? 0.0f : -0.0001f;
   for (s32 y = min_y; y < max_y; ++y) {
-    f32 dy0 = (y + 0.5f) - y0;
-    f32 dy1 = (y + 0.5f) - y1;
-    f32 dy2 = (y + 0.5f) - y2;
+    f32 dy0 = round_t(f32, y) - y0;
+    f32 dy1 = round_t(f32, y) - y1;
+    f32 dy2 = round_t(f32, y) - y2;
     for (s32 x = min_x; x < max_x; ++x) {
-      f32 dx0 = (x + 0.5f) - x0;
-      f32 dx1 = (x + 0.5f) - x1;
-      f32 dx2 = (x + 0.5f) - x2;
+      f32 dx0 = round_t(f32, x) - x0;
+      f32 dx1 = round_t(f32, x) - x1;
+      f32 dx2 = round_t(f32, x) - x2;
       f32 w0 = x01*dy0 - y01*dx0 + bias0;
       f32 w1 = x12*dy1 - y12*dx1 + bias1;
       f32 w2 = x20*dy2 - y20*dx2 + bias2;
@@ -334,23 +331,23 @@ draw_triangle3c_f32(Image image,
         f32 t0 = w0/det;
         f32 t1 = w1/det;
         f32 t2 = w2/det;
-        u8 r0 = RED_MASK(c0);
-        u8 g0 = GREEN_MASK(c0);
-        u8 b0 = BLUE_MASK(c0);
-        u8 a0 = ALPHA_MASK(c0);
-        u8 r1 = RED_MASK(c1);
-        u8 g1 = GREEN_MASK(c1);
-        u8 b1 = BLUE_MASK(c1);
-        u8 a1 = ALPHA_MASK(c1);
-        u8 r2 = RED_MASK(c2);
-        u8 g2 = GREEN_MASK(c2);
-        u8 b2 = BLUE_MASK(c2);
-        u8 a2 = ALPHA_MASK(c2);
+        u8 r0 = mask_red(c0);
+        u8 g0 = mask_green(c0);
+        u8 b0 = mask_blue(c0);
+        u8 a0 = mask_alpha(c0);
+        u8 r1 = mask_red(c1);
+        u8 g1 = mask_green(c1);
+        u8 b1 = mask_blue(c1);
+        u8 a1 = mask_alpha(c1);
+        u8 r2 = mask_red(c2);
+        u8 g2 = mask_green(c2);
+        u8 b2 = mask_blue(c2);
+        u8 a2 = mask_alpha(c2);
         u32 r = (u32)(r0*t0 + r1*t1 + r2*t2);
         u32 g = (u32)(g0*t0 + g1*t1 + g2*t2);
         u32 b = (u32)(b0*t0 + b1*t1 + b2*t2);
         u32 a = (u32)(a0*t0 + a1*t1 + a2*t2);
-        u32 color = PACK_RGBA(r, g, b, a);
+        u32 color = pack_rgba32(r, g, b, a);
         image.pixels[y*image.width + x] = color;
       }
     }
@@ -377,16 +374,14 @@ draw_texture(Image dst, Image src, s32 x, s32 y) {
 }
 
 internal Font
-make_font(char *chars, 
-          u32 num_glyph_x, u32 num_glyph_y, 
-          u32 glyph_width, u32 glyph_height,
-          Image image) {
+make_font(char *chars, u32 num_char_x, u32 num_char_y, 
+          Image image, u32 glyph_w, u32 glyph_h) {
   Font result = {
     .chars = chars,
-    .num_glyph_x = num_glyph_x,
-    .num_glyph_y = num_glyph_y,
-    .glyph_width = glyph_width,
-    .glyph_height = glyph_height,
+    .num_char_x = num_char_x,
+    .num_char_y = num_char_y,
+    .glyph_w = glyph_w,
+    .glyph_h = glyph_h,
     .image = image,
   };
   return(result);
@@ -398,12 +393,12 @@ draw_char(Image image,
           Font font, Vector4 color) {
   s32 min_x = clamp_bot(0, x);
   s32 min_y = clamp_bot(0, y);
-  s32 max_x = clamp_top(x + font.glyph_width, image.width);
-  s32 max_y = clamp_top(y + font.glyph_height, image.height);
+  s32 max_x = clamp_top(x + font.glyph_w, image.width);
+  s32 max_y = clamp_top(y + font.glyph_h, image.height);
   uxx char_index = cstr_index_of(font.chars, c);
-  uxx tile_x = char_index % font.num_glyph_x;
-  uxx tile_y = (uxx)floor_f32((f32)char_index/font.num_glyph_x);
-  u32 *glyph = font.image.pixels - tile_y*font.image.width*font.glyph_height + tile_x*font.glyph_width;
+  uxx tile_x = char_index % font.num_char_x;
+  uxx tile_y = (uxx)floor_f32((f32)char_index/font.num_char_x);
+  u32 *glyph = font.image.pixels - tile_y*font.image.width*font.glyph_h + tile_x*font.glyph_w;
   for (s32 dy = min_y; dy < max_y; ++dy) {
     s32 gy = dy - min_y;
     for (s32 dx = min_x; dx < max_x; ++dx) {
@@ -416,15 +411,15 @@ draw_char(Image image,
       f32 gt = clamp_top(color.g, 1.0f);
       f32 bt = clamp_top(color.b, 1.0f);
       f32 at = clamp_top(color.a, 1.0f);
-      u8 r0 = RED_MASK(glyph_color);
-      u8 g0 = RED_MASK(glyph_color);
-      u8 b0 = RED_MASK(glyph_color);
-      u8 a0 = RED_MASK(glyph_color);
-      u8 r = (u8)(r0*rt);
-      u8 g = (u8)(g0*gt);
-      u8 b = (u8)(b0*bt);
-      u8 a = (u8)(a0*at);
-      glyph_color = PACK_RGBA(r, g, b, a);
+      u8 r = mask_red(glyph_color);
+      u8 g = mask_green(glyph_color);
+      u8 b = mask_blue(glyph_color);
+      u8 a = mask_alpha(glyph_color);
+      r = (u8)(r*rt);
+      g = (u8)(g*gt);
+      b = (u8)(b*bt);
+      a = (u8)(a*at);
+      glyph_color = pack_rgba32(r, g, b, a);
       image.pixels[pixel_index] = alpha_linear_blend(pixel_color, glyph_color);
     }
   }
@@ -442,14 +437,14 @@ draw_text(Image image,
     switch (c) {
       case '\n': {
         gx = x;
-        gy += font.glyph_height;
+        gy += font.glyph_h;
       } continue;
       case '\t': {
-        gx += 2*font.glyph_width;
+        gx += 2*font.glyph_w;
       } continue;
     }
     draw_char(image, c, gx, gy, font, color);
-    gx += font.glyph_width;
+    gx += font.glyph_w;
   }
 }
 
@@ -505,32 +500,40 @@ bit_scan_forward(u32 *index, u32 mask) {
   return(result);
 }
 
-internal void
-read_entire_file(Arena *arena, char *filepath, void** buffer, uxx *size) {
-  Platform_Handle file = platform_file_open(filepath, PLATFORM_FILE_READ | PLATFORM_FILE_SHARE_READ);
+internal b32
+read_entire_file(Arena *arena, char *path, void** buffer, u64 *size) {
+  b32 result = false;
+  Platform_Handle file = platform_file_open(path, PLATFORM_FILE_READ | PLATFORM_FILE_SHARE_READ);
   if (!platform_handle_match(file, PLATFORM_HANDLE_NULL)) {
     *size = platform_get_file_size(file);
     *buffer = arena_push(arena, *size);
-    platform_file_read(file, *buffer, *size);
+    u64 read_size = platform_file_read(file, *buffer, *size);
+    if (read_size == *size) result = true;
     platform_file_close(file);
-  } else {
-    printf("[ERROR]: read_entire_file: failed to open file: %s", filepath);
   }
+  return(result);
 }
 
 internal Image
-load_bmp(Arena *arena, char *filename) {
+load_bmp(char *filepath, Arena *main_arena, Arena *temp_arena) {
   Image result = {0};
+  u64 file_size;
   void *file_data;
-  uxx file_size;
-  read_entire_file(arena, filename, &file_data, &file_size);
-  if (file_data) {
+  Temp temp = temp_begin(temp_arena);
+  if (read_entire_file(temp.arena, filepath, &file_data, &file_size)) {
     Bmp_File_Header *bmp_file = (Bmp_File_Header *)file_data;
     if (bmp_file->type == cstr_encode("BM")) {
       Bmp_Info_Header *bmp_info = (Bmp_Info_Header *)((u8 *)bmp_file + sizeof(Bmp_File_Header));
+
       result.width = bmp_info->image_width;
       result.height = bmp_info->image_height;
-      result.pixels = (u32 *)((u8 *)file_data + bmp_file->data_offset);
+
+      uxx size = result.width*result.height*(bmp_info->bits_per_pixel/8);
+      u32 *bmp_data = (u32 *)((u8 *)file_data + bmp_file->data_offset);
+
+      result.pixels = arena_push(main_arena, size);
+      mem_copy(result.pixels, bmp_data, size);
+
       if (bmp_info->header_size > 40) {
         Bmp_Color_Header *bmp_color = (Bmp_Color_Header *)((u8 *)bmp_info + sizeof(Bmp_Info_Header));
         u32 red_mask = bmp_color->red_mask;
@@ -551,46 +554,81 @@ load_bmp(Arena *arena, char *filename) {
           u8 g = ((color >> green_shift) & 0xFF);
           u8 b = ((color >> blue_shift) & 0xFF);
           u8 a = ((color >> alpha_shift) & 0xFF);
-          result.pixels[i] = PACK_RGBA(r, g, b, a);
+          result.pixels[i] = pack_rgba32(r, g, b, a);
         }
       }
     }
   } else {
-    printf("[ERROR]: load_bmp: failed to read file: %s\n", filename);
+    log_error("%s: failed to read file: %s", __func__, filepath);
   }
+  temp_end(temp);
   return(result);
 }
 
 internal Mesh
-load_obj(char *filename) {
+load_obj(char *filepath, Arena *main_arena, Arena *temp_arena) {
   Mesh mesh = {0};
-  Vector3 *tmp_vertex_buf = 0;
-  FILE *file = fopen(filename, "r");
-  if (file) {
-    char str[1<<8];
-    while (fscanf(file, "%s", str) != EOF) {
-      if (cstr_match(str, "v")) {
-        Vector3 v;
-        fscanf(file, "%f %f %f\n", &v.x, &v.y, &v.z);
-        buf_push(tmp_vertex_buf, v);
-      } else if (cstr_match(str, "f")) {
-        s32 f[3];
-        fscanf(file, "%d %d %d\n", &f[0], &f[1], &f[2]);
-        buf_push(mesh.vertex_index_buf, f[0]);
-        buf_push(mesh.vertex_index_buf, f[1]);
-        buf_push(mesh.vertex_index_buf, f[2]);
+  u64 file_size;
+  u8 *file_data;
+  Temp temp = temp_begin(temp_arena);
+  if (read_entire_file(temp.arena, filepath, &file_data, &file_size)) {
+    u32 tmp_str_count = 0;
+    String8 *tmp_strs = 0;
+
+    u8 *stream = file_data;
+    for (;*stream != 0; ++stream) {
+      if (!char_is_space(*stream)) {
+        String8 *str = arena_push_array(temp.arena, String8, 1);
+        if (tmp_strs == 0) tmp_strs = str;
+        str->str = stream;
+        while (!char_is_space(*++stream));
+        str->len = stream - str->str;
+        ++tmp_str_count;
       }
     }
-    fclose(file);
-    for (u32 i = 0; i < buf_len(mesh.vertex_index_buf); ++i) {
-      u32 vertex_index = mesh.vertex_index_buf[i];
-      Vector3 v = tmp_vertex_buf[vertex_index-1];
-      buf_push(mesh.vertex_buf, v);
+
+    u32 max_vertex_count = 0;
+    u32 max_vertex_index_count = 0;
+
+    for (u32 str_index = 0; str_index < tmp_str_count;) {
+      String8 str = tmp_strs[str_index];
+      if (str8_match_lit(str, "v")) {
+        max_vertex_count += 1;
+        str_index += 4;
+      } else if (str8_match_lit(str, "f")) {
+        max_vertex_index_count += 3;
+        str_index += 4;
+      } else {
+        str_index += 1;
+      }
     }
-    buf_free(tmp_vertex_buf);
+
+    mesh.vertices = arena_push_array(main_arena, Vector3, max_vertex_count);
+    mesh.vertex_indices = arena_push_array(main_arena, u32, max_vertex_index_count);
+
+    for (u32 str_index = 0; str_index < tmp_str_count;) {
+      String8 *str = tmp_strs + str_index;
+      if (str8_match_lit(*str, "v")) {
+        Vector3 *vertex = mesh.vertices + mesh.vertex_count++;
+        for (u32 i = 0; i < array_count(vertex->buf); ++i) {
+          vertex->buf[i] = f32_from_str8(*++str);
+        }
+        str_index += 4;
+      } else if (str8_match_lit(*str, "f")) {
+        for (u32 i = 0; i < 3; ++i) {
+          u32 index = mesh.vertex_index_count++;
+          mesh.vertex_indices[index] = u32_from_str8(*++str);
+        }
+        str_index += 4;
+      } else {
+        str_index += 1;
+      }
+    }
   } else {
-    printf("[ERROR]: Failed to open file: %s\n", filename);
+    log_error("%s: failed to open file: %s", __func__, filepath);
   }
+
+  temp_end(temp);
   return(mesh);
 }
 
@@ -600,36 +638,42 @@ matrix4x4_point_at(Vector3 eye, Vector3 center, Vector3 up) {
   center = vector3_normalize(vector3_sub(center, eye));
   up = vector3_normalize(vector3_sub(up, vector3_mul(center, vector3_dot(up, center))));
   Vector3 right = vector3_cross(up, center);
-  result.m[0][0] = right.x;
-  result.m[0][1] = right.y;
-  result.m[0][2] = right.z;
-  result.m[1][0] = up.x;
-  result.m[1][1] = up.y;
-  result.m[1][2] = up.z;
-  result.m[2][0] = center.x;
-  result.m[2][1] = center.y;
-  result.m[2][2] = center.z;
-  result.m[3][0] = eye.x;
-  result.m[3][1] = eye.y;
-  result.m[3][2] = eye.z;
+  result.buf[0][0] = right.x;
+  result.buf[0][1] = right.y;
+  result.buf[0][2] = right.z;
+  result.buf[1][0] = up.x;
+  result.buf[1][1] = up.y;
+  result.buf[1][2] = up.z;
+  result.buf[2][0] = center.x;
+  result.buf[2][1] = center.y;
+  result.buf[2][2] = center.z;
+  result.buf[3][0] = eye.x;
+  result.buf[3][1] = eye.y;
+  result.buf[3][2] = eye.z;
   return(result);
 }
 
 internal Matrix4x4
 matrix4x4_quick_inverse(Matrix4x4 m) {
   Matrix4x4 result = make_matrix4x4(1.0f);
-  result.m[0][0] = m.m[0][0];
-  result.m[0][1] = m.m[1][0];
-  result.m[0][2] = m.m[2][0];
-  result.m[1][0] = m.m[0][1];
-  result.m[1][1] = m.m[1][1];
-  result.m[1][2] = m.m[2][1];
-  result.m[2][0] = m.m[0][2];
-  result.m[2][1] = m.m[1][2];
-  result.m[2][2] = m.m[2][2];
-  result.m[3][0] = -(m.m[3][0]*result.m[0][0] + m.m[3][1]*result.m[1][0] + m.m[3][2]*result.m[2][0]);
-  result.m[3][1] = -(m.m[3][0]*result.m[0][1] + m.m[3][1]*result.m[1][1] + m.m[3][2]*result.m[2][1]);
-  result.m[3][2] = -(m.m[3][0]*result.m[0][2] + m.m[3][1]*result.m[1][2] + m.m[3][2]*result.m[2][2]);
+  result.buf[0][0] = m.buf[0][0];
+  result.buf[0][1] = m.buf[1][0];
+  result.buf[0][2] = m.buf[2][0];
+  result.buf[1][0] = m.buf[0][1];
+  result.buf[1][1] = m.buf[1][1];
+  result.buf[1][2] = m.buf[2][1];
+  result.buf[2][0] = m.buf[0][2];
+  result.buf[2][1] = m.buf[1][2];
+  result.buf[2][2] = m.buf[2][2];
+  result.buf[3][0] = -(m.buf[3][0]*result.buf[0][0] + 
+                       m.buf[3][1]*result.buf[1][0] + 
+                       m.buf[3][2]*result.buf[2][0]);
+  result.buf[3][1] = -(m.buf[3][0]*result.buf[0][1] + 
+                       m.buf[3][1]*result.buf[1][1] + 
+                       m.buf[3][2]*result.buf[2][1]);
+  result.buf[3][2] = -(m.buf[3][0]*result.buf[0][2] + 
+                       m.buf[3][1]*result.buf[1][2] + 
+                       m.buf[3][2]*result.buf[2][2]);
   return(result);
 }
 
@@ -642,17 +686,33 @@ project_point_to_screen(Vector2 p, u32 w, u32 h) {
 }
 
 internal void
-test_mesh(Image back_buffer, Mesh mesh,
-          Matrix4x4 model, Matrix4x4 view, Matrix4x4 proj,
-          Vector3 cam_p) {
-  for (uxx vi = 0; vi < buf_len(mesh.vertex_buf); vi += 3) {
-    uxx vi0 = vi;
-    uxx vi1 = vi+1;
-    uxx vi2 = vi+2;
+test_mesh(Image back_buffer, Mesh mesh, Krueger_State *state, u32 width, u32 height) {
+  f32 aspect_ratio = (f32)height/(f32)width;
+  Matrix4x4 proj = matrix4x4_perspective(90.0f, aspect_ratio, 0.1f, 100.0f);
 
-    Vector4 v0 = vector4_from_vector3(mesh.vertex_buf[vi0], 1.0f);
-    Vector4 v1 = vector4_from_vector3(mesh.vertex_buf[vi1], 1.0f);
-    Vector4 v2 = vector4_from_vector3(mesh.vertex_buf[vi2], 1.0f);
+  Vector3 cam_target = make_vector3(0.0f, 0.0f, 1.0f);
+  Matrix4x4 cam_rotate = matrix4x4_rotate(make_vector3(0.0f, 1.0f, 0.0f), radians_f32(state->cam_yaw));
+  state->cam_dir = matrix4x4_mul_vector4(cam_rotate, vector4_from_vector3(cam_target, 1.0f)).xyz;
+  cam_target = vector3_add(state->cam_p, state->cam_dir);
+  Matrix4x4 view = matrix4x4_quick_inverse(matrix4x4_point_at(state->cam_p, cam_target, state->cam_up));
+
+  Matrix4x4 scale = matrix4x4_scale(make_vector3(1.0f, 1.0f, 1.0f));
+  Matrix4x4 rotate = matrix4x4_rotate(make_vector3(1.0f, 1.0f, 0.0f), radians_f32(state->mesh_rot_angle));
+  Matrix4x4 translate = matrix4x4_translate(0.0f, 0.0f, 4.0f);
+
+  Matrix4x4 model = make_matrix4x4(1.0f);
+  model = matrix4x4_mul(scale, model);
+  model = matrix4x4_mul(rotate, model);
+  model = matrix4x4_mul(translate, model);
+
+  for (u32 i = 0; i < mesh.vertex_index_count; i += 3) {
+    u32 i0 = mesh.vertex_indices[i+0] - 1;
+    u32 i1 = mesh.vertex_indices[i+1] - 1;
+    u32 i2 = mesh.vertex_indices[i+2] - 1;
+
+    Vector4 v0 = vector4_from_vector3(mesh.vertices[i0], 1.0f);
+    Vector4 v1 = vector4_from_vector3(mesh.vertices[i1], 1.0f);
+    Vector4 v2 = vector4_from_vector3(mesh.vertices[i2], 1.0f);
 
     v0 = matrix4x4_mul_vector4(model, v0);
     v1 = matrix4x4_mul_vector4(model, v1);
@@ -662,7 +722,7 @@ test_mesh(Image back_buffer, Mesh mesh,
     Vector3 d02 = vector3_sub(v2.xyz, v0.xyz);
 
     Vector3 normal = vector3_normalize(vector3_cross(d01, d02));
-    Vector3 cam_ray = vector3_sub(v0.xyz, cam_p);
+    Vector3 cam_ray = vector3_sub(v0.xyz, state->cam_p);
 
     f32 scalar = vector3_dot(normal, cam_ray);
     if (scalar < 0.0f) {
@@ -960,19 +1020,19 @@ test_texture(Image back_buffer, Image texture) {
 internal void
 test_text(Image back_buffer, Font font) {
   s32 x = 0;
-  s32 y = font.glyph_height*2;
+  s32 y = font.glyph_h*2;
   draw_text(back_buffer, 
             "0123456789", x,  y, 
             font, make_vector4(0.75f, 0.75f, 0.75f, 1.0f));
-  y += font.glyph_height;
+  y += font.glyph_h;
   draw_text(back_buffer, 
             "ABCDEFGHIJKLM", x,  y, 
             font, make_vector4(0.75f, 0.75f, 0.75f, 0.75f));
-  y += font.glyph_height;
+  y += font.glyph_h;
   draw_text(back_buffer, 
             "NOPQRSTUVWXYZ", x, y, 
             font, make_vector4(0.75f, 0.75f, 0.75f, 0.5f));
-  y += font.glyph_height;
+  y += font.glyph_h;
   draw_text(back_buffer, 
             ".,!?'\"-+=/\\%()<>", x, y, 
             font, make_vector4(0.75f, 0.75f, 0.75f, 0.25f));
@@ -989,31 +1049,35 @@ draw_debug_info(Image back_buffer, Clock time, Font font) {
   sprintf(fps_str, "%.2f FPS", fps);
   sprintf(ms_str, "%.2f MS", ms);
 
-  s32 offset_x = back_buffer.width - (s32)cstr_len(fps_str)*font.glyph_width;
+  s32 offset_x = back_buffer.width - (s32)cstr_len(fps_str)*font.glyph_w;
   s32 offset_y = 0;
 
   draw_text(back_buffer, fps_str, offset_x, offset_y, 
             font, make_vector4(0.45f, 0.1f, 0.1f, 1.0f));
-  offset_x = back_buffer.width - (s32)cstr_len(ms_str)*font.glyph_width - font.glyph_width;
-  offset_y = offset_y + font.glyph_height;
+  offset_x = back_buffer.width - (s32)cstr_len(ms_str)*font.glyph_w - font.glyph_w;
+  offset_y = offset_y + font.glyph_h;
   draw_text(back_buffer, ms_str, offset_x, offset_y, 
             font, make_vector4(0.45f, 0.1f, 0.1f, 1.0f));
 }
 
 shared_function
 KRUEGER_INIT_PROC(krueger_init) {
-  Arena arena = arena_alloc(MB(64));
-  assert(sizeof(Krueger_State) <= arena.reserve_size);
-  Krueger_State *state = push_array(&arena, Krueger_State, 1);
-  state->arena = arena;
+  assert(sizeof(Krueger_State) <= memory->permanent_memory_size);
+  Krueger_State *state = (Krueger_State *)memory->permanent_memory_ptr;
+
+  uxx main_arena_size = memory->permanent_memory_size - sizeof(Krueger_State);
+  u8 *main_arena_ptr = (u8 *)memory->permanent_memory_ptr + sizeof(Krueger_State);
+
+  state->main_arena = make_arena(main_arena_ptr, main_arena_size);
+  state->temp_arena = make_arena(memory->transient_memory_ptr, memory->transient_memory_size);
 
   char *font_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ "
                      "0123456789.,!?'\"-+=/\\%()<> ";
 
-  state->font_image = load_bmp(&arena, "../res/font.bmp");
-  state->font = make_font(font_chars, 27, 2, 8, 8, state->font_image);
+  state->font_image = load_bmp("../res/font.bmp", &state->main_arena, &state->temp_arena);
+  state->font = make_font(font_chars, 27, 2, state->font_image, 8, 8);
 
-  state->mesh = load_obj("../res/monkey.obj");
+  state->mesh = load_obj("../res/monkey.obj", &state->main_arena, &state->temp_arena);
   state->mesh_rot_angle = 0.0f;
   state->mesh_rot_speed = 100.0f;
 
@@ -1027,61 +1091,44 @@ KRUEGER_INIT_PROC(krueger_init) {
   state->cam_rot_vel = 0.0f;
   state->cam_rot_speed = 120.0f;
   state->cam_yaw = 0.0f;
-
-  return(state);
 }
 
 shared_function
 KRUEGER_FRAME_PROC(krueger_frame) {
-  Digital_Button *kbd = input.kbd;
+  Krueger_State *state = (Krueger_State *)memory->permanent_memory_ptr;
 
-  state->cam_vel = make_vector3(0.0f, 0.0f, 0.0f);
+  Digital_Button *kbd = input->kbd;
+
   if (kbd[KEY_A].is_down) state->cam_vel = vector3_cross(state->cam_dir, state->cam_up);
   if (kbd[KEY_D].is_down) state->cam_vel = vector3_cross(state->cam_up, state->cam_dir);
   if (kbd[KEY_W].is_down) state->cam_vel = vector3_add(state->cam_vel, state->cam_dir);
   if (kbd[KEY_S].is_down) state->cam_vel = vector3_sub(state->cam_vel, state->cam_dir);
-  state->cam_p = vector3_add(state->cam_p, vector3_mul(state->cam_vel, state->cam_speed*time.dt_sec));
 
-  state->cam_rot_vel = 0.0f;
   if (kbd[KEY_H].is_down) state->cam_rot_vel = -1.0f;
   if (kbd[KEY_L].is_down) state->cam_rot_vel = 1.0f;
-  state->cam_yaw += state->cam_rot_speed*state->cam_rot_vel*time.dt_sec;
 
-  state->mesh_rot_angle += state->mesh_rot_speed*time.dt_sec;
+  state->cam_p = vector3_add(state->cam_p, vector3_mul(state->cam_vel, state->cam_speed*time->dt));
+  state->cam_vel = make_vector3(0.0f, 0.0f, 0.0f);
 
-  f32 aspect_ratio = (f32)back_buffer.height/(f32)back_buffer.width;
-  Matrix4x4 proj = matrix4x4_perspective(90.0f, aspect_ratio, 0.1f, 100.0f);
+  state->cam_yaw += state->cam_rot_speed*state->cam_rot_vel*time->dt;
+  state->cam_rot_vel = 0.0f;
 
-  Vector3 cam_target = make_vector3(0.0f, 0.0f, 1.0f);
-  Matrix4x4 cam_rotate = matrix4x4_rotate(make_vector3(0.0f, 1.0f, 0.0f), radians_f32(state->cam_yaw));
-  state->cam_dir = matrix4x4_mul_vector4(cam_rotate, vector4_from_vector3(cam_target, 1.0f)).xyz;
-  cam_target = vector3_add(state->cam_p, state->cam_dir);
-  Matrix4x4 view = matrix4x4_quick_inverse(matrix4x4_point_at(state->cam_p, cam_target, state->cam_up));
+  state->mesh_rot_angle += state->mesh_rot_speed*time->dt;
 
-  Matrix4x4 scale = matrix4x4_scale(make_vector3(1.0f, 1.0f, 1.0f));
-  Matrix4x4 rotate = matrix4x4_rotate(make_vector3(1.0f, 1.0f, 0.0f), radians_f32(state->mesh_rot_angle));
-  Matrix4x4 translate = matrix4x4_translate(0.0f, 0.0f, 4.0f);
+  image_fill(*back_buffer, 0);
 
-  Matrix4x4 model = make_matrix4x4(1.0f);
-  model = matrix4x4_mul(scale, model);
-  model = matrix4x4_mul(rotate, model);
-  model = matrix4x4_mul(translate, model);
+  test_mesh(*back_buffer, state->mesh, state, back_buffer->width, back_buffer->height);
+  test_rect(*back_buffer, *time);
+  test_circle(*back_buffer, *time);
+  test_triangle(*back_buffer, *time);
+  test_triangle3(*back_buffer, *time);
+  test_texture(*back_buffer, state->font_image);
+  test_text(*back_buffer, state->font);
 
-  image_fill(back_buffer, 0);
-
-  test_mesh(back_buffer, state->mesh, model, view, proj, state->cam_p);
-  test_rect(back_buffer, time);
-  test_circle(back_buffer, time);
-  test_triangle(back_buffer, time);
-  test_triangle3(back_buffer, time);
-  test_texture(back_buffer, state->font_image);
-  test_text(back_buffer, state->font);
-
-  draw_debug_info(back_buffer, time, state->font);
+  draw_debug_info(*back_buffer, *time, state->font);
 }
 
 // TODO:
-// - Better OBJ Loading
 // - Scaling/Rotating Texture
 // - Triangle Texture Mapping
 // - Depth Buffer

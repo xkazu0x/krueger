@@ -2,25 +2,26 @@
 #define KRUEGER_PLATFORM_CORE_WIN32_C
 
 internal void
-platform_init_core(void) {
+platform_core_init(void) {
   LARGE_INTEGER large_integer;
   QueryPerformanceFrequency(&large_integer);
   win32_core_state.us_res = large_integer.QuadPart;
+  timeBeginPeriod(1);
+}
+
+internal void
+platform_core_shutdown(void) {
+  timeEndPeriod(1);
 }
 
 internal String8
 platform_get_exec_file_path(Arena *arena) {
-  char *path = push_array(arena, char, MAX_PATH);
+  char path[MAX_PATH];
   GetModuleFileName(0, path, MAX_PATH);
-  String8 result = str8_cstr(path);
-  return(result);
-}
-
-internal u64
-platform_get_time_us(void) {
-  LARGE_INTEGER large_integer;
-  QueryPerformanceCounter(&large_integer);
-  u64 result = large_integer.QuadPart*million(1)/win32_core_state.us_res;
+  uxx len = cstr_len(path);
+  u8 *str = arena_push_array(arena, u8, len);
+  mem_copy(str, path, len);
+  String8 result = make_str8(str, len);
   return(result);
 }
 
@@ -119,6 +120,19 @@ internal void
 platform_library_close(Platform_Handle lib) {
   HMODULE module = (HMODULE)lib.ptr[0];
   FreeLibrary(module);
+}
+
+internal u64
+platform_get_time_us(void) {
+  LARGE_INTEGER large_integer;
+  QueryPerformanceCounter(&large_integer);
+  u64 result = large_integer.QuadPart*million(1)/win32_core_state.us_res;
+  return(result);
+}
+
+internal void
+platform_sleep_ms(u32 ms) {
+  Sleep(ms);
 }
 
 #endif // KRUEGER_PLATFORM_CORE_WIN32_C

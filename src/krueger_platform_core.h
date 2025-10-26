@@ -24,10 +24,10 @@ internal b32 platform_handle_match(Platform_Handle a, Platform_Handle b);
 /////////////////////////////////
 // NOTE: Implemented Per-Platform
 
-internal void platform_init_core(void);
+internal void platform_core_init(void);
+internal void platform_core_shutdown(void);
 
 internal String8 platform_get_exec_file_path(Arena *arena);
-internal u64 platform_get_time_us(void);
 
 internal void *platform_reserve(uxx size);
 internal b32 platform_commit(void *ptr, uxx size);
@@ -44,5 +44,8 @@ internal b32 platform_copy_file_path(char *dst, char *src);
 internal Platform_Handle platform_library_open(char *filepath);
 internal void *platform_library_load_proc(Platform_Handle lib, char *name);
 internal void platform_library_close(Platform_Handle lib);
+
+internal u64 platform_get_time_us(void);
+internal void platform_sleep_ms(u32 ms);
 
 #endif // KRUEGER_PLATFORM_CORE_H

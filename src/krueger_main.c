@@ -1,16 +1,13 @@
-// NOTE: platform features
-#define PLATFORM_GFX 1
+#define KRUEGER_PLATFORM_GFX 1
 
-// NOTE: [h]
 #include "krueger_base.h"
 #include "krueger_platform.h"
-#include "krueger_shared.h"
 
-// NOTE: [c]
 #include "krueger_base.c"
 #include "krueger_platform.c"
 
-// NOTE: constants
+#include "krueger_shared.h"
+
 #define WINDOW_TITLE "krueger"
 #define WINDOW_SCALE  3
 
@@ -20,7 +17,8 @@
 #define WINDOW_WIDTH  WINDOW_SCALE*BACK_BUFFER_WIDTH
 #define WINDOW_HEIGHT WINDOW_SCALE*BACK_BUFFER_HEIGHT
 
-#include <stdio.h>
+#define FPS 75
+#define PATH_SLASH_CHAR ((PLATFORM_WINDOWS) ? '\\' : '/')
 
 typedef struct {
   Platform_Handle h;
@@ -37,14 +35,14 @@ libkrueger_load(String8 dst_path, String8 src_path) {
     if (!platform_handle_match(lib.h, PLATFORM_HANDLE_NULL)) {
       #define PROC(x) \
         lib.x = (x##_proc *)platform_library_load_proc(lib.h, #x); \
-        if (!(lib.x)) printf("[ERROR]: %s: failed to load proc from library [%s]: proc [%s]\n", __func__, dst_path.str, #x);
+        if (!(lib.x)) log_error("%s: failed to load proc: [%s]", __func__, #x);
       KRUEGER_PROC_LIST
       #undef PROC
     } else {
-      printf("[ERROR]: %s: failed to open library: [%s]\n", __func__, dst_path.str);
+      log_error("%s: failed to open library: [%s]", __func__, dst_path.str);
     }
   } else {
-    printf("[ERROR]: %s: failed to copy file path: from [%s] to [%s]\n", __func__, src_path.str, dst_path.str);
+    log_error("%s: failed to copy file path from [%s] to [%s]", __func__, src_path.str, dst_path.str);
   }
   return(lib);
 }
@@ -72,21 +70,66 @@ input_reset(Input *input) {
   }
 }
 
-int
-main(void) {
-  platform_init_core();
+internal f32
+get_seconds_elapsed(u64 start, u64 end) {
+  f32 result = (end - start)/million(1.0f);
+  return(result);
+}
 
-  Arena str_arena = arena_alloc(MB(1));
-  String8 exec_file_path = platform_get_exec_file_path(&str_arena);
-
-  u8 *exec_file_name = exec_file_path.str;
-  for (u8 *scan = exec_file_path.str; *scan; ++scan) {
-    if (char_is_slash(*scan)) {
-      exec_file_name = scan + 1;
+internal void
+wait_to_flip(f32 target_sec_per_frame, u64 time_start) {
+  u64 time_end = platform_get_time_us();
+  f32 sec_per_frame = get_seconds_elapsed(time_start, time_end);
+  if (sec_per_frame < target_sec_per_frame) {
+    u32 sleep_ms = (u32)((target_sec_per_frame - sec_per_frame)*thousand(1.0f));
+    if (sleep_ms > 0) platform_sleep_ms(sleep_ms);
+    while (sec_per_frame < target_sec_per_frame) {
+      time_end = platform_get_time_us();
+      sec_per_frame = get_seconds_elapsed(time_start, time_end);
     }
   }
+}
 
-  String8 path = str8_range(exec_file_path.str, exec_file_name);
+internal Arena
+arena_alloc(uxx res_size) {
+  u8 *base = platform_reserve(res_size);
+  platform_commit(base, res_size);
+  Arena result = make_arena(base, res_size);
+  return(result);
+}
+
+internal Memory
+memory_alloc(uxx permanent_memory_size, uxx transient_memory_size) {
+  uxx memory_block_size = permanent_memory_size + transient_memory_size;
+  u8 *memory_block_ptr = platform_reserve(memory_block_size);
+  platform_commit(memory_block_ptr, memory_block_size);
+  Memory result = {
+    .permanent_memory_size = permanent_memory_size,
+    .transient_memory_size = transient_memory_size,
+    .permanent_memory_ptr = memory_block_ptr,
+    .transient_memory_ptr = memory_block_ptr + permanent_memory_size,
+  };
+  return(result);
+}
+
+internal Image
+image_alloc(u32 width, u32 height) {
+  uxx img_size = width*height*sizeof(u32);
+  u32 *pixels = platform_reserve(img_size);
+  platform_commit(pixels, img_size);
+  Image result = make_image(pixels, width, height);
+  return(result);
+}
+
+int
+main(void) {
+  platform_core_init();
+  platform_gfx_init();
+
+  Arena arena = arena_alloc(MB(1));
+  String8 exec_file_path = platform_get_exec_file_path(&arena);
+  uxx last_slash_index = str8_index_of_last(exec_file_path, PATH_SLASH_CHAR);
+  String8 path = str8_substr(exec_file_path, 0, last_slash_index + 1);
 
 #if PLATFORM_WINDOWS
   String8 src_lib_name = str8_lit("libkrueger.dll");
@@ -96,70 +139,81 @@ main(void) {
   String8 dst_lib_name = str8_lit("libkruegerx.so");
 #endif
 
-  String8 src_lib_path = str8_cat(&str_arena, path, src_lib_name);
-  String8 dst_lib_path = str8_cat(&str_arena, path, dst_lib_name);
-  
+  String8 src_lib_path = str8_cat(&arena, path, src_lib_name);
+  String8 dst_lib_path = str8_cat(&arena, path, dst_lib_name);
+
   Library lib = libkrueger_load(dst_lib_path, src_lib_path);
   if (!platform_handle_match(lib.h, PLATFORM_HANDLE_NULL)) {
-    Krueger_State *krueger_state = 0;
-    if (lib.krueger_init) krueger_state = lib.krueger_init();
-
-    Image back_buffer = image_alloc(BACK_BUFFER_WIDTH, BACK_BUFFER_HEIGHT);
-    Input input = {0};
-    Clock time = {0};
-
     platform_create_window(&(Platform_Window_Desc){
-      .window_title = "krueger",
+      .window_title = WINDOW_TITLE,
       .window_w = WINDOW_WIDTH,
       .window_h = WINDOW_HEIGHT,
-      .back_buffer_w = back_buffer.width,
-      .back_buffer_h = back_buffer.height,
+      .back_buffer_w = BACK_BUFFER_WIDTH,
+      .back_buffer_h = BACK_BUFFER_HEIGHT,
     });
 
-    u64 time_start = platform_get_time_us();
+    uxx permanent_memory_size = MB(64);
+    uxx transient_memory_size = MB(64);
 
-    for (b32 quit = false; !quit;) {
+    Memory memory = memory_alloc(permanent_memory_size, transient_memory_size);
+    if (lib.krueger_init) lib.krueger_init(&memory);
+
+    Image back_buffer = image_alloc(BACK_BUFFER_WIDTH, BACK_BUFFER_HEIGHT);
+    image_fill(back_buffer, 0x00);
+
+    Input input = {0};
+
+    Clock time = {0};
+    time.dt = 1.0f/FPS;
+
+    u64 time_start = platform_get_time_us();
+    for (b32 quit = false, pause = false; !quit;) {
       platform_update_window_events();
-      for (uxx i = 0; i < buf_len(platform_event_buf); ++i) {
-        Platform_Event event = platform_event_buf[i];
-        switch (event.type) {
+      for (u32 i = 0; i < platform_events.len; ++i) {
+        Platform_Event base_event = platform_events.items[i];
+        switch (base_event.type) {
           case PLATFORM_EVENT_QUIT: {
             quit = true;
           } break;
           case PLATFORM_EVENT_KEY_PRESS:
           case PLATFORM_EVENT_KEY_RELEASE: {
-            Keycode keycode = event.keycode;
-            b32 is_down = (event.type == PLATFORM_EVENT_KEY_PRESS);
+            Platform_Event_Key *event = (Platform_Event_Key *)&base_event;
+            Keycode keycode = event->keycode;
+            b32 is_down = (event->type == PLATFORM_EVENT_KEY_PRESS);
             process_digital_button(input.kbd + keycode, is_down);
           } break;
         }
       }
 
-      if (input.kbd[KEY_Q].pressed) {
-        quit = true;
-      }
+      if (input.kbd[KEY_Q].pressed) quit = true;
+      if (input.kbd[KEY_P].pressed) pause = !pause;
 
       if (input.kbd[KEY_R].pressed) {
         libkrueger_unload(lib);
         lib = libkrueger_load(dst_lib_path, src_lib_path);
       }
 
-      if (lib.krueger_frame) lib.krueger_frame(krueger_state, back_buffer, input, time);
-      platform_display_back_buffer(back_buffer.pixels, back_buffer.width, back_buffer.height);
+      if (!pause) {
+        if (lib.krueger_frame) lib.krueger_frame(&memory, &back_buffer, &input, &time);
+        wait_to_flip(time.dt, time_start);
 
-      u64 time_end = platform_get_time_us();
-      time.dt_us = (f32)(time_end - time_start);
-      time.dt_ms = time.dt_us/thousand(1);
-      time.dt_sec = time.dt_ms/thousand(1);
-      time.us += time.dt_us;
-      time.ms += time.dt_ms;
-      time.sec += time.dt_sec;
-      time_start = time_end;
+        u64 time_end = platform_get_time_us();
+        time.dt_us = (f32)(time_end - time_start);
+        time.dt_ms = time.dt_us/thousand(1.0f);
+        time.dt_sec = time.dt_ms/thousand(1.0f);
+        time.sec += time.dt_sec;
+        time_start = time_end;
+
+        platform_display_back_buffer(back_buffer.pixels, back_buffer.width, back_buffer.height);
+      }
 
       input_reset(&input);
     }
+
     platform_destroy_window();
     libkrueger_unload(lib);
   }
+
+  platform_core_shutdown();
   return(0);
 }
