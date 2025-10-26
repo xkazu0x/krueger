@@ -1,377 +1,12 @@
 #include "krueger_base.h"
 #include "krueger_platform.h"
+#include "krueger_shared.h"
+#include "krueger.h"
+#include "krueger_gfx.h"
 
 #include "krueger_base.c"
 #include "krueger_platform.c"
-
-#include "krueger_shared.h"
-#include "krueger.h"
-
-#define mask_alpha(x) (((x) >> 24) & 0xFF)
-#define mask_red(x)   (((x) >> 16) & 0xFF)
-#define mask_green(x) (((x) >>  8) & 0xFF)
-#define mask_blue(x)  (((x) >>  0) & 0xFF)
-#define pack_rgba32(r, g, b, a) ((a << 24) | (r << 16) | (g << 8) | (b << 0))
-
-internal u32
-alpha_linear_blend(u32 dst, u32 src) {
-  u8 r0 = mask_red(dst); 
-  u8 g0 = mask_green(dst);
-  u8 b0 = mask_blue(dst);
-  u8 a0 = mask_alpha(dst);
-
-  u8 r1 = mask_red(src); 
-  u8 g1 = mask_green(src);
-  u8 b1 = mask_blue(src);
-  u8 a1 = mask_alpha(src);
-
-  u8 r = (u8)lerp_f32(r0, r1, a1/255.0f);
-  u8 g = (u8)lerp_f32(g0, g1, a1/255.0f);
-  u8 b = (u8)lerp_f32(b0, b1, a1/255.0f);
-  u8 a = a0;
-
-  u32 result = pack_rgba32(r, g, b, a);
-  return(result);
-}
-
-internal void
-draw_rect(Image image,
-          s32 x0, s32 y0, 
-          s32 x1, s32 y1,
-          u32 color) {
-  if (x0 > x1) swap_t(s32, x0, x1);
-  if (y0 > y1) swap_t(s32, y0, y1);
-  s32 min_x = clamp_bot(0, x0);
-  s32 min_y = clamp_bot(0, y0);
-  s32 max_x = clamp_top(x1, (s32)image.width);
-  s32 max_y = clamp_top(y1, (s32)image.height);
-  for (s32 y = min_y; y < max_y; ++y) {
-    for (s32 x = min_x; x < max_x; ++x) {
-      image.pixels[y*image.width + x] = color;
-    }
-  }
-}
-
-internal void
-draw_rect_f32(Image image,
-              f32 x0, f32 y0, 
-              f32 x1, f32 y1,
-              u32 color) {
-  if (x0 > x1) swap_t(f32, x0, x1);
-  if (y0 > y1) swap_t(f32, y0, y1);
-  s32 min_x = (s32)clamp_bot(0, floor_f32(x0));
-  s32 min_y = (s32)clamp_bot(0, floor_f32(y0));
-  s32 max_x = (s32)clamp_top(ceil_f32(x1), image.width);
-  s32 max_y = (s32)clamp_top(ceil_f32(y1), image.height);
-  for (s32 y = min_y; y < max_y; ++y) {
-    for (s32 x = min_x; x < max_x; ++x) {
-      image.pixels[y*image.width + x] = color;
-    }
-  }
-}
-
-internal void
-draw_circle(Image image,
-            s32 cx, s32 cy, s32 r,
-            u32 color) {
-  r = abs_t(s32, r);
-  s32 min_x = clamp_bot(0, cx - r);
-  s32 min_y = clamp_bot(0, cy - r);
-  s32 max_x = clamp_top(cx + r, (s32)image.width);
-  s32 max_y = clamp_top(cy + r, (s32)image.height);
-  for (s32 y = min_y; y < max_y; ++y) {
-    s32 dy = y - cy;
-    for (s32 x = min_x; x < max_x; ++x) {
-      s32 dx = x - cx;
-      if (dx*dx + dy*dy < r*r) {
-        image.pixels[y*image.width + x] = color;
-      }
-    }
-  }
-}
-
-internal void
-draw_circle_f32(Image image,
-            f32 cx, f32 cy, f32 r,
-            u32 color) {
-  r = abs_t(f32, r);
-  s32 min_x = (s32)clamp_bot(0, floor_f32(cx - r));
-  s32 min_y = (s32)clamp_bot(0, floor_f32(cy - r));
-  s32 max_x = (s32)clamp_top(ceil_f32(cx + r), image.width);
-  s32 max_y = (s32)clamp_top(ceil_f32(cy + r), image.height);
-  for (s32 y = min_y; y < max_y; ++y) {
-    f32 dy = round_t(f32, y) - cy;
-    for (s32 x = min_x; x < max_x; ++x) {
-      f32 dx = round_t(f32, x) - cx;
-      if (dx*dx + dy*dy < r*r) {
-        image.pixels[y*image.width + x] = color;
-      }
-    }
-  }
-}
-
-internal void
-draw_line(Image image,
-          s32 x0, s32 y0, 
-          s32 x1, s32 y1,
-          u32 color) {
-  if (abs_t(s32, x1 - x0) > abs_t(s32, y1 - y0)) {
-    if (x0 > x1) {
-      swap_t(s32, x0, x1);
-      swap_t(s32, y0, y1);
-    }
-    s32 dx = x1 - x0;
-    s32 dy = y1 - y0;
-    s32 dir = (dy < 0) ? -1 : 1;
-    dy *= dir;
-    if (dx != 0) {
-      s32 y = y0;
-      s32 d = 2*dy - dx;
-      for (s32 x = x0; x <= x1; ++x) {
-        if ((y >= 0 && y < (s32)image.height) &&
-            (x >= 0 && x < (s32)image.width)) {
-          image.pixels[y*image.width + x] = color; 
-        }
-        if (d >= 0) {
-          y += dir;
-          d = d - 2*dx;
-        }
-        d = d + 2*dy;
-      }
-    }
-  } else {
-    if (y0 > y1) {
-      swap_t(s32, x0, x1);
-      swap_t(s32, y0, y1);
-    }
-    s32 dx = x1 - x0;
-    s32 dy = y1 - y0;
-    s32 dir = (dx < 0) ? -1 : 1;
-    dx *= dir;
-    if (dy != 0) {
-      s32 x = x0;
-      s32 d = 2*dx - dy;
-      for (s32 y = y0; y <= y1; ++y) {
-        if ((y >= 0 && y < (s32)image.height) &&
-            (x >= 0 && x < (s32)image.width)) {
-          image.pixels[y*image.width + x] = color; 
-        }
-        if (d >= 0) {
-          x += dir;
-          d = d - 2*dy;
-        }
-        d = d + 2*dx;
-      }
-    }
-  }
-}
-
-internal void
-draw_triangle(Image image, 
-              s32 x0, s32 y0, 
-              s32 x1, s32 y1, 
-              s32 x2, s32 y2, 
-              u32 color) {
-  s32 min_x = clamp_bot(0, min(min(x0, x1), x2));
-  s32 min_y = clamp_bot(0, min(min(y0, y1), y2));
-  s32 max_x = clamp_top(max(max(x0, x1), x2), (s32)image.width);
-  s32 max_y = clamp_top(max(max(y0, y1), y2), (s32)image.height);
-  s32 x01 = x1 - x0;
-  s32 y01 = y1 - y0;
-  s32 x12 = x2 - x1;
-  s32 y12 = y2 - y1;
-  s32 x20 = x0 - x2;
-  s32 y20 = y0 - y2;
-  for (s32 y = min_y; y < max_y; ++y) {
-    s32 dy0 = y - y0;
-    s32 dy1 = y - y1;
-    s32 dy2 = y - y2;
-    for (s32 x = min_x; x < max_x; ++x) {
-      s32 dx0 = x - x0;
-      s32 dx1 = x - x1;
-      s32 dx2 = x - x2;
-      s32 w0 = x01*dy0 - y01*dx0;
-      s32 w1 = x12*dy1 - y12*dx1;
-      s32 w2 = x20*dy2 - y20*dx2;
-      if ((w0 >= 0) && (w1 >= 0) && (w2 >= 0)) {
-        image.pixels[y*image.width + x] = color;
-      }
-    }
-  }
-}
-
-internal void
-draw_triangle_f32(Image image,
-                  f32 x0, f32 y0,
-                  f32 x1, f32 y1,
-                  f32 x2, f32 y2,
-                  u32 color) {
-  s32 min_x = (s32)clamp_bot(0, floor_f32(min(min(x0, x1), x2)));
-  s32 min_y = (s32)clamp_bot(0, floor_f32(min(min(y0, y1), y2)));
-  s32 max_x = (s32)clamp_top(ceil_f32(max(max(x0, x1), x2)), image.width);
-  s32 max_y = (s32)clamp_top(ceil_f32(max(max(y0, y1), y2)), image.height);
-  f32 x01 = x1 - x0;
-  f32 y01 = y1 - y0;
-  f32 x12 = x2 - x1;
-  f32 y12 = y2 - y1;
-  f32 x20 = x0 - x2;
-  f32 y20 = y0 - y2;
-  f32 bias0 = (((y01 == 0.0f) && (x01 > 0.0f)) || (y01 < 0.0f)) ? 0.0f : -0.0001f;
-  f32 bias1 = (((y12 == 0.0f) && (x12 > 0.0f)) || (y12 < 0.0f)) ? 0.0f : -0.0001f;
-  f32 bias2 = (((y20 == 0.0f) && (x20 > 0.0f)) || (y20 < 0.0f)) ? 0.0f : -0.0001f;
-  for (s32 y = min_y; y < max_y; ++y) {
-    f32 dy0 = round_t(f32, y) - y0;
-    f32 dy1 = round_t(f32, y) - y1;
-    f32 dy2 = round_t(f32, y) - y2;
-    for (s32 x = min_x; x < max_x; ++x) {
-      f32 dx0 = round_t(f32, x) - x0;
-      f32 dx1 = round_t(f32, x) - x1;
-      f32 dx2 = round_t(f32, x) - x2;
-      f32 w0 = x01*dy0 - y01*dx0 + bias0;
-      f32 w1 = x12*dy1 - y12*dx1 + bias1;
-      f32 w2 = x20*dy2 - y20*dx2 + bias2;
-      if ((w0 >= 0.0f) && (w1 >= 0.0f) && (w2 >= 0.0f)) {
-        image.pixels[y*image.width + x] = color;
-      }
-    }
-  }
-}
-
-internal void
-draw_triangle3c(Image image,
-                s32 x0, s32 y0, 
-                s32 x1, s32 y1, 
-                s32 x2, s32 y2,
-                u32 c0, u32 c1, u32 c2) {
-  s32 min_x = clamp_bot(0, min(min(x0, x1), x2));
-  s32 min_y = clamp_bot(0, min(min(y0, y1), y2));
-  s32 max_x = clamp_top(max(max(x0, x1), x2), (s32)image.width);
-  s32 max_y = clamp_top(max(max(y0, y1), y2), (s32)image.height);
-  s32 x01 = x1 - x0;
-  s32 y01 = y1 - y0;
-  s32 x02 = x2 - x0;
-  s32 y02 = y2 - y0;
-  s32 x12 = x2 - x1;
-  s32 y12 = y2 - y1;
-  s32 x20 = x0 - x2;
-  s32 y20 = y0 - y2;
-  s32 det = x01*y02 - y01*x02;
-  for (s32 y = min_y; y < max_y; ++y) {
-    s32 dy0 = y - y0;
-    s32 dy1 = y - y1;
-    s32 dy2 = y - y2;
-    for (s32 x = min_x; x < max_x; ++x) {
-      s32 dx0 = x - x0;
-      s32 dx1 = x - x1;
-      s32 dx2 = x - x2;
-      s32 w0 = x01*dy0 - y01*dx0;
-      s32 w1 = x12*dy1 - y12*dx1;
-      s32 w2 = x20*dy2 - y20*dx2;
-      if ((w0 >= 0.0f) && (w1 >= 0.0f) && (w2 >= 0.0f)) {
-        f32 t0 = (f32)w0/det;
-        f32 t1 = (f32)w1/det;
-        f32 t2 = (f32)w2/det;
-        u8 r0 = mask_red(c0);
-        u8 g0 = mask_green(c0);
-        u8 b0 = mask_blue(c0);
-        u8 a0 = mask_alpha(c0);
-        u8 r1 = mask_red(c1);
-        u8 g1 = mask_green(c1);
-        u8 b1 = mask_blue(c1);
-        u8 a1 = mask_alpha(c1);
-        u8 r2 = mask_red(c2);
-        u8 g2 = mask_green(c2);
-        u8 b2 = mask_blue(c2);
-        u8 a2 = mask_alpha(c2);
-        u32 r = (u32)(r0*t0 + r1*t1 + r2*t2);
-        u32 g = (u32)(g0*t0 + g1*t1 + g2*t2);
-        u32 b = (u32)(b0*t0 + b1*t1 + b2*t2);
-        u32 a = (u32)(a0*t0 + a1*t1 + a2*t2);
-        u32 color = pack_rgba32(r, g, b, a);
-        image.pixels[y*image.width + x] = color;
-      }
-    }
-  }
-}
-
-internal void
-draw_triangle3c_f32(Image image,
-                    f32 x0, f32 y0,
-                    f32 x1, f32 y1,
-                    f32 x2, f32 y2, 
-                    u32 c0, u32 c1, u32 c2) {
-  s32 min_x = (s32)clamp_bot(0, floor_f32(min(min(x0, x1), x2)));
-  s32 min_y = (s32)clamp_bot(0, floor_f32(min(min(y0, y1), y2)));
-  s32 max_x = (s32)clamp_top(ceil_f32(max(max(x0, x1), x2)), image.width);
-  s32 max_y = (s32)clamp_top(ceil_f32(max(max(y0, y1), y2)), image.height);
-  f32 x01 = x1 - x0;
-  f32 y01 = y1 - y0;
-  f32 x02 = x2 - x0;
-  f32 y02 = y2 - y0;
-  f32 x12 = x2 - x1;
-  f32 y12 = y2 - y1;
-  f32 x20 = x0 - x2;
-  f32 y20 = y0 - y2;
-  f32 det = x01*y02 - y01*x02;
-  f32 bias0 = (((y01 == 0.0f) && (x01 > 0.0f)) || (y01 < 0.0f)) ? 0.0f : -0.0001f;
-  f32 bias1 = (((y12 == 0.0f) && (x12 > 0.0f)) || (y12 < 0.0f)) ? 0.0f : -0.0001f;
-  f32 bias2 = (((y20 == 0.0f) && (x20 > 0.0f)) || (y20 < 0.0f)) ? 0.0f : -0.0001f;
-  for (s32 y = min_y; y < max_y; ++y) {
-    f32 dy0 = round_t(f32, y) - y0;
-    f32 dy1 = round_t(f32, y) - y1;
-    f32 dy2 = round_t(f32, y) - y2;
-    for (s32 x = min_x; x < max_x; ++x) {
-      f32 dx0 = round_t(f32, x) - x0;
-      f32 dx1 = round_t(f32, x) - x1;
-      f32 dx2 = round_t(f32, x) - x2;
-      f32 w0 = x01*dy0 - y01*dx0 + bias0;
-      f32 w1 = x12*dy1 - y12*dx1 + bias1;
-      f32 w2 = x20*dy2 - y20*dx2 + bias2;
-      if ((w0 >= 0.0f) && (w1 >= 0.0f) && (w2 >= 0.0f)) {
-        f32 t0 = w0/det;
-        f32 t1 = w1/det;
-        f32 t2 = w2/det;
-        u8 r0 = mask_red(c0);
-        u8 g0 = mask_green(c0);
-        u8 b0 = mask_blue(c0);
-        u8 a0 = mask_alpha(c0);
-        u8 r1 = mask_red(c1);
-        u8 g1 = mask_green(c1);
-        u8 b1 = mask_blue(c1);
-        u8 a1 = mask_alpha(c1);
-        u8 r2 = mask_red(c2);
-        u8 g2 = mask_green(c2);
-        u8 b2 = mask_blue(c2);
-        u8 a2 = mask_alpha(c2);
-        u32 r = (u32)(r0*t0 + r1*t1 + r2*t2);
-        u32 g = (u32)(g0*t0 + g1*t1 + g2*t2);
-        u32 b = (u32)(b0*t0 + b1*t1 + b2*t2);
-        u32 a = (u32)(a0*t0 + a1*t1 + a2*t2);
-        u32 color = pack_rgba32(r, g, b, a);
-        image.pixels[y*image.width + x] = color;
-      }
-    }
-  }
-}
-
-// IMPORTANT: Loaded images are drawn from bottom to top, because
-// they are loaded vertically flipped.
-internal void
-draw_texture(Image dst, Image src, s32 x, s32 y) {
-  s32 min_x = clamp_bot(0, x);
-  s32 min_y = clamp_bot(0, y);
-  s32 max_x = clamp_top(x + src.width, dst.width);
-  s32 max_y = clamp_top(y + src.height, dst.height);
-  for (s32 dy = min_y; dy < max_y; ++dy) {
-    for (s32 dx = min_x; dx < max_x; ++dx) {
-      u32 dst_index = dy*dst.width + dx;
-      u32 src_index = src.width*(src.height-1) - dy*src.width + dx;
-      u32 dst_color = dst.pixels[dst_index];
-      u32 src_color = src.pixels[src_index];
-      dst.pixels[dst_index] = alpha_linear_blend(dst_color, src_color);
-    }
-  }
-}
+#include "krueger_gfx.c"
 
 internal Font
 make_font(char *chars, u32 num_char_x, u32 num_char_y, 
@@ -385,67 +20,6 @@ make_font(char *chars, u32 num_char_x, u32 num_char_y,
     .image = image,
   };
   return(result);
-}
-
-internal void
-draw_char(Image image,
-          char c, s32 x, s32 y, 
-          Font font, Vector4 color) {
-  s32 min_x = clamp_bot(0, x);
-  s32 min_y = clamp_bot(0, y);
-  s32 max_x = clamp_top(x + font.glyph_w, image.width);
-  s32 max_y = clamp_top(y + font.glyph_h, image.height);
-  uxx char_index = cstr_index_of(font.chars, c);
-  uxx tile_x = char_index % font.num_char_x;
-  uxx tile_y = (uxx)floor_f32((f32)char_index/font.num_char_x);
-  u32 *glyph = font.image.pixels - tile_y*font.image.width*font.glyph_h + tile_x*font.glyph_w;
-  for (s32 dy = min_y; dy < max_y; ++dy) {
-    s32 gy = dy - min_y;
-    for (s32 dx = min_x; dx < max_x; ++dx) {
-      s32 gx = dx - min_x;
-      s32 pixel_index = dy*image.width + dx;
-      s32 glyph_index = font.image.width*(font.image.height-1) - gy*font.image.width + gx;
-      u32 pixel_color = image.pixels[pixel_index];
-      u32 glyph_color = glyph[glyph_index];
-      f32 rt = clamp_top(color.r, 1.0f);
-      f32 gt = clamp_top(color.g, 1.0f);
-      f32 bt = clamp_top(color.b, 1.0f);
-      f32 at = clamp_top(color.a, 1.0f);
-      u8 r = mask_red(glyph_color);
-      u8 g = mask_green(glyph_color);
-      u8 b = mask_blue(glyph_color);
-      u8 a = mask_alpha(glyph_color);
-      r = (u8)(r*rt);
-      g = (u8)(g*gt);
-      b = (u8)(b*bt);
-      a = (u8)(a*at);
-      glyph_color = pack_rgba32(r, g, b, a);
-      image.pixels[pixel_index] = alpha_linear_blend(pixel_color, glyph_color);
-    }
-  }
-}
-
-internal void
-draw_text(Image image,
-          char *text, s32 x, s32 y, 
-          Font font, Vector4 color) {
-  s32 gx = x;
-  s32 gy = y;
-  uxx text_len = cstr_len(text);
-  for (uxx i = 0; i < text_len; ++i) {
-    char c = text[i];
-    switch (c) {
-      case '\n': {
-        gx = x;
-        gy += font.glyph_h;
-      } continue;
-      case '\t': {
-        gx += 2*font.glyph_w;
-      } continue;
-    }
-    draw_char(image, c, gx, gy, font, color);
-    gx += font.glyph_w;
-  }
 }
 
 #pragma pack(push, 1)
@@ -524,15 +98,19 @@ load_bmp(char *filepath, Arena *main_arena, Arena *temp_arena) {
     Bmp_File_Header *bmp_file = (Bmp_File_Header *)file_data;
     if (bmp_file->type == cstr_encode("BM")) {
       Bmp_Info_Header *bmp_info = (Bmp_Info_Header *)((u8 *)bmp_file + sizeof(Bmp_File_Header));
-
-      result.width = bmp_info->image_width;
-      result.height = bmp_info->image_height;
-
-      uxx size = result.width*result.height*(bmp_info->bits_per_pixel/8);
+      u32 width = bmp_info->image_width;
+      u32 height = bmp_info->image_height;
+      uxx size = width*height*(bmp_info->bits_per_pixel/8);
       u32 *bmp_data = (u32 *)((u8 *)file_data + bmp_file->data_offset);
 
-      result.pixels = arena_push(main_arena, size);
-      mem_copy(result.pixels, bmp_data, size);
+      u32 *pixels = arena_push(main_arena, size);
+      for (u32 y = 0; y < height; ++y) {
+        for (u32 x = 0; x < width; ++x) {
+          u32 color = bmp_data[width*(height-1) - y*width + x];
+          pixels[y*width + x] = color;
+        }
+      }
+      result = make_image(pixels, width, height);
 
       if (bmp_info->header_size > 40) {
         Bmp_Color_Header *bmp_color = (Bmp_Color_Header *)((u8 *)bmp_info + sizeof(Bmp_Info_Header));
@@ -1014,50 +592,39 @@ test_triangle3(Image back_buffer, Clock time) {
 
 internal void
 test_texture(Image back_buffer, Image texture) {
-  draw_texture(back_buffer, texture, 0, 0);
+  draw_texture(back_buffer, texture, 8, 8);
 }
 
 internal void
 test_text(Image back_buffer, Font font) {
-  s32 x = 0;
+  s32 x = 8;
   s32 y = font.glyph_h*2;
-  draw_text(back_buffer, 
-            "0123456789", x,  y, 
-            font, make_vector4(0.75f, 0.75f, 0.75f, 1.0f));
   y += font.glyph_h;
-  draw_text(back_buffer, 
-            "ABCDEFGHIJKLM", x,  y, 
-            font, make_vector4(0.75f, 0.75f, 0.75f, 0.75f));
+  draw_text(back_buffer, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", x,  y, font, 0xffc1c1c1);
   y += font.glyph_h;
-  draw_text(back_buffer, 
-            "NOPQRSTUVWXYZ", x, y, 
-            font, make_vector4(0.75f, 0.75f, 0.75f, 0.5f));
-  y += font.glyph_h;
-  draw_text(back_buffer, 
-            ".,!?'\"-+=/\\%()<>", x, y, 
-            font, make_vector4(0.75f, 0.75f, 0.75f, 0.25f));
+  draw_text(back_buffer, "0123456789.,!?'\"-+=/\\%()<>", x, y, font, 0xaac1c1c1);
 }
 
 internal void
 draw_debug_info(Image back_buffer, Clock time, Font font) {
-  local char fps_str[256];
-  local char ms_str[256];
+  s32 x, y;
 
   f32 fps = million(1)/time.dt_us;
   f32 ms = time.dt_us/thousand(1);
 
+  local char fps_str[256];
+  local char ms_str[256];
+
   sprintf(fps_str, "%.2f FPS", fps);
   sprintf(ms_str, "%.2f MS", ms);
 
-  s32 offset_x = back_buffer.width - (s32)cstr_len(fps_str)*font.glyph_w;
-  s32 offset_y = 0;
+  x = back_buffer.width - (s32)cstr_len(fps_str)*font.glyph_w - font.glyph_w;
+  y = font.glyph_h;
+  draw_text(back_buffer, fps_str, x, y, font, 0xff79241f);
 
-  draw_text(back_buffer, fps_str, offset_x, offset_y, 
-            font, make_vector4(0.45f, 0.1f, 0.1f, 1.0f));
-  offset_x = back_buffer.width - (s32)cstr_len(ms_str)*font.glyph_w - font.glyph_w;
-  offset_y = offset_y + font.glyph_h;
-  draw_text(back_buffer, ms_str, offset_x, offset_y, 
-            font, make_vector4(0.45f, 0.1f, 0.1f, 1.0f));
+  x = back_buffer.width - (s32)cstr_len(ms_str)*font.glyph_w - font.glyph_w*2;
+  y += font.glyph_h;
+  draw_text(back_buffer, ms_str, x, y, font, 0xff79241f);
 }
 
 shared_function

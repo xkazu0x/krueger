@@ -2,11 +2,10 @@
 
 #include "krueger_base.h"
 #include "krueger_platform.h"
+#include "krueger_shared.h"
 
 #include "krueger_base.c"
 #include "krueger_platform.c"
-
-#include "krueger_shared.h"
 
 #define WINDOW_TITLE "krueger"
 #define WINDOW_SCALE  3

@@ -9,6 +9,7 @@
 #define cos_f32(x) cosf(x)
 #define tan_f32(x) tanf(x)
 
+#define lerp_t(T, a, b, t) (T)((a) + (t)*((b) - (a)))
 internal f32 lerp_f32(f32 a, f32 b, f32 t);
 
 ////////////////

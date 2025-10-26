@@ -26,7 +26,7 @@ make_subimage(Image image,
   Image result = {
     .width = w,
     .height = h,
-    .pitch = image.width,
+    .pitch = image.pitch,
     .pixels = image.pixels + (y*image.pitch + x),
   };
   return(result);
