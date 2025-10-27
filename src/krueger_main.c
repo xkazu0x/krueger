@@ -16,7 +16,6 @@
 #define WINDOW_WIDTH  WINDOW_SCALE*BACK_BUFFER_WIDTH
 #define WINDOW_HEIGHT WINDOW_SCALE*BACK_BUFFER_HEIGHT
 
-#define FPS 75
 #define PATH_SLASH_CHAR ((PLATFORM_WINDOWS) ? '\\' : '/')
 
 typedef struct {
@@ -161,8 +160,9 @@ main(void) {
     Image back_buffer = image_alloc(BACK_BUFFER_WIDTH, BACK_BUFFER_HEIGHT);
     Input input = {0};
     Clock time = {0};
-
-    time.dt = 1.0f/FPS;
+    
+    Platform_Display_Info display_info = platform_get_display_info();
+    time.dt = 1.0f/display_info.refresh_rate;
 
     u64 time_start = platform_get_time_us();
     for (b32 quit = false, pause = false; !quit;) {
@@ -196,10 +196,7 @@ main(void) {
         wait_to_flip(time.dt, time_start);
 
         u64 time_end = platform_get_time_us();
-        time.dt_us = (f32)(time_end - time_start);
-        time.dt_ms = time.dt_us/thousand(1.0f);
-        time.dt_sec = time.dt_ms/thousand(1.0f);
-        time.sec += time.dt_sec;
+        time.dt_us = time_end - time_start;
         time_start = time_end;
 
         platform_display_back_buffer(back_buffer.pixels, back_buffer.width, back_buffer.height);

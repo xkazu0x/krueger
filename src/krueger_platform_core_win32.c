@@ -20,8 +20,20 @@ platform_get_exec_file_path(Arena *arena) {
   GetModuleFileName(0, path, MAX_PATH);
   uxx len = cstr_len(path);
   u8 *str = arena_push_array(arena, u8, len);
-  mem_copy(str, path, len);
+  mem_cpy(str, path, len);
   String8 result = make_str8(str, len);
+  return(result);
+}
+
+internal Platform_Display_Info
+platform_get_display_info(void) {
+  DEVMODEA devmode = {.dmSize = sizeof(DEVMODE)};
+  EnumDisplaySettingsA(0, ENUM_CURRENT_SETTINGS, &devmode);
+  Platform_Display_Info result = {
+    .width = devmode.dmPelsWidth,
+    .height = devmode.dmPelsHeight,
+    .refresh_rate = devmode.dmDisplayFrequency,
+  };
   return(result);
 }
 

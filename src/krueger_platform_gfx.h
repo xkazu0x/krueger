@@ -25,8 +25,6 @@ typedef union {
   Platform_Event_Key key;
 } Platform_Event;
 
-arr_def(Platform_Event)
-
 typedef struct {
   char *window_title;
   s32 window_w;
@@ -38,6 +36,7 @@ typedef struct {
 /////////////////////////
 // NOTE: Global Variables
 
+arr_def(Platform_Event)
 global Platform_Event_Array platform_events;
 
 //////////////////////////////////

@@ -44,10 +44,7 @@ typedef struct {
 
 typedef struct {
   f32 dt;
-  f32 dt_us;
-  f32 dt_ms;
-  f32 dt_sec;
-  f32 sec;
+  u64 dt_us;
 } Clock;
 
 typedef struct {

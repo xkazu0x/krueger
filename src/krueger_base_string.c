@@ -192,8 +192,8 @@ str8_cat(Arena *arena, String8 a, String8 b) {
   String8 result;
   result.len = a.len + b.len,
   result.str = arena_push_array(arena, u8, result.len + 1);
-  mem_copy(result.str, a.str, a.len);
-  mem_copy(result.str + a.len, b.str, b.len);
+  mem_cpy(result.str, a.str, a.len);
+  mem_cpy(result.str + a.len, b.str, b.len);
   result.str[result.len] = 0;
   return(result);
 }

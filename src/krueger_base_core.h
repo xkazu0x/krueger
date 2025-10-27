@@ -43,6 +43,7 @@
 #define not_implemented assert(!"not implemented!")
 
 #define array_count(x) (sizeof(x)/sizeof(*(x)))
+#define sqr(x) ((x)*(x))
 
 #define KB(n) (((u64)(n))<<10)
 #define MB(n) (((u64)(n))<<20)
@@ -58,19 +59,18 @@
 #define clamp_bot(x, b) max(x, b);
 #define clamp(a, x, b) (((x)<(a))?(a):((x)>(b))?(b):(x))
 
-#define mem_copy(dst, src, size) memmove((dst), (src), (size))
+#define mem_cpy(dst, src, size)  memmove((dst), (src), (size))
 #define mem_set(dst, byte, size) memset((dst), (byte), (size))
 #define mem_cmp(a, b, size)      memcmp((a), (b), (size))
 
 #define mem_zero(dst, size)  mem_set((dst), 0, (size))
-#define mem_zero_struct(dst) mem_set((dst), 0, sizeof(*dst))
+#define mem_zero_struct(dst) mem_zero((dst), sizeof(*(dst)))
 
 #define swap_t(T, a, b) do { T t__ = a; a = b; b = t__; } while (0)
 #define sign_t(T, x) ((T)((x) > 0) - (T)((x) < 0))
 #define abs_t(T, x) (sign_t(T, x)*(x))
-#define round_t(T, x) (T)(x + 0.5f)
+#define round_t(T, x) (T)((x) + 0.5f)
 
-#define square(x) ((x)*(x))
 #define radians_f32(x) ((x)*pi32/180.0f)
 
 #define internal static
