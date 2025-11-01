@@ -8,10 +8,10 @@
 #include "krueger_platform.c"
 
 #define WINDOW_TITLE "krueger"
-#define WINDOW_SCALE  3
+#define WINDOW_SCALE  5
 
-#define BACK_BUFFER_WIDTH  320
-#define BACK_BUFFER_HEIGHT 240
+#define BACK_BUFFER_WIDTH  128
+#define BACK_BUFFER_HEIGHT 128
 
 #define WINDOW_WIDTH  WINDOW_SCALE*BACK_BUFFER_WIDTH
 #define WINDOW_HEIGHT WINDOW_SCALE*BACK_BUFFER_HEIGHT
@@ -153,8 +153,9 @@ main(void) {
     Input input = {0};
     Clock time = {0};
 
-    Platform_Display_Info display_info = platform_get_display_info();
-    time.dt = 1.0f/display_info.refresh_rate;
+    // Platform_Display_Info display_info = platform_get_display_info();
+    // time.dt = 1.0f/display_info.refresh_rate;
+    time.dt = 1.0f/30.0f;
 
     if (lib.krueger_init) lib.krueger_init(&memory, &back_buffer);
     u64 time_start = platform_get_time_us();
