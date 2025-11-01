@@ -20,6 +20,32 @@ internal Keycode
 win32_translate_keycode(u32 keycode) {
   Keycode result = KEY_NULL;
   switch (keycode) {
+
+    case VK_F1: result = KEY_F1; break;
+    case VK_F2: result = KEY_F2; break;
+    case VK_F3: result = KEY_F3; break;
+    case VK_F4: result = KEY_F4; break;
+    case VK_F5: result = KEY_F5; break;
+    case VK_F6: result = KEY_F6; break;
+    case VK_F7: result = KEY_F7; break;
+    case VK_F8: result = KEY_F8; break;
+    case VK_F9: result = KEY_F9; break;
+    case VK_F10: result = KEY_F10; break;
+    case VK_F11: result = KEY_F11; break;
+    case VK_F12: result = KEY_F12; break;
+    case VK_F13: result = KEY_F13; break;
+    case VK_F14: result = KEY_F14; break;
+    case VK_F15: result = KEY_F15; break;
+    case VK_F16: result = KEY_F16; break;
+    case VK_F17: result = KEY_F17; break;
+    case VK_F18: result = KEY_F18; break;
+    case VK_F19: result = KEY_F19; break;
+    case VK_F20: result = KEY_F20; break;
+    case VK_F21: result = KEY_F21; break;
+    case VK_F22: result = KEY_F22; break;
+    case VK_F23: result = KEY_F23; break;
+    case VK_F24: result = KEY_F24; break;
+
     case '0': result = KEY_0; break;
     case '1': result = KEY_1; break;
     case '2': result = KEY_2; break;
@@ -62,6 +88,7 @@ win32_translate_keycode(u32 keycode) {
     case VK_LEFT: result = KEY_LEFT; break;
     case VK_DOWN: result = KEY_DOWN; break;
     case VK_RIGHT: result = KEY_RIGHT; break;
+    case VK_SPACE: result = KEY_SPACE; break;
   }
   return(result);
 }
@@ -132,7 +159,8 @@ platform_create_window(Platform_Window_Desc *desc) {
 
 internal void
 platform_destroy_window(void) {
-  DestroyWindow(win32_gfx_state.window);
+  HWND window = win32_gfx_state.window;
+  DestroyWindow(window);
 }
 
 internal void

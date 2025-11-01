@@ -43,18 +43,19 @@ typedef struct {
 } Input;
 
 typedef struct {
-  f32 dt;
   u64 dt_us;
+  f32 dt_ms;
+  f32 dt;
+  f32 ms;
+  f32 sec;
 } Clock;
 
 typedef struct {
-  uxx permanent_memory_size;
-  uxx transient_memory_size;
-  u8 *permanent_memory_ptr;
-  u8 *transient_memory_ptr;
+  uxx memory_size;
+  u8 *memory_ptr;
 } Memory;
 
-#define KRUEGER_INIT_PROC(x) void x(Memory *memory)
+#define KRUEGER_INIT_PROC(x) void x(Memory *memory, Image *back_buffer)
 #define KRUEGER_FRAME_PROC(x) void x(Memory *memory, Image *back_buffer, Input *input, Clock *time)
 
 typedef KRUEGER_INIT_PROC(krueger_init_proc);

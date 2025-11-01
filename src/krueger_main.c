@@ -97,15 +97,12 @@ arena_alloc(uxx res_size) {
 }
 
 internal Memory
-memory_alloc(uxx permanent_memory_size, uxx transient_memory_size) {
-  uxx memory_block_size = permanent_memory_size + transient_memory_size;
-  u8 *memory_block_ptr = platform_reserve(memory_block_size);
-  platform_commit(memory_block_ptr, memory_block_size);
+memory_alloc(uxx memory_size) {
+  u8 *memory_ptr = platform_reserve(memory_size);
+  platform_commit(memory_ptr, memory_size);
   Memory result = {
-    .permanent_memory_size = permanent_memory_size,
-    .transient_memory_size = transient_memory_size,
-    .permanent_memory_ptr = memory_block_ptr,
-    .transient_memory_ptr = memory_block_ptr + permanent_memory_size,
+    .memory_size = memory_size,
+    .memory_ptr = memory_ptr,
   };
   return(result);
 }
@@ -151,21 +148,18 @@ main(void) {
       .back_buffer_h = BACK_BUFFER_HEIGHT,
     });
 
-    uxx permanent_memory_size = MB(64);
-    uxx transient_memory_size = MB(64);
-
-    Memory memory = memory_alloc(permanent_memory_size, transient_memory_size);
-    if (lib.krueger_init) lib.krueger_init(&memory);
-
+    Memory memory = memory_alloc(GB(1));
     Image back_buffer = image_alloc(BACK_BUFFER_WIDTH, BACK_BUFFER_HEIGHT);
     Input input = {0};
     Clock time = {0};
-    
+
     Platform_Display_Info display_info = platform_get_display_info();
     time.dt = 1.0f/display_info.refresh_rate;
 
+    if (lib.krueger_init) lib.krueger_init(&memory, &back_buffer);
     u64 time_start = platform_get_time_us();
-    for (b32 quit = false, pause = false; !quit;) {
+
+    for (b32 quit = false; !quit;) {
       platform_update_window_events();
       for (u32 i = 0; i < platform_events.len; ++i) {
         Platform_Event base_event = platform_events.items[i];
@@ -184,24 +178,22 @@ main(void) {
       }
 
       if (input.kbd[KEY_Q].pressed) quit = true;
-      if (input.kbd[KEY_P].pressed) pause = !pause;
-
       if (input.kbd[KEY_R].pressed) {
         libkrueger_unload(lib);
         lib = libkrueger_load(dst_lib_path, src_lib_path);
       }
 
-      if (!pause) {
-        if (lib.krueger_frame) lib.krueger_frame(&memory, &back_buffer, &input, &time);
-        wait_to_flip(time.dt, time_start);
+      if (lib.krueger_frame) lib.krueger_frame(&memory, &back_buffer, &input, &time);
+      wait_to_flip(time.dt, time_start);
 
-        u64 time_end = platform_get_time_us();
-        time.dt_us = time_end - time_start;
-        time_start = time_end;
+      u64 time_end = platform_get_time_us();
+      time.dt_us = time_end - time_start;
+      time.dt_ms = time.dt_us/thousand(1.0f);
+      time.ms += time.dt_ms;
+      time.sec += time.dt;
+      time_start = time_end;
 
-        platform_display_back_buffer(back_buffer.pixels, back_buffer.width, back_buffer.height);
-      }
-
+      platform_display_back_buffer(back_buffer.pixels, back_buffer.width, back_buffer.height);
       input_reset(&input);
     }
 

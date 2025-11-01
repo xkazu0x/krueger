@@ -1,6 +1,38 @@
 #ifndef KRUEGER_GFX_C
 #define KRUEGER_GFX_C
 
+typedef struct {
+  char *chars;
+  u32 num_chars_x;
+  u32 num_chars_y;
+  u32 glyph_w;
+  u32 glyph_h;
+  Image image;
+} Font;
+
+internal Font
+make_font(char *chars, u32 num_chars_x, u32 num_chars_y, 
+          Image image, u32 glyph_w, u32 glyph_h) {
+  Font result = {
+    .chars = chars,
+    .num_chars_x = num_chars_x,
+    .num_chars_y = num_chars_y,
+    .glyph_w = glyph_w,
+    .glyph_h = glyph_h,
+    .image = image,
+  };
+  return(result);
+}
+
+internal Image
+font_get_glyph(Font font, char c) {
+  u32 char_index = (u32)cstr_index_of(font.chars, c);
+  u32 tile_x = font.glyph_w*(char_index%font.num_chars_x);
+  u32 tile_y = font.glyph_h*(char_index/font.num_chars_x);
+  Image result = make_subimage(font.image, tile_x, tile_y, font.glyph_w, font.glyph_h);
+  return(result);
+}
+
 internal u32
 alpha_linear_blend(u32 dst, u32 src) {
   u8 r0 = mask_red(dst); 
@@ -451,8 +483,6 @@ draw_texturexc(Image dst, Image src,
     }
   }
 }
-
-internal Image font_get_glyph(Font font, char c);
 
 internal void
 draw_text(Image image,
