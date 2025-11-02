@@ -34,6 +34,7 @@ internal void *platform_read_entire_file(Arena *arena, char *path);
 internal void platform_core_init(void);
 internal void platform_core_shutdown(void);
 
+internal Date_Time platform_get_date_time(void);
 internal String8 platform_get_exec_file_path(Arena *arena);
 internal Platform_Display_Info platform_get_display_info(void);
 

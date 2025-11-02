@@ -65,6 +65,7 @@
 
 #define mem_zero(dst, size)  mem_set((dst), 0, (size))
 #define mem_zero_struct(dst) mem_zero((dst), sizeof(*(dst)))
+#define mem_zero_array(dst, count) mem_zero((dst), sizeof(*(dst))*(count));
 
 #define swap_t(T, a, b) do { T t__ = a; a = b; b = t__; } while (0)
 #define sign_t(T, x) ((T)((x) > 0) - (T)((x) < 0))
@@ -127,5 +128,23 @@ global f64 pi64 = 3.141592653589793;
 
 global f32 tau32 = 6.283185307179586f;
 global f64 tau64 = 6.283185307179586;
+
+/////////////
+// NOTE: Time
+
+typedef struct {
+  u16 year;
+  u16 month;
+  u16 day;
+  u16 hour;
+  u16 min;
+  u16 sec;
+  u16 msec;
+} Date_Time;
+
+typedef u64 Dense_Time;
+
+internal Dense_Time dense_time_from_date_time(Date_Time time);
+internal Date_Time date_time_from_dense_time(Dense_Time time);
 
 #endif // KRUEGER_BASE_CORE_H

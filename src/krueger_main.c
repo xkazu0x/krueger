@@ -153,9 +153,12 @@ main(void) {
     Input input = {0};
     Clock time = {0};
 
-    // Platform_Display_Info display_info = platform_get_display_info();
-    // time.dt = 1.0f/display_info.refresh_rate;
+#if 1
+    Platform_Display_Info display_info = platform_get_display_info();
+    time.dt = 1.0f/display_info.refresh_rate;
+#else
     time.dt = 1.0f/30.0f;
+#endif
 
     if (lib.krueger_init) lib.krueger_init(&memory, &back_buffer);
     u64 time_start = platform_get_time_us();

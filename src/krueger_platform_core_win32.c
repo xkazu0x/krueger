@@ -14,6 +14,22 @@ platform_core_shutdown(void) {
   timeEndPeriod(1);
 }
 
+internal Date_Time
+platform_get_date_time(void) {
+  SYSTEMTIME system;
+  GetSystemTime(&system);
+  Date_Time result = {
+    .year  = system.wYear,
+    .month = system.wMonth,
+    .day   = system.wDay,
+    .hour  = system.wHour,
+    .min   = system.wMinute,
+    .sec   = system.wSecond,
+    .msec  = system.wMilliseconds,
+  };
+  return(result);
+}
+
 internal String8
 platform_get_exec_file_path(Arena *arena) {
   char path[MAX_PATH];

@@ -6,9 +6,9 @@
 #endif
 
 #include "krueger_base_context.h"
-#include "krueger_base_core.h"
 #include "krueger_base_array.h"
 
+#include "krueger_base_core.h"
 #include "krueger_base_math.h"
 #include "krueger_base_arena.h"
 #include "krueger_base_string.h"
