@@ -1,14 +1,12 @@
 #include "krueger_base.h"
 #include "krueger_platform.h"
 #include "krueger_shared.h"
+#include "krueger_random.h"
 
 #include "krueger_base.c"
 #include "krueger_platform.c"
 
-#include <time.h>
-
 // TODO:
-// - replace random number generator
 // - endless flame ship particles
 // - explosion particles when killing enemies
 // - more enemies
@@ -196,6 +194,7 @@ typedef struct {
 } Entity;
 
 typedef struct {
+  Random_Series entropy;
   Arena perm_arena;
   Arena temp_arena;
   Image font_image;
@@ -393,33 +392,13 @@ draw_circle_line(Image dst,
 
 internal void
 draw_circle_fill(Image dst,
-                 s32 cx, s32 cy, s32 r,
+                 s32 cx, s32 cy, f32 r,
                  u32 color) {
-  r = abs_t(s32, r);
-  s32 min_x = clamp_bot(0, cx - r);
-  s32 min_y = clamp_bot(0, cy - r);
-  s32 max_x = clamp_top(cx + r, (s32)dst.width);
-  s32 max_y = clamp_top(cy + r, (s32)dst.height);
-  for (s32 y = min_y; y < max_y; ++y) {
-    s32 dy = y - cy;
-    for (s32 x = min_x; x < max_x; ++x) {
-      s32 dx = x - cx;
-      if (dx*dx + dy*dy < r*r) {
-        dst.pixels[y*dst.pitch + x] = color;
-      }
-    }
-  }
-}
-
-internal void
-draw_circle_fill_f32(Image dst,
-                     f32 cx, f32 cy, f32 r,
-                     u32 color) {
   r = abs_t(f32, r);
-  s32 min_x = (s32)clamp_bot(0, floor_f32(cx - r));
-  s32 min_y = (s32)clamp_bot(0, floor_f32(cy - r));
-  s32 max_x = (s32)clamp_top(ceil_f32(cx + r), dst.width);
-  s32 max_y = (s32)clamp_top(ceil_f32(cy + r), dst.height);
+  s32 min_x = clamp_bot(0, cx - round_t(s32, r));
+  s32 min_y = clamp_bot(0, cy - round_t(s32, r));
+  s32 max_x = clamp_top(cx + round_t(s32, r), (s32)dst.width);
+  s32 max_y = clamp_top(cy + round_t(s32, r), (s32)dst.height);
   for (s32 y = min_y; y < max_y; ++y) {
     f32 dy = (y + 0.5f) - cy;
     for (s32 x = min_x; x < max_x; ++x) {
@@ -429,11 +408,6 @@ draw_circle_fill_f32(Image dst,
       }
     }
   }
-}
-
-internal void
-draw_circle_fill_vec(Image dst, Vector2 center, f32 r, u32 color) {
-  draw_circle_fill_f32(dst, center.x, center.y, r, color);
 }
 
 internal void
@@ -618,6 +592,10 @@ KRUEGER_INIT_PROC(krueger_init) {
   assert(sizeof(Game_State) <= memory->memory_size);
   Game_State *state = (Game_State *)memory->memory_ptr;
 
+  Date_Time date_time = platform_get_date_time();
+  Dense_Time dense_time = dense_time_from_date_time(date_time);
+  state->entropy = random_seed((u32)dense_time);
+
   uxx half_memory_size = memory->memory_size/2;
   uxx perm_memory_size = half_memory_size - sizeof(Game_State);
   uxx temp_memory_size = half_memory_size;
@@ -630,6 +608,7 @@ KRUEGER_INIT_PROC(krueger_init) {
 
   state->font_image = load_bmp("../res/pico8_font.bmp", &state->perm_arena, &state->temp_arena);
   state->sprites_image = load_bmp("../res/sprites.bmp", &state->perm_arena, &state->temp_arena);
+
   state->font_sheet = make_sprite_sheet(state->font_image, 4, 6, 16, 6);
   state->sprite_sheet = make_sprite_sheet(state->sprites_image, 8, 8, 16, 16);
 
@@ -670,7 +649,7 @@ KRUEGER_INIT_PROC(krueger_init) {
   state->enemy.is_alive = true;
   state->enemy.speed = 32.0f;
   state->enemy.size = make_vector2(state->tile_size, state->tile_size);
-  state->enemy.pos.x = (f32)(rand() % back_buffer->width);
+  state->enemy.pos.x = random_unilateral(&state->entropy)*back_buffer->width;
   state->enemy.pos.y = -state->tile_size;
   state->enemy.dpos = make_vector2(0.0f, 1.0f);
   state->enemy_max_hp = 3;
@@ -685,17 +664,13 @@ KRUEGER_INIT_PROC(krueger_init) {
   state->stars = push_array(&state->perm_arena, Entity, state->max_star_count);
   mem_zero_array(state->stars, state->max_star_count);
 
-  Date_Time date_time = platform_get_date_time();
-  Dense_Time dense_time = dense_time_from_date_time(date_time);
-
-  srand((u32)dense_time);
   for (u32 i = 0; i < state->max_star_count; ++i) {
     Entity *star = state->stars + i;
     star->is_alive = true;
-    star->radius = (f32)(rand() % 3);
-    star->speed = (f32)(20 + rand() % (50 - 20));
-    star->pos.x = (f32)(rand() % back_buffer->width);
-    star->pos.y = (f32)(rand() % back_buffer->height);
+    star->radius = (f32)random_choice(&state->entropy, 3);
+    star->speed = random_range(&state->entropy, 20.0f, 50.0f);
+    star->pos.x = random_unilateral(&state->entropy)*back_buffer->width;
+    star->pos.y = random_unilateral(&state->entropy)*back_buffer->height;
     star->dpos = make_vector2(0.0f, -1.0f);
   }
 
@@ -811,7 +786,7 @@ KRUEGER_FRAME_PROC(krueger_frame) {
     Vector2 enemy_dpos = vector2_mul(state->enemy.dpos, state->enemy.speed*time->dt_sec);
     state->enemy.pos = vector2_add(state->enemy.pos, enemy_dpos);
     if(state->enemy.pos.y > draw_buffer.height + state->tile_size*2.0f) {
-      state->enemy.pos.x = (f32)(rand() % back_buffer->width);
+      state->enemy.pos.x = random_unilateral(&state->entropy)*back_buffer->width;
       state->enemy.pos.y = -(state->tile_size*2.0f);
     }
     if (state->flash_t > 0.0f) {
@@ -830,7 +805,7 @@ KRUEGER_FRAME_PROC(krueger_frame) {
         }
         state->enemy_hp = 0;
         if (state->enemy_hp <= 0) {
-          state->enemy.pos.x = (f32)(rand() % back_buffer->width);
+          state->enemy.pos.x = random_unilateral(&state->entropy)*back_buffer->width;
           state->enemy.pos.y = -state->tile_size;
           state->enemy_hp = state->enemy_max_hp;
           // state->enemy.is_alive = false;
@@ -851,7 +826,7 @@ KRUEGER_FRAME_PROC(krueger_frame) {
         state->enemy_hp -= 1;
         if (state->enemy_hp <= 0) {
           // state->enemy.is_alive = false;
-          state->enemy.pos.x = (f32)(rand() % back_buffer->width);
+          state->enemy.pos.x = random_unilateral(&state->entropy)*back_buffer->width;
           state->enemy.pos.y = -state->tile_size;
           state->enemy_hp = state->enemy_max_hp;
           state->score += 100;
@@ -865,7 +840,7 @@ KRUEGER_FRAME_PROC(krueger_frame) {
     Entity *star = state->stars + i;
     star->pos.y += star->speed*time->dt_sec;
     if (star->pos.y - state->tile_size > (f32)draw_buffer.height) {
-      star->pos.x = (f32)(rand() % back_buffer->width);
+      star->pos.x = random_unilateral(&state->entropy)*back_buffer->width;
       star->pos.y = -star->radius;
     }
   }
@@ -889,7 +864,8 @@ KRUEGER_FRAME_PROC(krueger_frame) {
                        (s32)star->pos.x, (s32)star->pos.y,
                        (s32)star->radius, color);
     } else {
-      draw_circle_fill_vec(draw_buffer, star->pos, star->radius, color);
+      draw_circle_fill(draw_buffer, (s32)star->pos.x, (s32)star->pos.y,
+                       star->radius, color);
     }
   }
 
@@ -918,7 +894,8 @@ KRUEGER_FRAME_PROC(krueger_frame) {
     if (state->r < 0.0f) state->r = 0.0f;
     Vector2 pos = state->player.pos;
     pos.y -= 4.5f;
-    draw_circle_fill_vec(draw_buffer, pos, state->r, CP_WHITE);
+    draw_circle_fill(draw_buffer, (s32)pos.x, (s32)pos.y,
+                     state->r, CP_WHITE);
   }
 
   // NOTE: draw player
@@ -979,7 +956,7 @@ KRUEGER_FRAME_PROC(krueger_frame) {
   {
     s32 x = draw_buffer.width/2;
     s32 y = draw_buffer.height/3;
-    draw_text_align(draw_buffer, state->font, str8_lit("STAR FIGHTER"),
+    draw_text_align(draw_buffer, state->font, str8_lit("STARFIGHTER"),
                     x, y, 0.5f, 0.5f, CP_WHITE);
 
     y = draw_buffer.height - y;

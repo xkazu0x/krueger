@@ -7,7 +7,7 @@
 #include "krueger_base.c"
 #include "krueger_platform.c"
 
-#define WINDOW_TITLE "STAR FIGHTER"
+#define WINDOW_TITLE "STARFIGHTER"
 #define WINDOW_SCALE  5
 
 #define BACK_BUFFER_WIDTH  128
