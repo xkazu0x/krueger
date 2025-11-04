@@ -12,7 +12,7 @@ typedef struct {
   uxx cmt_size;
 } Temp;
 
-#define arena_push_array(a, T, c) (T *)arena_push((a), sizeof(T)*(c))
+#define push_array(a, T, c) (T *)arena_push((a), sizeof(T)*(c))
 internal Arena make_arena(u8 *buf, uxx res_size);
 internal void *arena_push(Arena *arena, uxx cmt_size);
 internal void arena_clear(Arena *arena);

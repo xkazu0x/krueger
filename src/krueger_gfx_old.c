@@ -1,6 +1,12 @@
 #ifndef KRUEGER_GFX_C
 #define KRUEGER_GFX_C
 
+#define mask_alpha(x) (((x) >> 24) & 0xFF)
+#define mask_red(x)   (((x) >> 16) & 0xFF)
+#define mask_green(x) (((x) >>  8) & 0xFF)
+#define mask_blue(x)  (((x) >>  0) & 0xFF)
+#define pack_rgba32(r, g, b, a) ((a << 24) | (r << 16) | (g << 8) | (b << 0))
+
 typedef struct {
   char *chars;
   u32 num_chars_x;

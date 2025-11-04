@@ -35,7 +35,7 @@ platform_get_exec_file_path(Arena *arena) {
   char path[MAX_PATH];
   GetModuleFileName(0, path, MAX_PATH);
   uxx len = cstr_len(path);
-  u8 *str = arena_push_array(arena, u8, len);
+  u8 *str = push_array(arena, u8, len);
   mem_cpy(str, path, len);
   String8 result = make_str8(str, len);
   return(result);
@@ -100,17 +100,17 @@ platform_file_close(Platform_Handle file) {
   CloseHandle(handle);
 }
 
-internal u64
+internal u32
 platform_file_read(Platform_Handle file, void *buffer, u64 size) {
-  u64 read_size = 0;
+  u32 read_size = 0;
   HANDLE handle = (HANDLE)file.ptr[0];
   ReadFile(handle, buffer, (DWORD)size, (DWORD *)&read_size, 0);
   return(read_size);
 }
 
-internal u64
+internal u32
 platform_file_write(Platform_Handle file, void *buffer, u64 size) {
-  u64 write_size = 0;
+  u32 write_size = 0;
   HANDLE handle = (HANDLE)file.ptr[0];
   WriteFile(handle, buffer, (DWORD)size, (DWORD *)&write_size, 0);
   return(write_size);

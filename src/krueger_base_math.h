@@ -25,6 +25,7 @@ typedef union {
   f32 buf[2];
 } Vector2;
 
+#define vec2(x, y) ((Vector2){{(x), (y)}})
 internal Vector2 make_vector2(f32 x, f32 y);
 internal Vector2 vector2_add(Vector2 a, Vector2 b);
 internal Vector2 vector2_sub(Vector2 a, Vector2 b);
@@ -58,6 +59,7 @@ typedef union {
   f32 buf[3];
 } Vector3;
 
+#define vec3(x, y, z) ((Vector2){{(x), (y), (z)}})
 internal Vector3 make_vector3(f32 x, f32 y, f32 z);
 internal Vector3 vector3_add(Vector3 a, Vector3 b);
 internal Vector3 vector3_sub(Vector3 a, Vector3 b);
@@ -100,6 +102,7 @@ typedef union {
   f32 buf[4];
 } Vector4;
 
+#define vec4(x, y, z, w) ((Vector2){{(x), (y), (z), (w)}})
 internal Vector4 make_vector4(f32 x, f32 y, f32 z, f32 w);
 internal Vector4 vector4_from_vector3(Vector3 v, f32 w);
 internal Vector4 vector4_add(Vector4 a, Vector4 b);

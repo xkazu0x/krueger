@@ -4,6 +4,7 @@
 typedef u32 Keycode;
 enum {
   KEY_NULL,
+  KEY_ESCAPE,
 
   KEY_F1,
   KEY_F2,

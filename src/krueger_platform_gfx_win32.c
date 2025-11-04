@@ -21,6 +21,7 @@ win32_translate_keycode(u32 keycode) {
   Keycode result = KEY_NULL;
   switch (keycode) {
 
+    case VK_ESCAPE: result = KEY_ESCAPE; break;
     case VK_F1: result = KEY_F1; break;
     case VK_F2: result = KEY_F2; break;
     case VK_F3: result = KEY_F3; break;
@@ -140,10 +141,10 @@ platform_create_window(Platform_Window_Desc *desc) {
                                 window_w, window_h,
                                 0, 0, window_instance, 0);
   ShowWindow(window, SW_SHOW);
-  
+
   s32 back_buffer_w = desc->back_buffer_w;
   s32 back_buffer_h = desc->back_buffer_h;
-  
+
   BITMAPINFO bitmap_info = {
     .bmiHeader.biSize = sizeof(BITMAPINFOHEADER),
     .bmiHeader.biWidth = back_buffer_w,
@@ -172,10 +173,24 @@ platform_display_back_buffer(u32 *buffer, s32 buffer_w, s32 buffer_h) {
   GetClientRect(window, &client_rectangle);
   s32 window_w = client_rectangle.right - client_rectangle.left;
   s32 window_h = client_rectangle.bottom - client_rectangle.top;
+ 
+  s32 display_w = (s32)floor_f32((buffer_w*((f32)window_h/(f32)buffer_h)));
+  s32 display_h = (s32)floor_f32((buffer_h*((f32)window_w/(f32)buffer_w)));
+
+  s32 offset_x = (window_w - display_w)/2;
+  s32 offset_y = (window_h - display_h)/2;
+
+  if (window_w >= display_w) {
+    display_h = window_h;
+    offset_y = 0;
+  } else if (window_h >= display_h) {
+    display_w = window_w;
+    offset_x = 0;
+  }
 
   HDC window_device = GetDC(window);
   StretchDIBits(window_device,
-                0, 0, window_w, window_h,
+                offset_x, offset_y, display_w, display_h,
                 0, 0, buffer_w, buffer_h,
                 buffer, bitmap_info,
                 DIB_RGB_COLORS, SRCCOPY);
@@ -189,13 +204,11 @@ platform_update_window_events(void) {
   while (PeekMessageA(&message, 0, 0, 0, PM_REMOVE)) {
     switch (message.message) {
       case WM_QUIT: {
-        Platform_Event_Quit quit_event = {
-          .type = PLATFORM_EVENT_QUIT,
-        };
-        Platform_Event push_event = {
-          .type = quit_event.type,
-          .quit = quit_event,
-        };
+        Platform_Event_Quit quit_event = {0};
+        quit_event.type = PLATFORM_EVENT_QUIT;
+        Platform_Event push_event = {0};
+        push_event.type = quit_event.type;
+        push_event.quit = quit_event;
         arr_push(&platform_events, push_event);
       } break;
       case WM_SYSKEYDOWN:
@@ -204,14 +217,12 @@ platform_update_window_events(void) {
       case WM_KEYUP: {
         b32 is_down = ((message.lParam&(1<<31)) == 0);
         Keycode keycode = win32_translate_keycode((u32)message.wParam);
-        Platform_Event_Key key_event = {
-          .type = (is_down) ? PLATFORM_EVENT_KEY_PRESS : PLATFORM_EVENT_KEY_RELEASE,
-          .keycode = keycode,
-        };
-        Platform_Event push_event = {
-          .type = key_event.type,
-          .key = key_event,
-        };
+        Platform_Event_Key key_event = {0};
+        key_event.type = (is_down) ? PLATFORM_EVENT_KEY_PRESS : PLATFORM_EVENT_KEY_RELEASE;
+        key_event.keycode = keycode;
+        Platform_Event push_event = {0};
+        push_event.type = key_event.type;
+        push_event.key = key_event;
         arr_push(&platform_events, push_event);
         TranslateMessage(&message);
         DispatchMessageA(&message);
@@ -221,6 +232,32 @@ platform_update_window_events(void) {
         DispatchMessageA(&message);
       }
     }
+  }
+}
+
+internal void
+platform_toggle_window_mode(void) {
+  HWND window = win32_gfx_state.window;
+  WINDOWPLACEMENT *placement = &win32_gfx_state.placement;
+  DWORD window_style = GetWindowLong(window, GWL_STYLE);
+  if (window_style & WS_OVERLAPPEDWINDOW) {
+    MONITORINFO monitor_info = {};
+    monitor_info.cbSize = sizeof(monitor_info);
+    if (GetWindowPlacement(window, placement) &&
+      GetMonitorInfo(MonitorFromWindow(window, MONITOR_DEFAULTTOPRIMARY), &monitor_info)) {
+      SetWindowLong(window, GWL_STYLE, (window_style & ~(WS_OVERLAPPEDWINDOW)) | WS_POPUP);
+      SetWindowPos(window, HWND_TOP,
+                   monitor_info.rcMonitor.left, monitor_info.rcMonitor.top,
+                   monitor_info.rcMonitor.right - monitor_info.rcMonitor.left,
+                   monitor_info.rcMonitor.bottom - monitor_info.rcMonitor.top,
+                   SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+    }
+  } else {
+    SetWindowLongPtr(window, GWL_STYLE, (window_style & ~(WS_POPUP)) | WS_OVERLAPPEDWINDOW);
+    SetWindowPlacement(window, placement);
+    SetWindowPos(window, 0, 0, 0, 0, 0,
+                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
+                 SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
   }
 }
 

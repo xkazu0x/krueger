@@ -43,11 +43,13 @@ typedef struct {
 } Input;
 
 typedef struct {
-  u64 dt_us;
-  f32 dt_ms;
-  f32 dt;
-  f32 ms;
-  f32 sec;
+  // NOTE: this is the one that is supposed
+  // to be used to calculate physics.
+  f32 dt_sec;
+
+  // NOTE: this is the real time per frame
+  f32 _dt_ms;
+  u64 _dt_us;
 } Clock;
 
 typedef struct {

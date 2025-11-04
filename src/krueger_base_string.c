@@ -191,10 +191,23 @@ internal String8
 str8_cat(Arena *arena, String8 a, String8 b) {
   String8 result;
   result.len = a.len + b.len,
-  result.str = arena_push_array(arena, u8, result.len + 1);
+  result.str = push_array(arena, u8, result.len + 1);
   mem_cpy(result.str, a.str, a.len);
   mem_cpy(result.str + a.len, b.str, b.len);
   result.str[result.len] = 0;
+  return(result);
+}
+
+internal String8
+str8_fmt(Arena *arena, char *fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+  u32 size = vsnprintf(0, 0, fmt, args) + 1;
+  String8 result = {0};
+  result.str = push_array(arena, u8, size);
+  result.len = vsnprintf((char *)result.str, size, fmt, args);
+  result.str[result.len] = 0;
+  va_end(args);
   return(result);
 }
 

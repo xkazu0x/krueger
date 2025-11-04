@@ -17,7 +17,7 @@ enum {
 };
 
 typedef struct {
-  u64 ptr[1];
+  uxx ptr[1];
 } Platform_Handle;
 
 #define PLATFORM_HANDLE_NULL ((Platform_Handle){0})
@@ -45,8 +45,8 @@ internal void platform_release(void *ptr, uxx size);
 
 internal Platform_Handle platform_file_open(char *filepath, Platform_File_Flags flags);
 internal void platform_file_close(Platform_Handle file);
-internal u64 platform_file_read(Platform_Handle file, void *buffer, u64 size);
-internal u64 platform_file_write(Platform_Handle file, void *buffer, u64 size);
+internal u32 platform_file_read(Platform_Handle file, void *buffer, u64 size);
+internal u32 platform_file_write(Platform_Handle file, void *buffer, u64 size);
 internal u64 platform_get_file_size(Platform_Handle file);
 internal b32 platform_copy_file_path(char *dst, char *src);
 

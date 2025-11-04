@@ -12,7 +12,7 @@ log_msg(Log_Type type, char *msg, ...) {
   va_end(arg_list);
 
   sprintf(print_buf, "%s %s\n", log_types_str[type], msg_buf);
-  printf(print_buf);
+  printf("%s", print_buf);
 }
 
 #endif // KRUEGER_BASE_LOG_C

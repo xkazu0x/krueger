@@ -30,7 +30,7 @@ internal uxx cstr_encode(char *cstr);
 ////////////////////////////
 // NOTE: String Constructors
 
-#define str8_comp(str, len) ((String8){(len), (str)})
+#define str8(str, len) ((String8){(len), (str)})
 #define str8_lit(s) make_str8((u8 *)(s), sizeof(s) - 1)
 internal String8 make_str8(u8 *str, uxx len);
 internal String8 str8_range(u8 *first, u8 *last);
@@ -55,5 +55,7 @@ internal String8 str8_chop(String8 str, uxx amt);
 // NOTE: String Formatting
 
 internal String8 str8_cat(Arena *arena, String8 a, String8 b);
+internal String8 str8_fmt(Arena *arena, char *fmt, ...);
+#define push_str8_fmt(arena, ...) str8_fmt((arena), __VA_ARGS__);
 
 #endif // KRUEGER_BASE_STRING_H

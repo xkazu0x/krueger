@@ -7,7 +7,7 @@
 #include "krueger_base.c"
 #include "krueger_platform.c"
 
-#define WINDOW_TITLE "krueger"
+#define WINDOW_TITLE "STAR FIGHTER"
 #define WINDOW_SCALE  5
 
 #define BACK_BUFFER_WIDTH  128
@@ -155,9 +155,9 @@ main(void) {
 
 #if 1
     Platform_Display_Info display_info = platform_get_display_info();
-    time.dt = 1.0f/display_info.refresh_rate;
+    time.dt_sec = 1.0f/display_info.refresh_rate;
 #else
-    time.dt = 1.0f/30.0f;
+    time.dt_sec = 1.0f/30.0f;
 #endif
 
     if (lib.krueger_init) lib.krueger_init(&memory, &back_buffer);
@@ -182,29 +182,30 @@ main(void) {
       }
 
       if (input.kbd[KEY_Q].pressed) quit = true;
-      if (input.kbd[KEY_R].pressed) {
+      if (input.kbd[KEY_F11].pressed) platform_toggle_window_mode();
+
+      if (input.kbd[KEY_F4].pressed) {
         libkrueger_unload(lib);
         lib = libkrueger_load(dst_lib_path, src_lib_path);
       }
 
       if (lib.krueger_frame) lib.krueger_frame(&memory, &back_buffer, &input, &time);
-      wait_to_flip(time.dt, time_start);
+      wait_to_flip(time.dt_sec, time_start);
 
       u64 time_end = platform_get_time_us();
-      time.dt_us = time_end - time_start;
-      time.dt_ms = time.dt_us/thousand(1.0f);
-      time.ms += time.dt_ms;
-      time.sec += time.dt;
+      time._dt_us = time_end - time_start;
+      time._dt_ms = time._dt_us/thousand(1.0f);
       time_start = time_end;
 
       platform_display_back_buffer(back_buffer.pixels, back_buffer.width, back_buffer.height);
       input_reset(&input);
     }
 
-    platform_destroy_window();
+    // platform_destroy_window();
+    // IMPORTANT: Windows starts treating this as a trojan
+    // because... I don't know why.
     libkrueger_unload(lib);
   }
-
   platform_core_shutdown();
   return(0);
 }

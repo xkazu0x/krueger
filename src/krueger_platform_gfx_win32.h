@@ -7,6 +7,7 @@
 typedef struct {
   HWND window;
   BITMAPINFO bitmap_info;
+  WINDOWPLACEMENT placement;
 } Win32_Gfx_State;
 
 ///////////////////////////////////
