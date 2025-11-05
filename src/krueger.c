@@ -1,10 +1,12 @@
 #include "krueger_base.h"
 #include "krueger_platform.h"
-#include "krueger_shared.h"
 #include "krueger_random.h"
 
 #include "krueger_base.c"
 #include "krueger_platform.c"
+#include "krueger_random.c"
+
+#include "krueger_shared.h"
 
 // TODO:
 // - endless flame ship particles
@@ -194,6 +196,19 @@ typedef struct {
 } Entity;
 
 typedef struct {
+  u32 color;
+  f32 age;
+  f32 max_age;
+  f32 radius;
+  f32 dradius;
+  f32 max_speed;
+  f32 speed;
+  f32 dspeed;
+  Vector2 pos;
+  Vector2 dpos;
+} Particle;
+
+typedef struct {
   Random_Series entropy;
   Arena perm_arena;
   Arena temp_arena;
@@ -221,6 +236,13 @@ typedef struct {
   f32 flash_cd;
 
   Entity player;
+
+  u32 next_particle;
+  u32 max_particle_count;
+  Particle *particles;
+
+  u32 next_explosion_particle;
+  Particle explosion_particles[256];
 
   u32 sprite_index;
   u32 sprite_count_x;
@@ -642,6 +664,9 @@ KRUEGER_INIT_PROC(krueger_init) {
   state->player.pos = make_vector2(back_buffer->width/2.0f, back_buffer->height/2.0f);
   state->player.dpos = make_vector2(0.0f, 0.0f);
 
+  state->max_particle_count = 64;
+  state->particles = push_array(&state->perm_arena, Particle, state->max_particle_count);
+
   state->sprite_index = 48;
   state->sprite_count_x = 1;
   state->sprite_count_y = 2;
@@ -701,17 +726,97 @@ entity_collide(Entity a, Entity b) {
   return(result);
 }
 
+internal void
+add_explosion_particles(Game_State *state) {
+#if 1
+  for (u32 j = 0; j < 4; ++j) {
+    Particle *particle = state->explosion_particles + state->next_explosion_particle++;
+    if (state->next_explosion_particle >= array_count(state->explosion_particles)) {
+      state->next_explosion_particle = 0;
+    }
+    particle->speed = 60.0f;
+    particle->pos = state->enemy.pos;
+    particle->pos.y += random_range(&state->entropy, -4.0f, 2.0f);
+    particle->dpos = make_vector2(random_range(&state->entropy, -0.3f, 0.3f),
+                                  -0.5f);
+    particle->color = CP_DARK_RED;
+    particle->radius = random_range(&state->entropy, 8.0f, 12.0f);
+    particle->dradius = -5.0f;
+  }
+  for (u32 j = 0; j < 2; ++j) {
+    Particle *particle = state->explosion_particles + state->next_explosion_particle++;
+    if (state->next_explosion_particle >= array_count(state->explosion_particles)) {
+      state->next_explosion_particle = 0;
+    }
+    particle->speed = 40.0f;
+    particle->pos = state->enemy.pos;
+    particle->pos.y += random_range(&state->entropy, -6.0f, 2.0f);
+    particle->dpos = make_vector2(random_range(&state->entropy, -0.3f, 0.3f),
+                                  -0.5f);
+    particle->color = CP_RED;
+    particle->radius = random_range(&state->entropy, 8.0f, 10.0f);
+    particle->dradius = -5.0f;
+  }
+  for (u32 j = 0; j < 3; ++j) {
+    Particle *particle = state->explosion_particles + state->next_explosion_particle++;
+    if (state->next_explosion_particle >= array_count(state->explosion_particles)) {
+      state->next_explosion_particle = 0;
+    }
+    particle->speed = 40.0f;
+    particle->pos = state->enemy.pos;
+    particle->dpos = make_vector2(random_range(&state->entropy, -0.2f, 0.2f),
+                                  -random_unilateral(&state->entropy));
+    particle->color = CP_ORANGE;
+    particle->radius = random_range(&state->entropy, 8.0f, 10.0f);
+    particle->dradius = -10.0f;
+  }
+  for (u32 j = 0; j < 3; ++j) {
+    Particle *particle = state->explosion_particles + state->next_explosion_particle++;
+    if (state->next_explosion_particle >= array_count(state->explosion_particles)) {
+      state->next_explosion_particle = 0;
+    }
+    particle->speed = 20.0f;
+    particle->pos = state->enemy.pos;
+    particle->dpos = make_vector2(random_range(&state->entropy, -0.2f, 0.2f),
+                                  -random_unilateral(&state->entropy));
+    particle->color = CP_YELLOW;
+    particle->radius = random_range(&state->entropy, 4.0f, 6.0f);
+    particle->dradius = -4.0f;
+  }
+  #else
+  u32 color_table[] = {
+    CP_DARK_BROWN,
+    CP_DARK_RED,
+    CP_RED,
+    CP_ORANGE,
+    CP_YELLOW,
+  };
+  for (u32 j = 0; j < 16; ++j) {
+    Particle *particle = state->explosion_particles + state->next_explosion_particle++;
+    if (state->next_explosion_particle >= array_count(state->explosion_particles)) {
+      state->next_explosion_particle = 0;
+    }
+    particle->speed = random_range(&state->entropy, 50.0f, 100.0f);
+    particle->pos = state->enemy.pos;
+    particle->dpos = make_vector2(random_bilateral(&state->entropy),
+                                  random_bilateral(&state->entropy));
+    u32 color_index = random_choice(&state->entropy, array_count(color_table));
+    particle->color = color_table[color_index];
+    particle->radius = random_range(&state->entropy, 4.0f, 8.0f);
+    particle->dradius = random_range(&state->entropy, -8.0f, -4.0f);
+  }
+#endif
+}
+
 shared_function
 KRUEGER_FRAME_PROC(krueger_frame) {
   Game_State *state = (Game_State *)memory->memory_ptr;
   Digital_Button *kbd = input->kbd;
   Image draw_buffer = *back_buffer;
-  // image_clear(draw_buffer, 0xFF00FF);
-  // s32 dw = (s32)(draw_buffer.width*0.6f);
-  // draw_buffer = make_subimage(draw_buffer, 0, 0, dw, draw_buffer.height);
-  
+
   /////////////////////
   // NOTE: begin update
+  state->sec += time->dt_sec;
 
   // NOTE: update player
   if (state->player.is_alive) {
@@ -799,16 +904,16 @@ KRUEGER_FRAME_PROC(krueger_frame) {
     if (state->enemy.is_alive && state->player.is_alive) {
       if (entity_collide(state->enemy, state->player)) {
         state->invul_t = state->invul_cd;
-        state->hp -= 1;
+        // state->hp -= 1;
         if (state->hp <= 0) {
           state->player.is_alive = false;
         }
         state->enemy_hp = 0;
         if (state->enemy_hp <= 0) {
+          // state->enemy.is_alive = false;
           state->enemy.pos.x = random_unilateral(&state->entropy)*back_buffer->width;
           state->enemy.pos.y = -state->tile_size;
           state->enemy_hp = state->enemy_max_hp;
-          // state->enemy.is_alive = false;
         }
       }
     }
@@ -825,6 +930,38 @@ KRUEGER_FRAME_PROC(krueger_frame) {
         state->flash_t = state->flash_cd;
         state->enemy_hp -= 1;
         if (state->enemy_hp <= 0) {
+          {
+            Particle *particle = state->explosion_particles + state->next_explosion_particle++;
+            if (state->next_explosion_particle >= array_count(state->explosion_particles)) {
+              state->next_explosion_particle = 0;
+            }
+            particle->color = CP_WHITE;
+            particle->speed = 0.0f;
+            particle->age = 0.0f;
+            particle->max_age = 0.0f;
+            particle->radius = 8.0f;
+            particle->dradius = 12.0f;
+            particle->pos = state->enemy.pos;
+            particle->dpos = make_vector2(random_bilateral(&state->entropy),
+                                          random_bilateral(&state->entropy));
+          }
+
+          for (u32 j = 0; j < 24; ++j) {
+            Particle *particle = state->explosion_particles + state->next_explosion_particle++;
+            if (state->next_explosion_particle >= array_count(state->explosion_particles)) {
+              state->next_explosion_particle = 0;
+            }
+            particle->color = CP_WHITE;
+            particle->age = random_range(&state->entropy, 0.0f, 0.5f);
+            particle->max_age = random_range(&state->entropy, 0.6f, 0.8f);
+            particle->radius = random_range(&state->entropy, 1.0f, 4.0f);
+            particle->dradius = 10.0f;
+            particle->speed = 120.0f;
+            particle->pos = state->enemy.pos;
+            particle->dpos = make_vector2(random_bilateral(&state->entropy),
+                                          random_bilateral(&state->entropy));
+          }
+
           // state->enemy.is_alive = false;
           state->enemy.pos.x = random_unilateral(&state->entropy)*back_buffer->width;
           state->enemy.pos.y = -state->tile_size;
@@ -845,7 +982,33 @@ KRUEGER_FRAME_PROC(krueger_frame) {
     }
   }
   
-  state->sec += time->dt_sec;
+  { // NOTE: add flame particles
+    local f32 sec = 0.0f;
+    sec += time->dt_sec;
+    if (sec >= 0.15f) {
+      Particle *particle = state->particles + state->next_particle++;
+      if (state->next_particle >= state->max_particle_count) {
+        state->next_particle = 0;
+      }
+      particle->color = CP_DARK_BLUE;
+      particle->radius = 3.0f;
+      particle->max_speed = 100.0f;
+      particle->speed = particle->max_speed;
+      particle->dspeed = 0.9f;
+      particle->pos = state->player.pos;
+      particle->pos.y += state->tile_size*0.7f;
+      particle->dpos = make_vector2(random_range(&state->entropy, -0.2f, 0.2f), 1.0f);
+      sec = 0.0f;
+    }
+  }
+  
+  // NOTE: update flame particles
+  for (u32 i = 0; i < state->max_particle_count; ++i) {
+    Particle *particle = state->particles + i;
+    Vector2 dpos = vector2_mul(particle->dpos, particle->speed*time->dt_sec);
+    particle->pos = vector2_add(particle->pos, dpos);
+    particle->speed *= 0.9f;
+  }
 
   ///////////////////
   // NOTE: begin draw
@@ -901,6 +1064,14 @@ KRUEGER_FRAME_PROC(krueger_frame) {
   // NOTE: draw player
   if (state->player.is_alive) {
     if (state->invul_t <= 0.0f) {
+      // NOTE: draw flame particles
+      for (u32 i = 0; i < state->max_particle_count; ++i) {
+        Particle *particle = state->particles + i;
+        draw_circle_fill(draw_buffer, (s32)particle->pos.x, (s32)particle->pos.y,
+                         particle->radius*(particle->speed/particle->max_speed),
+                         particle->color);
+      }
+
       { // NOTE: draw ship flame
         local f32 ms = 0;
         ms += time->dt_sec*thousand(1.0f);
@@ -922,12 +1093,37 @@ KRUEGER_FRAME_PROC(krueger_frame) {
         Vector2 pos = align_position(sprite, state->player.pos, vec2(0.5f, 0.5f));
         draw_sprite_vec(draw_buffer, sprite, pos);
       }
+
     } else { // NOTE: invul state
       if (sin_f32(thousand(1.0f)*state->sec) <= 0.0f) { // NOTE: draw ship
         Image sprite = get_sprite(state->sprite_sheet, state->player.sprite_index);
         Vector2 pos = align_position(sprite, state->player.pos, vec2(0.5f, 0.5f));
         draw_sprite_vec(draw_buffer, sprite, pos);
       }
+    }
+  }
+
+  // NOTE: explosion particles
+  for (u32 i = 0; i < array_count(state->explosion_particles); ++i) {
+    Particle *particle = state->explosion_particles + i;
+    if (particle->radius > 0.0f) {
+      Vector2 dpos = vector2_mul(particle->dpos, particle->speed*time->dt_sec);
+      particle->pos = vector2_add(particle->pos, dpos);
+      particle->speed *= 0.9f;
+      particle->age += 1.0f*time->dt_sec;
+      // particle->radius += particle->dradius*time->dt_sec;
+      // particle->dradius *= 1.02f;
+      // if (particle->radius <= 0.0f) particle->radius = 0.0f;
+      if (particle->age > 0.15f) particle->color = CP_YELLOW;
+      if (particle->age > 0.27f) particle->color = CP_ORANGE;
+      if (particle->age > 0.43f) particle->color = CP_RED;
+      if (particle->age > 0.7f) particle->color = CP_DARK_RED;
+      if (particle->age > 0.9f) particle->color = CP_DARK_BROWN;
+      if (particle->age > particle->max_age) {
+        particle->radius -= particle->dradius*time->dt_sec;
+      }
+      draw_circle_fill(draw_buffer, (s32)particle->pos.x, (s32)particle->pos.y,
+                       particle->radius, particle->color);
     }
   }
 
@@ -952,7 +1148,7 @@ KRUEGER_FRAME_PROC(krueger_frame) {
                     x, y, 1.0f, 1.0f, CP_WHITE);
   }
 
-#if 1
+#if 0
   {
     s32 x = draw_buffer.width/2;
     s32 y = draw_buffer.height/3;

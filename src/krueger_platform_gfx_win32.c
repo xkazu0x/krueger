@@ -94,6 +94,18 @@ win32_translate_keycode(u32 keycode) {
   return(result);
 }
 
+internal Platform_Display_Info
+platform_get_display_info(void) {
+  Platform_Display_Info result = {0};
+  DEVMODEA devmode = {.dmSize = sizeof(DEVMODE)};
+  if (EnumDisplaySettingsA(0, ENUM_CURRENT_SETTINGS, &devmode)) {
+    result.monitor_width = devmode.dmPelsWidth;
+    result.monitor_height = devmode.dmPelsHeight;
+    result.monitor_refresh_rate = devmode.dmDisplayFrequency;
+  }
+  return(result);
+}
+
 internal void
 platform_create_window(Platform_Window_Desc *desc) {
   char *window_title = desc->window_title;

@@ -33,6 +33,12 @@ typedef struct {
   s32 back_buffer_h;
 } Platform_Window_Desc;
 
+typedef struct {
+  u32 monitor_width;
+  u32 monitor_height;
+  u32 monitor_refresh_rate;
+} Platform_Display_Info;
+
 /////////////////////////
 // NOTE: Global Variables
 
@@ -46,6 +52,8 @@ internal void platform_gfx_init(void);
 
 /////////////////////////////////
 // NOTE: Implemented Per-Platform
+
+internal Platform_Display_Info platform_get_display_info(void);
 
 internal void platform_create_window(Platform_Window_Desc *desc);
 internal void platform_destroy_window(void);

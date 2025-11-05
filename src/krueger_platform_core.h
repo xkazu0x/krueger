@@ -1,12 +1,6 @@
 #ifndef KRUEGER_PLATFORM_CORE_H
 #define KRUEGER_PLATFORM_CORE_H
 
-typedef struct {
-  u32 width;
-  u32 height;
-  u32 refresh_rate;
-} Platform_Display_Info;
-
 typedef u32 Platform_File_Flags;
 enum {
   PLATFORM_FILE_READ        = (1<<0),
@@ -36,7 +30,6 @@ internal void platform_core_shutdown(void);
 
 internal Date_Time platform_get_date_time(void);
 internal String8 platform_get_exec_file_path(Arena *arena);
-internal Platform_Display_Info platform_get_display_info(void);
 
 internal void *platform_reserve(uxx size);
 internal b32 platform_commit(void *ptr, uxx size);

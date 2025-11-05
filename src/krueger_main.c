@@ -2,10 +2,11 @@
 
 #include "krueger_base.h"
 #include "krueger_platform.h"
-#include "krueger_shared.h"
 
 #include "krueger_base.c"
 #include "krueger_platform.c"
+
+#include "krueger_shared.h"
 
 #define WINDOW_TITLE "STARFIGHTER"
 #define WINDOW_SCALE  5
@@ -155,7 +156,7 @@ main(void) {
 
 #if 1
     Platform_Display_Info display_info = platform_get_display_info();
-    time.dt_sec = 1.0f/display_info.refresh_rate;
+    time.dt_sec = 1.0f/display_info.monitor_refresh_rate;
 #else
     time.dt_sec = 1.0f/30.0f;
 #endif
@@ -201,9 +202,7 @@ main(void) {
       input_reset(&input);
     }
 
-    // platform_destroy_window();
-    // IMPORTANT: Windows starts treating this as a trojan
-    // because... I don't know why.
+    platform_destroy_window();
     libkrueger_unload(lib);
   }
   platform_core_shutdown();

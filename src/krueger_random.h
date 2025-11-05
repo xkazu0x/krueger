@@ -43,48 +43,17 @@ typedef struct {
   u32 index;
 } Random_Series;
 
-internal Random_Series
-random_seed(u32 value) {
-  Random_Series result = {0};
-  result.index = value % array_count(random_number_table);
-  return(result);
-}
+// NOTE:
+// random_choice: returns a number between [0] and [choice_count]
+// random_unilateral: returns a number between [0.0] and [1.0]
+// random_bilateral: returns a number between [-1.0] and [1.0]
+// random_range: returns a number between [min] and [max]
 
-internal u32
-random_next(Random_Series *series) {
-  u32 result = random_number_table[series->index++];
-  if (series->index >= array_count(random_number_table)) {
-    series->index = 0;
-  }
-  return(result);
-}
-
-// NOTE: Return a number between [0] and [choice_count]
-internal u32
-random_choice(Random_Series *series, u32 choice_count) {
-  u32 result = random_next(series) % choice_count;
-  return(result);
-}
-
-// NOTE: Return a number between [0.0] and [1.0]
-internal f32
-random_unilateral(Random_Series *series) {
-  f32 divisor = 1.0f/(f32)MAX_RANDOM_NUMBER;
-  f32 result = divisor*(f32)random_next(series);
-  return(result);
-}
-
-// NOTE: Return a number between [-1.0] and [1.0]
-internal f32
-random_bilateral(Random_Series *series) {
-  f32 result = 2.0f*random_unilateral(series) - 1.0f;
-  return(result);
-}
-
-internal f32
-random_range(Random_Series *series, f32 min, f32 max) {
-  f32 result = lerp_f32(min, max, random_unilateral(series));
-  return(result);
-}
+internal Random_Series random_seed(u32 value);
+internal u32 random_next(Random_Series *series);
+internal u32 random_choice(Random_Series *series, u32 choice_count);
+internal f32 random_unilateral(Random_Series *series);
+internal f32 random_bilateral(Random_Series *series);
+internal f32 random_range(Random_Series *series, f32 min, f32 max);
 
 #endif // KRUEGER_RANDOM_H
