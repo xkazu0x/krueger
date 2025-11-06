@@ -305,14 +305,6 @@ platform_window_toggle_fullscreen(Platform_Handle handle) {
   }
 }
 
-internal Platform_Handle
-platform_get_focused_window(void) {
-  HWND hwnd = GetFocus();
-  Win32_Window *window = win32_window_from_hwnd(hwnd);
-  Platform_Handle handle = win32_handle_from_window(window);
-  return(handle);
-}
-
 internal Platform_Event_List
 platform_get_event_list(Arena *arena) {
   win32_event_arena = arena;

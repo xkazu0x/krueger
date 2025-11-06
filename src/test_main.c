@@ -1,4 +1,4 @@
-#define KRUEGER_PLATFORM_GRAPHICS 0
+#define KRUEGER_PLATFORM_GRAPHICS 1
 
 #include "krueger_base.h"
 #include "krueger_platform.h"
@@ -157,17 +157,15 @@ main(void) {
         case PLATFORM_EVENT_KEY_PRESS: {
           switch (event->keycode) {
             case KEY_F11: {
-              Platform_Handle focused = platform_get_focused_window();
               for (u32 i = 0; i < array_count(windows); ++i) {
-                if (platform_handle_match(windows[i], focused)) {
+                if (platform_handle_match(windows[i], event->window)) {
                   platform_window_toggle_fullscreen(windows[i]);
                 }
               }
             } break;
             case KEY_Q: {
-              Platform_Handle focused = platform_get_focused_window();
               for (u32 i = 0; i < array_count(windows); ++i) {
-                if (platform_handle_match(windows[i], focused)) {
+                if (platform_handle_match(windows[i], event->window)) {
                   if (i == 0) quit = true;
                   platform_window_close(windows[i]);
                 }
