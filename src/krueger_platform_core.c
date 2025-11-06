@@ -1,6 +1,9 @@
 #ifndef KRUEGER_PLATFORM_CORE_C
 #define KRUEGER_PLATFORM_CORE_C
 
+/////////////////////////
+// NOTE: Platform Helpers
+
 internal b32
 platform_handle_match(Platform_Handle a, Platform_Handle b) {
   b32 result = (a.ptr[0] == b.ptr[0]);

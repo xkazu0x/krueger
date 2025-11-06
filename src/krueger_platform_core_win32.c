@@ -1,6 +1,9 @@
 #ifndef KRUEGER_PLATFORM_CORE_WIN32_C
 #define KRUEGER_PLATFORM_CORE_WIN32_C
 
+///////////////////////////
+// NOTE: Platform Functions
+
 internal void
 platform_core_init(void) {
   LARGE_INTEGER large_integer;

@@ -4,7 +4,14 @@
 typedef u32 Keycode;
 enum {
   KEY_NULL,
+
   KEY_ESCAPE,
+  KEY_SPACE,
+
+  KEY_UP,
+  KEY_LEFT,
+  KEY_DOWN,
+  KEY_RIGHT,
 
   KEY_F1,
   KEY_F2,
@@ -68,12 +75,6 @@ enum {
   KEY_X,
   KEY_Y,
   KEY_Z,
-
-  KEY_UP,
-  KEY_LEFT,
-  KEY_DOWN,
-  KEY_RIGHT,
-  KEY_SPACE,
 
   KEY_MAX,
 };

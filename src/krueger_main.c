@@ -1,4 +1,4 @@
-#define KRUEGER_PLATFORM_GFX 1
+#define KRUEGER_PLATFORM_GRAPHICS 1
 
 #include "krueger_base.h"
 #include "krueger_platform.h"
@@ -8,8 +8,8 @@
 
 #include "krueger_shared.h"
 
-#define WINDOW_TITLE "STARFIGHTER"
-#define WINDOW_SCALE  5
+#define WINDOW_TITLE str8_lit("STARFIGHTER")
+#define WINDOW_SCALE 5
 
 #define BACK_BUFFER_WIDTH  128
 #define BACK_BUFFER_HEIGHT 128
@@ -89,14 +89,6 @@ wait_to_flip(f32 target_sec_per_frame, u64 time_start) {
   }
 }
 
-internal Arena
-arena_alloc(uxx res_size) {
-  u8 *base = platform_reserve(res_size);
-  platform_commit(base, res_size);
-  Arena result = make_arena(base, res_size);
-  return(result);
-}
-
 internal Memory
 memory_alloc(uxx memory_size) {
   u8 *memory_ptr = platform_reserve(memory_size);
@@ -121,10 +113,10 @@ image_alloc(u32 width, u32 height) {
 int
 main(void) {
   platform_core_init();
-  platform_gfx_init();
+  platform_graphics_init();
 
-  Arena arena = arena_alloc(MB(1));
-  String8 exec_file_path = platform_get_exec_file_path(&arena);
+  Arena misc_arena = arena_alloc(MB(64));
+  String8 exec_file_path = platform_get_exec_file_path(&misc_arena);
   uxx last_slash_index = str8_index_of_last(exec_file_path, PATH_SLASH_CHAR);
   String8 path = str8_substr(exec_file_path, 0, last_slash_index + 1);
 
@@ -136,18 +128,14 @@ main(void) {
   String8 dst_lib_name = str8_lit("libkruegerx.so");
 #endif
 
-  String8 src_lib_path = str8_cat(&arena, path, src_lib_name);
-  String8 dst_lib_path = str8_cat(&arena, path, dst_lib_name);
+  String8 src_lib_path = str8_cat(&misc_arena, path, src_lib_name);
+  String8 dst_lib_path = str8_cat(&misc_arena, path, dst_lib_name);
 
   Library lib = libkrueger_load(dst_lib_path, src_lib_path);
   if (!platform_handle_match(lib.h, PLATFORM_HANDLE_NULL)) {
-    platform_create_window(&(Platform_Window_Desc){
-      .window_title = WINDOW_TITLE,
-      .window_w = WINDOW_WIDTH,
-      .window_h = WINDOW_HEIGHT,
-      .back_buffer_w = BACK_BUFFER_WIDTH,
-      .back_buffer_h = BACK_BUFFER_HEIGHT,
-    });
+    Platform_Handle window = platform_window_open(
+      WINDOW_TITLE, WINDOW_WIDTH, WINDOW_HEIGHT
+    );
 
     Memory memory = memory_alloc(GB(1));
     Image back_buffer = image_alloc(BACK_BUFFER_WIDTH, BACK_BUFFER_HEIGHT);
@@ -155,26 +143,26 @@ main(void) {
     Clock time = {0};
 
 #if 1
-    Platform_Display_Info display_info = platform_get_display_info();
-    time.dt_sec = 1.0f/display_info.monitor_refresh_rate;
+    Platform_Graphics_Info graphics_info = platform_get_graphics_info();
+    time.dt_sec = 1.0f/graphics_info.refresh_rate;
 #else
     time.dt_sec = 1.0f/30.0f;
 #endif
 
     if (lib.krueger_init) lib.krueger_init(&memory, &back_buffer);
     u64 time_start = platform_get_time_us();
-
+  
+    platform_window_show(window);
     for (b32 quit = false; !quit;) {
-      platform_update_window_events();
-      for (u32 i = 0; i < platform_events.len; ++i) {
-        Platform_Event base_event = platform_events.items[i];
-        switch (base_event.type) {
-          case PLATFORM_EVENT_QUIT: {
+      Temp temp = temp_begin(&misc_arena);
+      Platform_Event_List event_list = platform_get_event_list(temp.arena);
+      for (Platform_Event *event = event_list.first; event != 0; event = event->next) {
+        switch (event->type) {
+          case PLATFORM_EVENT_WINDOW_CLOSE: {
             quit = true;
           } break;
           case PLATFORM_EVENT_KEY_PRESS:
           case PLATFORM_EVENT_KEY_RELEASE: {
-            Platform_Event_Key *event = (Platform_Event_Key *)&base_event;
             Keycode keycode = event->keycode;
             b32 is_down = (event->type == PLATFORM_EVENT_KEY_PRESS);
             process_digital_button(input.kbd + keycode, is_down);
@@ -183,7 +171,7 @@ main(void) {
       }
 
       if (input.kbd[KEY_Q].pressed) quit = true;
-      if (input.kbd[KEY_F11].pressed) platform_toggle_window_mode();
+      if (input.kbd[KEY_F11].pressed) platform_window_toggle_fullscreen(window);
 
       if (input.kbd[KEY_F4].pressed) {
         libkrueger_unload(lib);
@@ -198,11 +186,13 @@ main(void) {
       time._dt_ms = time._dt_us/thousand(1.0f);
       time_start = time_end;
 
-      platform_display_back_buffer(back_buffer.pixels, back_buffer.width, back_buffer.height);
+      platform_window_display_buffer(
+        window, back_buffer.pixels, back_buffer.width, back_buffer.height
+      );
       input_reset(&input);
     }
 
-    platform_destroy_window();
+    platform_window_close(window);
     libkrueger_unload(lib);
   }
   platform_core_shutdown();

@@ -10,14 +10,13 @@
 #error platform core not implemented for the current platform
 #endif
 
-#if KRUEGER_PLATFORM_GFX
-#include "krueger_platform_gfx.c"
+#if KRUEGER_PLATFORM_GRAPHICS
 #if PLATFORM_WINDOWS
-#include "krueger_platform_gfx_win32.c"
-#elif PLATFORM_LINUX
-#include "krueger_platform_gfx_linux.c"
+#include "krueger_platform_graphics_win32.c"
+// #elif PLATFORM_LINUX
+// #include "krueger_platform_graphics_linux.c"
 #else
-#error platform gfx not implemented for the current platform
+#error platform graphics not implemented for the current platform
 #endif
 #endif
 

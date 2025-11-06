@@ -1,6 +1,9 @@
 #ifndef KRUEGER_PLATFORM_CORE_H
 #define KRUEGER_PLATFORM_CORE_H
 
+//////////////
+// NOTE: Types
+
 typedef u32 Platform_File_Flags;
 enum {
   PLATFORM_FILE_READ        = (1<<0),
