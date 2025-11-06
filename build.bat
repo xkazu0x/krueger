@@ -45,5 +45,6 @@ if not exist build mkdir build
 pushd build
 %compile% %shared% ..\src\krueger.c %link% %out% libkrueger.dll || exit /b 1
 %compile% ..\src\krueger_main.c %link% %out% krueger.exe || exit /b 1
+REM %compile% ..\src\test_main.c %link% %out% krueger.exe || exit /b 1
 if "%run%"=="1" call krueger.exe
 popd

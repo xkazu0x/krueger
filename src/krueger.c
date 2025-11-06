@@ -683,11 +683,11 @@ KRUEGER_INIT_PROC(krueger_init) {
   state->next_bullet = 0;
   state->max_bullet_count = 32;
   state->bullets = push_array(&state->perm_arena, Entity, state->max_bullet_count);
-  mem_zero_array(state->bullets, state->max_bullet_count);
+  mem_zero_array(state->bullets);
 
   state->max_star_count = 32;
   state->stars = push_array(&state->perm_arena, Entity, state->max_star_count);
-  mem_zero_array(state->stars, state->max_star_count);
+  mem_zero_array(state->stars);
 
   for (u32 i = 0; i < state->max_star_count; ++i) {
     Entity *star = state->stars + i;

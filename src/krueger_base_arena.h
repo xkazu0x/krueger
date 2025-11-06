@@ -4,7 +4,7 @@
 typedef struct {
   uxx res_size;
   uxx cmt_size;
-  u8 *buf;
+  u8 *base;
 } Arena;
 
 typedef struct {
@@ -12,10 +12,13 @@ typedef struct {
   uxx cmt_size;
 } Temp;
 
-#define push_array(a, T, c) (T *)arena_push((a), sizeof(T)*(c))
-internal Arena make_arena(u8 *buf, uxx res_size);
+internal Arena make_arena(u8 *base, uxx res_size);
+internal Arena arena_alloc(uxx res_size);
+internal void arena_release(Arena *arena);
 internal void *arena_push(Arena *arena, uxx cmt_size);
 internal void arena_clear(Arena *arena);
+
+#define push_array(a, T, c) (T *)arena_push((a), sizeof(T)*(c))
 
 internal Temp temp_begin(Arena *arena);
 internal void temp_end(Temp temp);

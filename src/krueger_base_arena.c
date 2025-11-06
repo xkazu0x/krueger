@@ -2,26 +2,42 @@
 #define KRUEGER_BASE_ARENA_C
 
 internal Arena
-make_arena(u8 *buf, uxx res_size) {
+make_arena(u8 *base, uxx res_size) {
   Arena result = {
     .res_size = res_size,
     .cmt_size = 0,
-    .buf = buf,
+    .base = base,
   };
   return(result);
+}
+
+internal Arena
+arena_alloc(uxx res_size) {
+  u8 *base = platform_reserve(res_size);
+  platform_commit(base, res_size);
+  Arena result = make_arena(base, res_size);
+  return(result);
+}
+
+internal void
+arena_release(Arena *arena) {
+  platform_release(arena->base, arena->res_size);
+  arena->res_size = 0;
+  arena->cmt_size = 0;
+  arena->base = 0;
 }
 
 internal void *
 arena_push(Arena *arena, uxx cmt_size) {
   assert((arena->cmt_size + cmt_size) <= arena->res_size);
-  void *result = (void *)(arena->buf + arena->cmt_size);
+  void *result = (void *)(arena->base + arena->cmt_size);
   arena->cmt_size += cmt_size;
   return(result);
 }
 
 internal void
 arena_clear(Arena *arena) {
-  mem_zero(arena->buf, arena->cmt_size);
+  mem_zero(arena->base, arena->cmt_size);
   arena->cmt_size = 0;
 }
 
