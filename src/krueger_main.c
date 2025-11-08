@@ -29,8 +29,8 @@ typedef struct {
 internal Library
 libkrueger_load(String8 dst_path, String8 src_path) {
   Library lib = {0};
-  if (platform_copy_file_path((char *)dst_path.str, (char *)src_path.str)) {
-    lib.h = platform_library_open((char *)dst_path.str);
+  if (platform_copy_file_path(dst_path, src_path)) {
+    lib.h = platform_library_open(dst_path);
     if (!platform_handle_match(lib.h, PLATFORM_HANDLE_NULL)) {
       #define PROC(x) \
         lib.x = (x##_proc *)platform_library_load_proc(lib.h, #x); \
@@ -133,14 +133,15 @@ main(void) {
 
   Library lib = libkrueger_load(dst_lib_path, src_lib_path);
   if (!platform_handle_match(lib.h, PLATFORM_HANDLE_NULL)) {
-    Platform_Handle window = platform_window_open(
-      WINDOW_TITLE, WINDOW_WIDTH, WINDOW_HEIGHT
-    );
-
     Memory memory = memory_alloc(GB(1));
     Image back_buffer = image_alloc(BACK_BUFFER_WIDTH, BACK_BUFFER_HEIGHT);
     Input input = {0};
     Clock time = {0};
+
+    if (lib.krueger_init) lib.krueger_init(&memory, &back_buffer);
+    Platform_Handle window = platform_window_open(WINDOW_TITLE,
+                                                  WINDOW_WIDTH,
+                                                  WINDOW_HEIGHT);
 
 #if 1
     Platform_Graphics_Info graphics_info = platform_get_graphics_info();
@@ -148,8 +149,6 @@ main(void) {
 #else
     time.dt_sec = 1.0f/30.0f;
 #endif
-
-    if (lib.krueger_init) lib.krueger_init(&memory, &back_buffer);
     u64 time_start = platform_get_time_us();
   
     platform_window_show(window);
@@ -169,6 +168,7 @@ main(void) {
           } break;
         }
       }
+      temp_end(temp);
 
       if (input.kbd[KEY_Q].pressed) quit = true;
       if (input.kbd[KEY_F11].pressed) platform_window_toggle_fullscreen(window);
@@ -186,9 +186,7 @@ main(void) {
       time._dt_ms = time._dt_us/thousand(1.0f);
       time_start = time_end;
 
-      platform_window_display_buffer(
-        window, back_buffer.pixels, back_buffer.width, back_buffer.height
-      );
+      platform_window_display_buffer(window, back_buffer.pixels, back_buffer.width, back_buffer.height);
       input_reset(&input);
     }
 

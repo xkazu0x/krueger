@@ -9,11 +9,8 @@
 #include "krueger_shared.h"
 
 // TODO:
-// - endless flame ship particles
-// - explosion particles when killing enemies
-// - more enemies
-// - corred player diagonal movement
-// - game start and game over screen
+// - ememy waves
+// - correct player diagonal movement
 
 //////////////////////
 // NOTE: Helper Macros
@@ -101,27 +98,12 @@ bit_scan_forward(u32 *index, u32 mask) {
   return(result);
 }
 
-internal b32
-read_entire_file(Arena *arena, char *path, void** buffer, u64 *size) {
-  b32 result = false;
-  Platform_Handle file = platform_file_open(path, PLATFORM_FILE_READ | PLATFORM_FILE_SHARE_READ);
-  if (!platform_handle_match(file, PLATFORM_HANDLE_NULL)) {
-    *size = platform_get_file_size(file);
-    *buffer = arena_push(arena, *size);
-    u64 read_size = platform_file_read(file, *buffer, *size);
-    if (read_size == *size) result = true;
-    platform_file_close(file);
-  }
-  return(result);
-}
-
 internal Image
-load_bmp(char *filepath, Arena *perm_arena, Arena *temp_arena) {
+load_bmp(String8 filepath, Arena *perm_arena, Arena *temp_arena) {
   Image result = {0};
-  u64 file_size;
-  void *file_data;
   Temp temp = temp_begin(temp_arena);
-  if (read_entire_file(temp.arena, filepath, &file_data, &file_size)) {
+  void *file_data = platform_read_entire_file(temp.arena, filepath);
+  if (file_data) {
     Bmp_File_Header *bmp_file = (Bmp_File_Header *)file_data;
     if (bmp_file->type == cstr_encode("BM")) {
       Bmp_Info_Header *bmp_info = (Bmp_Info_Header *)((u8 *)bmp_file + sizeof(Bmp_File_Header));
@@ -187,18 +169,37 @@ typedef struct {
 
 typedef struct {
   b32 is_alive;
-  u32 sprite_index;
-  f32 radius;
+  u32 max_hp;
+  u32 hp;
+
+  f32 flash_t;
+  f32 invul_t;
+  f32 shoot_t;
+  f32 flash_cd;
+  f32 invul_cd;
+  f32 shoot_cd;
+
   f32 speed;
   Vector2 size;
   Vector2 pos;
   Vector2 dpos;
+
+  u32 sprite_index;
+  u32 sprite_count_x;
+  u32 sprite_count_y;
 } Entity;
 
+typedef enum {
+  PARTICLE_STAR,
+  PARTICLE_SHIP_FLAME,
+  PARTICLE_EXPLOSION,
+} Particle_Type;
+
 typedef struct {
+  Particle_Type type;
   u32 color;
-  f32 age;
-  f32 max_age;
+  f32 life;
+  f32 dlife;
   f32 radius;
   f32 dradius;
   f32 max_speed;
@@ -206,7 +207,16 @@ typedef struct {
   f32 dspeed;
   Vector2 pos;
   Vector2 dpos;
+  f32 age;
+  f32 max_age;
+  f32 fric;
 } Particle;
+
+typedef enum {
+  GAME_SCREEN_MENU,
+  GAME_SCREEN_PLAY,
+  GAME_SCREEN_OVER,
+} Game_Screen_Type;
 
 typedef struct {
   Random_Series entropy;
@@ -219,47 +229,41 @@ typedef struct {
 
   Font font;
   f32 tile_size;
+  Game_Screen_Type screen_type;
 
   u32 score;
-  u32 hp;
-  u32 hp_sprite_index;
-  u32 flame_sprite_index;
-  f32 max_r;
-  f32 r;
-
+  u32 wave_index;
   f32 sec;
-  f32 shoot_t;
-  f32 shoot_cd;
-  f32 invul_t;
-  f32 invul_cd;
-  f32 flash_t;
-  f32 flash_cd;
 
+  f32 player_max_shoot_r;
+  f32 player_shoot_r;
+  f32 player_dshoot_r;
+  
+  u32 flame_sprite_index;
+  u32 player_hp_sprite_index;
+  u32 player_shoot_side;
   Entity player;
 
-  u32 next_particle;
-  u32 max_particle_count;
-  Particle *particles;
-
-  u32 next_explosion_particle;
-  Particle explosion_particles[256];
-
-  u32 sprite_index;
-  u32 sprite_count_x;
-  u32 sprite_count_y;
-
-  u32 max_sprite_count;
-  u32 *sprite_indices;
-  Entity enemy;
-  u32 enemy_max_hp;
-  u32 enemy_hp;
-
   u32 next_bullet;
-  u32 max_bullet_count;
+  u32 bullet_count;
   Entity *bullets;
 
-  u32 max_star_count;
-  Entity *stars;
+  u32 enemy_alive_count;
+  u32 enemy_count;
+  Entity *enemies;
+
+  u32 next_ship_flame_particle;
+  u32 next_explosion_particle;
+
+  u32 star_particle_count;
+  u32 ship_flame_particle_count;
+  u32 explosion_particle_count;
+  u32 particle_count;
+
+  Particle *particles;
+  Particle *star_particles;
+  Particle *ship_flame_particles;
+  Particle *explosion_particles;
 
   b32 draw_debug_info;
 } Game_State;
@@ -512,8 +516,8 @@ PIXEL_SHADER_PROC(shader_color_blend) {
   return(result);
 }
 
-PIXEL_SHADER_PROC(shader_turn_all_white) {
-  u32 result = CP_WHITE;
+PIXEL_SHADER_PROC(shader_replace_color) {
+  u32 result = *(u32 *)user_data;
   return(result);
 }
 
@@ -609,6 +613,44 @@ draw_text_align(Image dst, Font font, String8 text,
 ///////////////////////
 // NOTE: Game Functions
 
+internal void
+game_start(Game_State *state, Image draw_buffer) {
+  state->score = 0;
+  state->wave_index = 1;
+  state->sec = 0.0f;
+
+  state->player.is_alive = true;
+  state->player.max_hp = 3;
+  state->player.hp = state->player.max_hp;
+
+  state->player.shoot_t = 0.0f;
+  state->player.invul_t = 0.0f;
+  state->player.shoot_cd = 0.1f;
+  state->player.invul_cd = 1.2f;
+
+  state->player.speed = 100.0f;
+  state->player.size = make_vector2(state->tile_size, state->tile_size);
+  state->player.pos = make_vector2(draw_buffer.width/2.0f,
+                                   draw_buffer.height - draw_buffer.height/4.0f);
+  state->player.dpos = make_vector2(0.0f, 0.0f);
+  state->player.sprite_index = 1;
+
+  for (u32 bullet_index = 0;
+       bullet_index < state->bullet_count;
+       ++bullet_index) {
+    Entity *bullet = state->bullets + bullet_index;
+    bullet->is_alive = false;
+  }
+  
+  state->enemy_alive_count = 0;
+  for (u32 enemy_index = 0;
+       enemy_index < state->enemy_count;
+       ++enemy_index) {
+    Entity *enemy = state->enemies + enemy_index;
+    enemy->is_alive = false;
+  }
+}
+
 shared_function
 KRUEGER_INIT_PROC(krueger_init) {
   assert(sizeof(Game_State) <= memory->memory_size);
@@ -628,8 +670,10 @@ KRUEGER_INIT_PROC(krueger_init) {
   state->perm_arena = make_arena(perm_memory_ptr, perm_memory_size);
   state->temp_arena = make_arena(temp_memory_ptr, temp_memory_size);
 
-  state->font_image = load_bmp("../res/pico8_font.bmp", &state->perm_arena, &state->temp_arena);
-  state->sprites_image = load_bmp("../res/sprites.bmp", &state->perm_arena, &state->temp_arena);
+  state->font_image     = load_bmp(str8_lit("../res/pico8_font.bmp"),
+                                   &state->perm_arena, &state->temp_arena);
+  state->sprites_image  = load_bmp(str8_lit("../res/sprites.bmp"),
+                                   &state->perm_arena, &state->temp_arena);
 
   state->font_sheet = make_sprite_sheet(state->font_image, 4, 6, 16, 6);
   state->sprite_sheet = make_sprite_sheet(state->sprites_image, 8, 8, 16, 16);
@@ -642,61 +686,50 @@ KRUEGER_INIT_PROC(krueger_init) {
                 "pqrstuvwxyz{|}~ ";
   state->font = make_font(chars, state->font_sheet);
   state->tile_size = 8.0f;
+  state->screen_type = GAME_SCREEN_MENU;
+  
+  state->player_max_shoot_r = 7.0f;
+  state->player_shoot_r = 0.0f;
+  state->player_dshoot_r = -80.0f;
 
-  state->score = 0;
-  state->hp = 3;
-  state->hp_sprite_index = 32;
   state->flame_sprite_index = 16;
-  state->max_r = 7.0f;
-
-  state->sec = 0.0f;
-  state->shoot_t = 0.0f;
-  state->shoot_cd = 0.12f;
-  state->invul_t = 0.0f;
-  state->invul_cd = 1.2f;
-  state->flash_t = 0.0f;
-  state->flash_cd = 0.05f;
-
-  state->player.is_alive = true;
-  state->player.sprite_index = 1;
-  state->player.speed = 100.0f;
-  state->player.size = make_vector2(state->tile_size, state->tile_size);
-  state->player.pos = make_vector2(back_buffer->width/2.0f, back_buffer->height/2.0f);
-  state->player.dpos = make_vector2(0.0f, 0.0f);
-
-  state->max_particle_count = 64;
-  state->particles = push_array(&state->perm_arena, Particle, state->max_particle_count);
-
-  state->sprite_index = 48;
-  state->sprite_count_x = 1;
-  state->sprite_count_y = 2;
-
-  state->enemy.is_alive = true;
-  state->enemy.speed = 32.0f;
-  state->enemy.size = make_vector2(state->tile_size, state->tile_size);
-  state->enemy.pos.x = random_unilateral(&state->entropy)*back_buffer->width;
-  state->enemy.pos.y = -state->tile_size;
-  state->enemy.dpos = make_vector2(0.0f, 1.0f);
-  state->enemy_max_hp = 3;
-  state->enemy_hp = state->enemy_max_hp;
+  state->player_hp_sprite_index = 32;
 
   state->next_bullet = 0;
-  state->max_bullet_count = 32;
-  state->bullets = push_array(&state->perm_arena, Entity, state->max_bullet_count);
-  mem_zero_array(state->bullets);
+  state->bullet_count = 32;
+  state->bullets = push_array(&state->perm_arena, Entity, state->bullet_count);
+  mem_zero(state->bullets, state->bullet_count);
 
-  state->max_star_count = 32;
-  state->stars = push_array(&state->perm_arena, Entity, state->max_star_count);
-  mem_zero_array(state->stars);
+  state->enemy_count = 4;
+  state->enemies = push_array(&state->perm_arena, Entity, state->enemy_count);
+  mem_zero(state->enemies, state->enemy_count);
 
-  for (u32 i = 0; i < state->max_star_count; ++i) {
-    Entity *star = state->stars + i;
-    star->is_alive = true;
-    star->radius = (f32)random_choice(&state->entropy, 3);
-    star->speed = random_range(&state->entropy, 20.0f, 50.0f);
-    star->pos.x = random_unilateral(&state->entropy)*back_buffer->width;
-    star->pos.y = random_unilateral(&state->entropy)*back_buffer->height;
-    star->dpos = make_vector2(0.0f, -1.0f);
+  state->star_particle_count = 32;
+  state->ship_flame_particle_count = 16;
+  state->explosion_particle_count = 256;
+  state->particle_count = (state->star_particle_count + 
+                           state->ship_flame_particle_count +
+                           state->explosion_particle_count);
+  state->particles = push_array(&state->perm_arena, Particle, state->particle_count);
+  
+  s32 offset = 0;
+  state->star_particles = state->particles;
+
+  offset += state->star_particle_count;
+  state->ship_flame_particles = state->particles + offset;
+
+  offset += state->ship_flame_particle_count;
+  state->explosion_particles = state->particles + offset;
+
+  for (u32 i = 0; i < state->star_particle_count; ++i) {
+    Particle *particle = state->star_particles + i;
+    particle->color = CP_DARK_BLUE;
+    particle->radius = (f32)random_choice(&state->entropy, 3);
+    particle->speed = random_range(&state->entropy, 20.0f, 50.0f);
+    if (particle->speed >= 35.0f) particle->color = CP_DARK_GRAY;
+    particle->pos.x = random_unilateral(&state->entropy)*back_buffer->width;
+    particle->pos.y = random_unilateral(&state->entropy)*back_buffer->height;
+    particle->dpos = make_vector2(0.0f, -1.0f);
   }
 
   state->draw_debug_info = true;
@@ -726,9 +759,10 @@ entity_collide(Entity a, Entity b) {
   return(result);
 }
 
+// TODO: OLD, BUT COOL. THE ANIMATION NEEDS TO BE FASTER
 internal void
-add_explosion_particles(Game_State *state) {
-#if 1
+_add_explosion_particles(Game_State *state) {
+#if 0
   for (u32 j = 0; j < 4; ++j) {
     Particle *particle = state->explosion_particles + state->next_explosion_particle++;
     if (state->next_explosion_particle >= array_count(state->explosion_particles)) {
@@ -783,7 +817,8 @@ add_explosion_particles(Game_State *state) {
     particle->radius = random_range(&state->entropy, 4.0f, 6.0f);
     particle->dradius = -4.0f;
   }
-  #else
+#endif
+#if 0
   u32 color_table[] = {
     CP_DARK_BROWN,
     CP_DARK_RED,
@@ -808,362 +843,520 @@ add_explosion_particles(Game_State *state) {
 #endif
 }
 
+internal void
+spawn_ship_flame_particles(Game_State *state, Clock *time) {
+  local f32 sec = 0.0f;
+  sec += time->dt_sec;
+  if (sec >= 0.15f) {
+    Particle *particle = state->ship_flame_particles + state->next_ship_flame_particle++;
+    if (state->next_ship_flame_particle >= state->ship_flame_particle_count) {
+      state->next_ship_flame_particle = 0;
+    }
+    particle->type = PARTICLE_SHIP_FLAME;
+    particle->color = CP_BLUE;
+
+    particle->life = 10.0f;
+    particle->dlife = -30.0f;
+
+    particle->radius = 2.5f;
+    particle->dradius = -9.0f;
+
+    particle->speed = 50.0f;
+    particle->dspeed = -150.0f;
+
+    particle->pos = state->player.pos;
+    particle->pos.y += state->tile_size*0.7f;
+    particle->dpos = make_vector2(random_range(&state->entropy, -0.2f, 0.2f), 1.0f);
+    sec = 0.0f;
+  }
+}
+
+internal void
+spawn_explosion_particles(Game_State *state, Vector2 pos) {
+  {
+    Particle *particle = state->explosion_particles + state->next_explosion_particle++;
+    if (state->next_explosion_particle >= state->explosion_particle_count) {
+      state->next_explosion_particle = 0;
+    }
+    particle->type = PARTICLE_EXPLOSION;
+    particle->color = CP_WHITE;
+    particle->speed = 0.0f;
+    particle->age = 0.0f;
+    particle->max_age = 0.0f;
+    particle->radius = 10.0f;
+    particle->dradius = 12.0f;
+    particle->pos = pos;
+    particle->dpos = make_vector2(random_bilateral(&state->entropy),
+                                  random_bilateral(&state->entropy));
+  }
+
+  for (u32 i = 0; i < 32; ++i) {
+    Particle *particle = state->explosion_particles + state->next_explosion_particle++;
+    if (state->next_explosion_particle >= state->explosion_particle_count) {
+      state->next_explosion_particle = 0;
+    }
+    particle->type = PARTICLE_EXPLOSION;
+    particle->color = CP_WHITE;
+    particle->age = random_range(&state->entropy, 0.0f, 0.5f);
+    // particle->max_age = random_range(&state->entropy, 0.7f, 1.0f);
+    particle->max_age = 1.0f;
+    particle->radius = random_range(&state->entropy, 1.0f, 4.0f);
+    particle->dradius = 10.0f;
+    particle->fric = 420.0f;
+    particle->speed = random_range(&state->entropy, 100.0f, 125.0f);
+    particle->pos = pos;
+    particle->dpos = make_vector2(random_bilateral(&state->entropy),
+                                  random_bilateral(&state->entropy));
+  }
+}
+
 shared_function
 KRUEGER_FRAME_PROC(krueger_frame) {
   Game_State *state = (Game_State *)memory->memory_ptr;
   Digital_Button *kbd = input->kbd;
-  Image draw_buffer = *back_buffer;
-
-  /////////////////////
-  // NOTE: begin update
   state->sec += time->dt_sec;
 
-  // NOTE: update player
-  if (state->player.is_alive) {
-    state->player.sprite_index = 1;
-    if (kbd[KEY_UP].is_down) {
-      state->player.dpos.y = -1.0f;
-    }
-    if (kbd[KEY_LEFT].is_down) {
-      state->player.dpos.x = -1.0f;
-      state->player.sprite_index = 0;
-    }
-    if (kbd[KEY_DOWN].is_down) {
-      state->player.dpos.y = 1.0f;
-    }
-    if (kbd[KEY_RIGHT].is_down) {
-      state->player.dpos.x = 1.0f;
-      state->player.sprite_index = 2;
-    }
+  Image draw_buffer = *back_buffer; 
+  image_fill(draw_buffer, CP_BLACK);
 
-    Vector2 player_dpos = vector2_mul(state->player.dpos, state->player.speed*time->dt_sec);
-    state->player.pos = vector2_add(state->player.pos, player_dpos);
-    state->player.dpos = make_vector2(0.0f, 0.0f);
-
-    if (state->player.pos.x < 0.0f) {
-      state->player.pos.x = 0;
-    }
-    if (state->player.pos.y < 0.0f) {
-      state->player.pos.y = 0;
-    }
-    if (state->player.pos.x > (f32)draw_buffer.width) {
-      state->player.pos.x = (f32)draw_buffer.width;
-    }
-    if (state->player.pos.y > (f32)draw_buffer.height) {
-      state->player.pos.y = (f32)draw_buffer.height;
-    }
-
-    // NOTE: add bullets
-    if (state->shoot_t <= 0.0f) {
-      if (kbd[KEY_Z].is_down) {
-        state->shoot_t = state->shoot_cd;
-        state->r = state->max_r;
-        Entity *bullet = state->bullets + state->next_bullet++;
-        if (state->next_bullet >= state->max_bullet_count) {
-          state->next_bullet = 0;
-        }
-        bullet->is_alive = true;
-        bullet->sprite_index = 3;
-        bullet->size = make_vector2(state->tile_size, state->tile_size);
-        bullet->pos = vector2_sub(state->player.pos, make_vector2(0.0f, 2.0f));
-        bullet->dpos = make_vector2(0.0f, -1.0f);
-        bullet->speed = 320.0f;
-      }
-    } else {
-      state->shoot_t -= 1.0f*time->dt_sec;
-    }
-  }
-
-  // NOTE: update bullets
-  for (u32 i = 0; i < state->max_bullet_count; ++i) {
-    Entity *bullet = state->bullets + i;
-    if (bullet->is_alive) {
-      Vector2 dpos = vector2_mul(bullet->dpos, bullet->speed*time->dt_sec);
-      bullet->pos = vector2_add(bullet->pos, dpos);
-      if (bullet->pos.y <= -state->tile_size) {
-        bullet->is_alive = false;
-      }
-    }
-  }
-
-  // NOTE: update enemy
-  if (state->enemy.is_alive) {
-    Vector2 enemy_dpos = vector2_mul(state->enemy.dpos, state->enemy.speed*time->dt_sec);
-    state->enemy.pos = vector2_add(state->enemy.pos, enemy_dpos);
-    if(state->enemy.pos.y > draw_buffer.height + state->tile_size*2.0f) {
-      state->enemy.pos.x = random_unilateral(&state->entropy)*back_buffer->width;
-      state->enemy.pos.y = -(state->tile_size*2.0f);
-    }
-    if (state->flash_t > 0.0f) {
-      state->flash_t -= 1.0f*time->dt_sec;
-    }
-  }
-
-  // NOTE: player x enemy collision
-  if (state->invul_t <= 0.0f) {
-    if (state->enemy.is_alive && state->player.is_alive) {
-      if (entity_collide(state->enemy, state->player)) {
-        state->invul_t = state->invul_cd;
-        // state->hp -= 1;
-        if (state->hp <= 0) {
-          state->player.is_alive = false;
-        }
-        state->enemy_hp = 0;
-        if (state->enemy_hp <= 0) {
-          // state->enemy.is_alive = false;
-          state->enemy.pos.x = random_unilateral(&state->entropy)*back_buffer->width;
-          state->enemy.pos.y = -state->tile_size;
-          state->enemy_hp = state->enemy_max_hp;
-        }
-      }
-    }
-  } else {
-    state->invul_t -= 1.0f*time->dt_sec;
-  }
-
-  // NOTE: enemy x bullets collision
-  for (u32 i = 0; i < state->max_bullet_count; ++i) {
-    Entity *bullet = state->bullets + i;
-    if (bullet->is_alive && state->enemy.is_alive) {
-      if (entity_collide(state->enemy, *bullet)) {
-        bullet->is_alive = false;
-        state->flash_t = state->flash_cd;
-        state->enemy_hp -= 1;
-        if (state->enemy_hp <= 0) {
-          {
-            Particle *particle = state->explosion_particles + state->next_explosion_particle++;
-            if (state->next_explosion_particle >= array_count(state->explosion_particles)) {
-              state->next_explosion_particle = 0;
-            }
-            particle->color = CP_WHITE;
-            particle->speed = 0.0f;
-            particle->age = 0.0f;
-            particle->max_age = 0.0f;
-            particle->radius = 8.0f;
-            particle->dradius = 12.0f;
-            particle->pos = state->enemy.pos;
-            particle->dpos = make_vector2(random_bilateral(&state->entropy),
-                                          random_bilateral(&state->entropy));
-          }
-
-          for (u32 j = 0; j < 24; ++j) {
-            Particle *particle = state->explosion_particles + state->next_explosion_particle++;
-            if (state->next_explosion_particle >= array_count(state->explosion_particles)) {
-              state->next_explosion_particle = 0;
-            }
-            particle->color = CP_WHITE;
-            particle->age = random_range(&state->entropy, 0.0f, 0.5f);
-            particle->max_age = random_range(&state->entropy, 0.6f, 0.8f);
-            particle->radius = random_range(&state->entropy, 1.0f, 4.0f);
-            particle->dradius = 10.0f;
-            particle->speed = 120.0f;
-            particle->pos = state->enemy.pos;
-            particle->dpos = make_vector2(random_bilateral(&state->entropy),
-                                          random_bilateral(&state->entropy));
-          }
-
-          // state->enemy.is_alive = false;
-          state->enemy.pos.x = random_unilateral(&state->entropy)*back_buffer->width;
-          state->enemy.pos.y = -state->tile_size;
-          state->enemy_hp = state->enemy_max_hp;
-          state->score += 100;
-        }
-      }
-    }
-  }
-
-  // NOTE: update stars
-  for (u32 i = 0; i < state->max_star_count; ++i) {
-    Entity *star = state->stars + i;
-    star->pos.y += star->speed*time->dt_sec;
-    if (star->pos.y - state->tile_size > (f32)draw_buffer.height) {
-      star->pos.x = random_unilateral(&state->entropy)*back_buffer->width;
-      star->pos.y = -star->radius;
-    }
-  }
-  
-  { // NOTE: add flame particles
-    local f32 sec = 0.0f;
-    sec += time->dt_sec;
-    if (sec >= 0.15f) {
-      Particle *particle = state->particles + state->next_particle++;
-      if (state->next_particle >= state->max_particle_count) {
-        state->next_particle = 0;
-      }
-      particle->color = CP_DARK_BLUE;
-      particle->radius = 3.0f;
-      particle->max_speed = 100.0f;
-      particle->speed = particle->max_speed;
-      particle->dspeed = 0.9f;
-      particle->pos = state->player.pos;
-      particle->pos.y += state->tile_size*0.7f;
-      particle->dpos = make_vector2(random_range(&state->entropy, -0.2f, 0.2f), 1.0f);
-      sec = 0.0f;
-    }
-  }
-  
-  // NOTE: update flame particles
-  for (u32 i = 0; i < state->max_particle_count; ++i) {
+  // NOTE: update and draw particles
+  for (u32 i = 0; i < state->particle_count; ++i) {
     Particle *particle = state->particles + i;
-    Vector2 dpos = vector2_mul(particle->dpos, particle->speed*time->dt_sec);
-    particle->pos = vector2_add(particle->pos, dpos);
-    particle->speed *= 0.9f;
-  }
-
-  ///////////////////
-  // NOTE: begin draw
-
-  image_clear(draw_buffer, CP_BLACK);
-
-  // NOTE: draw stars
-  for (u32 i = 0; i < state->max_star_count; ++i) {
-    Entity *star = state->stars + i;
-    u32 color = CP_DARK_BLUE;
-    if (star->speed >= 35.0f) {
-      color = CP_DARK_GRAY;
-    }
-    if (star->radius <= 1.0f) {
-      draw_circle_line(draw_buffer,
-                       (s32)star->pos.x, (s32)star->pos.y,
-                       (s32)star->radius, color);
-    } else {
-      draw_circle_fill(draw_buffer, (s32)star->pos.x, (s32)star->pos.y,
-                       star->radius, color);
-    }
-  }
-
-  // NOTE: draw enemy
-  if (state->enemy.is_alive) {
-    Image sprite = get_spritex(state->sprite_sheet, state->sprite_index,
-                               state->sprite_count_x, state->sprite_count_y);
-    pixel_shader_proc *shader = 0;
-    if (state->flash_t > 0.0f) shader = shader_turn_all_white;
-    Vector2 pos = align_position(sprite, state->enemy.pos, vec2(0.5f, 0.5f));
-    draw_sprite_shader(draw_buffer, sprite, pos, shader, 0);
-  }
-
-  // NOTE: draw bullets
-  for (u32 i = 0; i < state->max_bullet_count; ++i) { 
-    Entity *bullet = state->bullets + i;
-    if (bullet->is_alive) {
-      Image sprite = get_sprite(state->sprite_sheet, bullet->sprite_index);
-      Vector2 pos = align_position(sprite, bullet->pos, vec2(0.5f, 0.5f));
-      draw_sprite_vec(draw_buffer, sprite, pos);
-    }
-  }
-
-  { // NOTE: draw shooting EFX
-    if (state->r > 0.0f) state->r -= 60.0f*time->dt_sec;
-    if (state->r < 0.0f) state->r = 0.0f;
-    Vector2 pos = state->player.pos;
-    pos.y -= 4.5f;
-    draw_circle_fill(draw_buffer, (s32)pos.x, (s32)pos.y,
-                     state->r, CP_WHITE);
-  }
-
-  // NOTE: draw player
-  if (state->player.is_alive) {
-    if (state->invul_t <= 0.0f) {
-      // NOTE: draw flame particles
-      for (u32 i = 0; i < state->max_particle_count; ++i) {
-        Particle *particle = state->particles + i;
-        draw_circle_fill(draw_buffer, (s32)particle->pos.x, (s32)particle->pos.y,
-                         particle->radius*(particle->speed/particle->max_speed),
-                         particle->color);
-      }
-
-      { // NOTE: draw ship flame
-        local f32 ms = 0;
-        ms += time->dt_sec*thousand(1.0f);
-        if (ms >= 32.0f) {
-          state->flame_sprite_index += 1;
-          if (state->flame_sprite_index > 20) {
-            state->flame_sprite_index = 16;
-          }
-          ms = 0.0f;
+    switch (particle->type) {
+      case PARTICLE_STAR: {
+        particle->pos.y += particle->speed*time->dt_sec;
+        if (particle->pos.y - particle->radius > (f32)draw_buffer.height) {
+          particle->pos.x = random_unilateral(&state->entropy)*draw_buffer.width;
+          particle->pos.y = -particle->radius;
         }
-        Image sprite = get_sprite(state->sprite_sheet, state->flame_sprite_index);
-        Vector2 pos = align_position(sprite, state->player.pos, vec2(0.5f, 0.5f));
-        pos.y += 8.0f;
-        draw_sprite_vec(draw_buffer, sprite, pos);
-      }
 
-      { // NOTE: draw ship
-        Image sprite = get_sprite(state->sprite_sheet, state->player.sprite_index);
-        Vector2 pos = align_position(sprite, state->player.pos, vec2(0.5f, 0.5f));
-        draw_sprite_vec(draw_buffer, sprite, pos);
-      }
+        if (particle->radius <= 1.0f) {
+          draw_circle_line(draw_buffer,
+                           (s32)particle->pos.x, (s32)particle->pos.y,
+                           (s32)particle->radius, particle->color);
+        } else {
+          draw_circle_fill(draw_buffer,
+                           (s32)particle->pos.x, (s32)particle->pos.y,
+                           particle->radius, particle->color);
+        }
+      } break;
+      case PARTICLE_SHIP_FLAME: {
+        if (particle->life > 0.0f) {
+          particle->life += particle->dlife*time->dt_sec;
 
-    } else { // NOTE: invul state
-      if (sin_f32(thousand(1.0f)*state->sec) <= 0.0f) { // NOTE: draw ship
-        Image sprite = get_sprite(state->sprite_sheet, state->player.sprite_index);
-        Vector2 pos = align_position(sprite, state->player.pos, vec2(0.5f, 0.5f));
-        draw_sprite_vec(draw_buffer, sprite, pos);
-      }
+          particle->radius += particle->dradius*time->dt_sec;
+          if (particle->radius <= 0.0f) particle->radius = 0.0f;
+
+          particle->speed += particle->dspeed*time->dt_sec;
+          if (particle->speed <= 0.0f) particle->speed = 0.0f;
+
+          Vector2 dpos = vector2_mul(particle->dpos, particle->speed*time->dt_sec);
+          particle->pos = vector2_add(particle->pos, dpos);
+
+          if (state->player.invul_t <= 0.0f) {
+            draw_circle_fill(draw_buffer,
+                             (s32)particle->pos.x, (s32)particle->pos.y,
+                             particle->radius, particle->color);
+          }
+        }
+      } break;
+      case PARTICLE_EXPLOSION: {
+        if (particle->radius > 0.0f) {
+          Vector2 dpos = vector2_mul(particle->dpos, particle->speed*time->dt_sec);
+          particle->pos = vector2_add(particle->pos, dpos);
+
+          particle->speed -= particle->fric*time->dt_sec;
+          if (particle->speed < 0.0f) particle->speed = 0.0f;
+
+          particle->fric += (particle->fric*0.9f)*time->dt_sec;
+
+          particle->age += 1.5f*time->dt_sec;
+          if (particle->age > 0.15f) particle->color = CP_YELLOW;
+          if (particle->age > 0.27f) particle->color = CP_ORANGE;
+          if (particle->age > 0.43f) particle->color = CP_RED;
+          if (particle->age > 0.7f) particle->color = CP_DARK_RED;
+          if (particle->age > 0.9f) particle->color = CP_DARK_BROWN;
+          if (particle->age > particle->max_age) {
+            particle->radius -= particle->dradius*time->dt_sec;
+          }
+
+          draw_circle_fill(draw_buffer,
+                           (s32)particle->pos.x, (s32)particle->pos.y,
+                           particle->radius, particle->color);
+        }
+      } break;
     }
   }
 
-  // NOTE: explosion particles
-  for (u32 i = 0; i < array_count(state->explosion_particles); ++i) {
-    Particle *particle = state->explosion_particles + i;
-    if (particle->radius > 0.0f) {
-      Vector2 dpos = vector2_mul(particle->dpos, particle->speed*time->dt_sec);
-      particle->pos = vector2_add(particle->pos, dpos);
-      particle->speed *= 0.9f;
-      particle->age += 1.0f*time->dt_sec;
-      // particle->radius += particle->dradius*time->dt_sec;
-      // particle->dradius *= 1.02f;
-      // if (particle->radius <= 0.0f) particle->radius = 0.0f;
-      if (particle->age > 0.15f) particle->color = CP_YELLOW;
-      if (particle->age > 0.27f) particle->color = CP_ORANGE;
-      if (particle->age > 0.43f) particle->color = CP_RED;
-      if (particle->age > 0.7f) particle->color = CP_DARK_RED;
-      if (particle->age > 0.9f) particle->color = CP_DARK_BROWN;
-      if (particle->age > particle->max_age) {
-        particle->radius -= particle->dradius*time->dt_sec;
+  switch (state->screen_type) {
+    case GAME_SCREEN_MENU: {
+      if (kbd[KEY_Z].pressed) {
+        state->screen_type = GAME_SCREEN_PLAY;
+        game_start(state, draw_buffer);
       }
-      draw_circle_fill(draw_buffer, (s32)particle->pos.x, (s32)particle->pos.y,
-                       particle->radius, particle->color);
-    }
-  }
 
-  ////////////////
-  // NOTE: draw UI
+      { // NOTE: draw title
+        s32 x = draw_buffer.width/2;
+        s32 y = draw_buffer.height/3;
+        draw_text_align(draw_buffer, state->font, str8_lit("STARFIGHTER"),
+                        x, y, 0.5f, 0.5f, CP_RED);
 
-  { // NOTE: player HP
-    for (u32 i = 0; i < state->hp; ++i) {
-      Image sprite = get_sprite(state->sprite_sheet, state->hp_sprite_index);
-      Vector2 pos = make_vector2(0.0f, (f32)(draw_buffer.height - sprite.height));
-      pos.x += i*sprite.width;
-      draw_sprite_vec(draw_buffer, sprite, pos);
-    }
-  }
+        String8 text = str8_lit("press [z] to start");
+        y = (s32)(draw_buffer.height - state->tile_size*4.0f);
+        if (sin_f32(state->sec*22.0f) > -0.5f) {
+          draw_text_align(draw_buffer, state->font, text,
+                          x, y, 0.5f, 0.5f, CP_DARK_BROWN);
+        } else {
+          draw_text_align(draw_buffer, state->font, text,
+                          x, y, 0.5f, 0.5f, CP_GRAY);
+        }
+      }
+    } break;
+    case GAME_SCREEN_PLAY: {
+      // NOTE: update player
+      if (state->player.is_alive) {
+        spawn_ship_flame_particles(state, time);
 
-  Temp temp = temp_begin(&state->temp_arena);
-  { // NOTE: score
-    String8 score_str = push_str8_fmt(temp.arena, "%d", state->score);
-    s32 x = draw_buffer.width;
-    s32 y = draw_buffer.height;
-    draw_text_align(draw_buffer, state->font, score_str,
-                    x, y, 1.0f, 1.0f, CP_WHITE);
-  }
+        state->player.sprite_index = 1;
+        if (kbd[KEY_UP].is_down) {
+          state->player.dpos.y = -1.0f;
+        }
+        if (kbd[KEY_LEFT].is_down) {
+          state->player.dpos.x = -1.0f;
+          state->player.sprite_index = 0;
+        }
+        if (kbd[KEY_DOWN].is_down) {
+          state->player.dpos.y = 1.0f;
+        }
+        if (kbd[KEY_RIGHT].is_down) {
+          state->player.dpos.x = 1.0f;
+          state->player.sprite_index = 2;
+        }
+
+        Vector2 player_dpos = vector2_mul(state->player.dpos, state->player.speed*time->dt_sec);
+        state->player.pos = vector2_add(state->player.pos, player_dpos);
+        state->player.dpos = make_vector2(0.0f, 0.0f);
+
+        if (state->player.pos.x < 0.0f) {
+          state->player.pos.x = 0;
+        }
+        if (state->player.pos.y < 0.0f) {
+          state->player.pos.y = 0;
+        }
+        if (state->player.pos.x > (f32)draw_buffer.width) {
+          state->player.pos.x = (f32)draw_buffer.width;
+        }
+        if (state->player.pos.y > (f32)draw_buffer.height) {
+          state->player.pos.y = (f32)draw_buffer.height;
+        }
+
+        // NOTE: player spawn bullets
+        if (state->player.shoot_t <= 0.0f) {
+          if (kbd[KEY_Z].is_down) {
+            state->player.shoot_t = state->player.shoot_cd;
+            state->player_shoot_r = state->player_max_shoot_r;
+
+            Entity *bullet = state->bullets + state->next_bullet++;
+            if (state->next_bullet >= state->bullet_count) {
+              state->next_bullet = 0;
+            }
+
+            bullet->is_alive = true;
+            bullet->speed = 380.0f;
+            bullet->size = make_vector2(state->tile_size, state->tile_size);
+            bullet->pos = state->player.pos;
+            f32 gap = 2.0f;
+            bullet->pos.x += (state->player_shoot_side++%2 == 0) ? gap : -gap;
+            bullet->dpos = make_vector2(0.0f, -1.0f);
+            bullet->sprite_index = 4;
+          }
+        } else {
+          state->player.shoot_t -= 1.0f*time->dt_sec;
+        }
+      }
+
+      // NOTE: update and draw bullets
+      for (u32 bullet_index = 0;
+           bullet_index < state->bullet_count;
+           ++bullet_index) {
+        Entity *bullet = state->bullets + bullet_index;
+        if (bullet->is_alive) {
+          Vector2 dpos = vector2_mul(bullet->dpos, bullet->speed*time->dt_sec);
+          bullet->pos = vector2_add(bullet->pos, dpos);
+          if (bullet->pos.y <= -state->tile_size) {
+            bullet->is_alive = false;
+          }
+
+          Image sprite = get_sprite(state->sprite_sheet, bullet->sprite_index);
+          Vector2 pos = align_position(sprite, bullet->pos, vec2(0.5f, 0.5f));
+          draw_sprite_vec(draw_buffer, sprite, pos);
+        }
+      }
+      
+      // NOTE: spawn enemies
+      if (state->player.is_alive) {
+        local f32 sec = 1.0f;
+        sec += time->dt_sec;
+        if (sec >= 1.0f) {
+          if (state->enemy_alive_count < state->enemy_count) {
+            for (u32 i = 0; i < state->enemy_count; ++i) {
+              Entity *enemy = state->enemies + i;
+              if (!enemy->is_alive) {
+                enemy->is_alive = true;
+                enemy->hp = 3;
+
+                enemy->flash_t = 0.0f;
+                enemy->flash_cd = 0.05f;
+
+                enemy->speed = 32.0f;
+                enemy->size = make_vector2(state->tile_size, state->tile_size);
+                enemy->pos.x = random_unilateral(&state->entropy)*back_buffer->width;
+                enemy->pos.y = -enemy->size.y;
+                enemy->dpos = make_vector2(0.0f, 1.0f);
+
+                enemy->sprite_index = 48;
+                // enemy->sprite_count_x = 1;
+                // enemy->sprite_count_y = 2;
+                
+                state->enemy_alive_count += 1;
+                break;
+              }
+            }
+          }
+          sec = 0.0f;
+        }
+      }
+      
+      // NOTE: update and draw enemies
+      for (u32 i = 0; i < state->enemy_count; ++i) {
+        Entity *enemy = state->enemies + i;
+        if (enemy->is_alive) {
+          Vector2 dpos = vector2_mul(enemy->dpos, enemy->speed*time->dt_sec);
+          enemy->pos = vector2_add(enemy->pos, dpos);
+
+          if(enemy->pos.y > draw_buffer.height + state->tile_size*2.0f) {
+            enemy->is_alive = false;
+            state->enemy_alive_count -= 1;
+          }
+
+          if (enemy->flash_t > 0.0f) {
+            enemy->flash_t -= 1.0f*time->dt_sec;
+          }
+
+          Image sprite = get_sprite(state->sprite_sheet, enemy->sprite_index);
+          // Image sprite = get_spritex(state->sprite_sheet, enemy->sprite_index,
+          //                            enemy->sprite_count_x, enemy->sprite_count_y);
+
+          pixel_shader_proc *shader = 0;
+          u32 user_data = 0;
+          if (enemy->flash_t > 0.0f) {
+            shader = shader_replace_color;
+            user_data = CP_RED;
+          }
+
+          Vector2 pos = align_position(sprite, enemy->pos, vec2(0.5f, 0.5f));
+          draw_sprite_shader(draw_buffer, sprite, pos, shader, &user_data);
+        }
+      }
+
+      // NOTE: player x enemy collision
+      if (state->player.is_alive && state->player.invul_t <= 0.0f) {
+        for (u32 enemy_index = 0;
+             enemy_index < state->enemy_count;
+             ++enemy_index) {
+          Entity *enemy = state->enemies + enemy_index;
+          if (enemy->is_alive) {
+            if (entity_collide(state->player, *enemy)) {
+              spawn_explosion_particles(state, enemy->pos);
+
+              state->player.invul_t = state->player.invul_cd;
+              state->player.hp -= 1;
+
+              if (state->player.hp <= 0) {
+                state->player.is_alive = false;
+                state->sec = 0.0f;
+              }
+
+              enemy->hp = 0;
+              enemy->is_alive = false;
+              state->enemy_alive_count -= 1;
+            }
+          }
+        }
+      } else {
+        state->player.invul_t -= 1.0f*time->dt_sec;
+      }
+
+      // NOTE: bullet x enemy collision
+      for (u32 bullet_index = 0;
+           bullet_index < state->bullet_count;
+           ++bullet_index) {
+        Entity *bullet = state->bullets + bullet_index;
+        if (bullet->is_alive) {
+          for (u32 enemy_index = 0;
+               enemy_index < state->enemy_count;
+               ++enemy_index) {
+            Entity *enemy = state->enemies + enemy_index;
+            if (enemy->is_alive) {
+              if (entity_collide(*bullet, *enemy)) {
+                bullet->is_alive = false;
+                enemy->flash_t = enemy->flash_cd;
+                enemy->hp -= 1;
+                if (enemy->hp <= 0) {
+                  spawn_explosion_particles(state, enemy->pos);
+                  enemy->is_alive = false;
+                  state->enemy_alive_count -= 1;
+                  state->score += 100;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      ///////////////////
+      // NOTE: begin draw
+
+      { // NOTE: draw player shoot effect
+        if (state->player_shoot_r > 0.0f) {
+          state->player_shoot_r += state->player_dshoot_r*time->dt_sec;
+        }
+        if (state->player_shoot_r < 0.0f) state->player_shoot_r = 0.0f;
+        Vector2 pos = state->player.pos;
+        pos.y -= 4.0f;
+        f32 gap = 2.0f;
+        pos.x += (state->player_shoot_side%2 == 1) ? gap : -gap;
+        draw_circle_fill(draw_buffer, (s32)pos.x, (s32)pos.y,
+                         state->player_shoot_r, CP_WHITE);
+      }
+
+      // NOTE: draw player
+      if (state->player.is_alive) {
+        if (state->player.invul_t <= 0.0f) {
+          { // NOTE: draw ship flame sprite
+            local f32 ms = 0;
+            ms += time->dt_sec*thousand(1.0f);
+            if (ms >= 32.0f) {
+              state->flame_sprite_index += 1;
+              if (state->flame_sprite_index > 20) {
+                state->flame_sprite_index = 16;
+              }
+              ms = 0.0f;
+            }
+            Image sprite = get_sprite(state->sprite_sheet, state->flame_sprite_index);
+            Vector2 pos = align_position(sprite, state->player.pos, vec2(0.5f, 0.5f));
+            pos.y += 8.0f;
+            draw_sprite_vec(draw_buffer, sprite, pos);
+          }
+
+          { // NOTE: draw ship
+            Image sprite = get_sprite(state->sprite_sheet, state->player.sprite_index);
+            Vector2 pos = align_position(sprite, state->player.pos, vec2(0.5f, 0.5f));
+            draw_sprite_vec(draw_buffer, sprite, pos);
+          }
+        } else {
+          // NOTE: invul state
+          if (sin_f32(thousand(1.0f)*state->sec) <= 0.0f) { // NOTE: draw ship
+            Image sprite = get_sprite(state->sprite_sheet, state->player.sprite_index);
+            Vector2 pos = align_position(sprite, state->player.pos, vec2(0.5f, 0.5f));
+            draw_sprite_vec(draw_buffer, sprite, pos);
+          }
+        }
+      }
+      
+      // NOTE: draw ui
+      if (state->player.is_alive) {
+        // NOTE: draw enemy alive count
+        {
+          Temp temp = temp_begin(&state->temp_arena);
+          String8 str = push_str8_fmt(temp.arena, "%d/%d", state->enemy_alive_count, state->enemy_count);
+          s32 x = 0;
+          s32 y = 0;
+          draw_text_align(draw_buffer, state->font, str, x, y, 0.0f, 0.0f, CP_WHITE);
+          temp_end(temp);
+        }
+
+        // NOTE: draw player hp count
+        for (u32 hp_index = 0;
+             hp_index < state->player.hp;
+             ++hp_index) {
+          Image sprite = get_sprite(state->sprite_sheet, state->player_hp_sprite_index);
+          Vector2 pos = make_vector2(0.0f, (f32)(draw_buffer.height - sprite.height));
+          pos.x += hp_index*sprite.width + 1;
+          pos.y -= 1;
+          draw_sprite_vec(draw_buffer, sprite, pos);
+        }
+
+        { // NOTE: score
+          Temp temp = temp_begin(&state->temp_arena);
+          String8 str = push_str8_fmt(temp.arena, "%d", state->score);
+          s32 x = draw_buffer.width - 1;
+          s32 y = draw_buffer.height - 1;
+          draw_text_align(draw_buffer, state->font, str, x, y, 1.0f, 1.0f, CP_WHITE);
+          temp_end(temp);
+        }
 
 #if 0
-  {
-    s32 x = draw_buffer.width/2;
-    s32 y = draw_buffer.height/3;
-    draw_text_align(draw_buffer, state->font, str8_lit("STARFIGHTER"),
-                    x, y, 0.5f, 0.5f, CP_WHITE);
+        { // NOTE: draw wave index
+          Temp temp = temp_begin(&state->temp_arena);
+          String8 wave_str = push_str8_fmt(temp.arena, "WAVE %d", state->wave_index);
 
-    y = draw_buffer.height - y;
-    if (sin_f32(10.0f*state->sec) < 0.5f) {
-      draw_text_align(draw_buffer, state->font, str8_lit("PRESS [Z] TO START"),
-                      x, y, 0.5f, 0.5f, CP_WHITE);
-    }
-  }
+          s32 x = draw_buffer.width/2;
+          s32 y = (s32)(state->tile_size*2.0f);
+
+          if (sin_f32(state->sec*22.0f) > -0.5f) {
+            draw_text_align(draw_buffer, state->font, wave_str,
+                            x, y, 0.5f, 0.5f, CP_DARK_RED);
+          } else {
+            draw_text_align(draw_buffer, state->font, wave_str,
+                            x, y, 0.5f, 0.5f, CP_RED);
+          }
+          temp_end(temp);
+        }
 #endif
+      } else {
+        if (kbd[KEY_Z].pressed) {
+          state->screen_type = GAME_SCREEN_MENU;
+        }
+
+        { // NOTE: draw game over
+          s32 x = draw_buffer.width/2;
+          s32 y = draw_buffer.height/3;
+          draw_text_align(draw_buffer, state->font, str8_lit("GAME OVER"),
+                          x, y, 0.5f, 0.5f, CP_RED);
+
+          String8 text_top = str8_lit("press [z] to go");
+          String8 text_bot = str8_lit("back to menu");
+          y = (s32)(draw_buffer.height - state->tile_size*4.0f - state->tile_size/2.0f);
+          if (sin_f32(state->sec*22.0f) > -0.5f) {
+            draw_text_align(draw_buffer, state->font, text_top,
+                            x, y, 0.5f, 0.5f, CP_DARK_BROWN);
+            y += state->font.sheet.tile_h;
+            draw_text_align(draw_buffer, state->font, text_bot,
+                            x, y, 0.5f, 0.5f, CP_DARK_BROWN);
+          } else {
+            draw_text_align(draw_buffer, state->font, text_top,
+                            x, y, 0.5f, 0.5f, CP_GRAY);
+            y += state->font.sheet.tile_h;
+            draw_text_align(draw_buffer, state->font, text_bot,
+                            x, y, 0.5f, 0.5f, CP_GRAY);
+          }
+
+          { // NOTE: score
+            Temp temp = temp_begin(&state->temp_arena);
+            String8 score_str = push_str8_fmt(temp.arena, "score:%d", state->score);
+            y = draw_buffer.height/2;
+            draw_text_align(draw_buffer, state->font, score_str,
+                            x, y, 0.5f, 0.5f, CP_WHITE);
+            temp_end(temp);
+          }
+        }
+      }
+    } break;
+  }
 
   // NOTE: draw debug info
+  Temp temp = temp_begin(&state->temp_arena);
   if (kbd[KEY_F1].pressed) state->draw_debug_info = !state->draw_debug_info;
   if (state->draw_debug_info) {
     f32 fps = million(1.0f)/time->_dt_us;
@@ -1172,15 +1365,15 @@ KRUEGER_FRAME_PROC(krueger_frame) {
     String8 fps_str = push_str8_fmt(temp.arena, "%.2f FPS", fps);
     String8 ms_str = push_str8_fmt(temp.arena, "%.2f MS", ms);
     
-    s32 x = draw_buffer.width;
+    s32 x = draw_buffer.width - 1;
     s32 y = 0;
     draw_text_align(draw_buffer, state->font, fps_str,
-                    x, y, 1.0f, 0.0f, CP_WHITE);
+                    x, y, 1.0f, 0.0f, CP_GREEN);
 
     x -= state->font.sheet.tile_w;
     y += state->font.sheet.tile_h;
     draw_text_align(draw_buffer, state->font, ms_str,
-                    x, y, 1.0f, 0.0f, CP_WHITE);
+                    x, y, 1.0f, 0.0f, CP_GREEN);
   }
   temp_end(temp);
 }

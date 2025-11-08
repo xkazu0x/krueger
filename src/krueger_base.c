@@ -2,13 +2,9 @@
 #define KRUEGER_BASE_C
 
 #include "krueger_base_core.c"
-#include "krueger_base_math.c"
 #include "krueger_base_arena.c"
 #include "krueger_base_string.c"
+#include "krueger_base_math.c"
 #include "krueger_base_log.c"
-
-#if KRUEGER_BASE_STRETCHY_BUFFER
-#include "krueger_base_stretchy_buffer.c"
-#endif
 
 #endif // KRUEGER_BASE_C

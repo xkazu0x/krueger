@@ -37,7 +37,6 @@ arena_push(Arena *arena, uxx cmt_size) {
 
 internal void
 arena_clear(Arena *arena) {
-  mem_zero(arena->base, arena->cmt_size);
   arena->cmt_size = 0;
 }
 

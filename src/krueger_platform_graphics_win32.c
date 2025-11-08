@@ -222,7 +222,9 @@ platform_window_close(Platform_Handle handle) {
 internal void
 platform_window_show(Platform_Handle handle) {
   Win32_Window *window = win32_window_from_handle(handle);
-  if (window != 0) ShowWindow(window->hwnd, SW_SHOW);
+  if (window != 0) {
+    ShowWindow(window->hwnd, SW_SHOW);
+  }
 }
 
 internal void
@@ -236,7 +238,7 @@ platform_window_display_buffer(Platform_Handle handle, u32 *buffer, s32 buffer_w
     bitmap_info.bmiHeader.biPlanes = 1;
     bitmap_info.bmiHeader.biBitCount = 32;
     bitmap_info.bmiHeader.biCompression = BI_RGB;
-
+    
     RECT client_rectangle;
     GetClientRect(window->hwnd, &client_rectangle);
 
