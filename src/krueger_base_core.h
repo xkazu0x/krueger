@@ -75,13 +75,14 @@
 ////////////////////////////////
 // NOTE: Memory Operation Macros
 
-#define mem_cpy(dst, src, size)  memmove((dst), (src), (size))
-#define mem_set(dst, byte, size) memset((dst), (byte), (size))
-#define mem_cmp(a, b, size)      memcmp((a), (b), (size))
+#define mem_cpy(dst, src, size)     memmove((dst), (src), (size))
+#define mem_set(dst, byte, size)    memset((dst), (byte), (size))
+#define mem_cmp(a, b, size)         memcmp((a), (b), (size))
 
-#define mem_zero(dst, size)  mem_set((dst), 0, (size))
-#define mem_zero_struct(dst) mem_zero((dst), sizeof(*(dst)))
-#define mem_zero_array(dst)  mem_zero((dst), sizeof(dst));
+#define mem_zero(dst, size)         mem_set((dst), 0, (size))
+#define mem_zero_struct(dst)        mem_zero((dst), sizeof(*(dst)))
+#define mem_zero_array(dst)         mem_zero((dst), sizeof(dst));
+#define mem_zero_typed(dst, count)  mem_zero((dst), sizeof(*(dst))*(count))
 
 ///////////////////////////
 // NOTE: Linked List Macros

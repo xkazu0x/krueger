@@ -9,23 +9,21 @@ typedef struct {
 } Image;
 
 internal Image
-make_image(u32 *pixels, u32 w, u32 h) {
+make_image(u32 *pixels, u32 width, u32 height) {
   Image result = {
-    .width = w,
-    .height = h,
-    .pitch = w,
+    .width = width,
+    .height = height,
+    .pitch = width,
     .pixels = pixels,
   };
   return(result);
 }
 
 internal Image
-make_subimage(Image image, 
-              u32 x, u32 y,
-              u32 w, u32 h) {
+image_scissor(Image image, u32 x, u32 y, u32 width, u32 height) {
   Image result = {
-    .width = w,
-    .height = h,
+    .width = width,
+    .height = height,
     .pitch = image.pitch,
     .pixels = image.pixels + (y*image.pitch + x),
   };

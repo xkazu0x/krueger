@@ -23,6 +23,7 @@ typedef struct {
 // NOTE: Helpers, Implemented Once
 
 internal b32 platform_handle_match(Platform_Handle a, Platform_Handle b);
+internal b32 platform_handle_is_null(Platform_Handle handle);
 internal void *platform_read_entire_file(Arena *arena, String8 filepath);
 
 /////////////////////////////////

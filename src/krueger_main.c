@@ -2,22 +2,10 @@
 
 #include "krueger_base.h"
 #include "krueger_platform.h"
+#include "krueger_shared.h"
 
 #include "krueger_base.c"
 #include "krueger_platform.c"
-
-#include "krueger_shared.h"
-
-#define WINDOW_TITLE str8_lit("STARFIGHTER")
-#define WINDOW_SCALE 5
-
-#define BACK_BUFFER_WIDTH  128
-#define BACK_BUFFER_HEIGHT 128
-
-#define WINDOW_WIDTH  WINDOW_SCALE*BACK_BUFFER_WIDTH
-#define WINDOW_HEIGHT WINDOW_SCALE*BACK_BUFFER_HEIGHT
-
-#define PATH_SLASH_CHAR ((PLATFORM_WINDOWS) ? '\\' : '/')
 
 typedef struct {
   Platform_Handle h;
@@ -31,7 +19,7 @@ libkrueger_load(String8 dst_path, String8 src_path) {
   Library lib = {0};
   if (platform_copy_file_path(dst_path, src_path)) {
     lib.h = platform_library_open(dst_path);
-    if (!platform_handle_match(lib.h, PLATFORM_HANDLE_NULL)) {
+    if (!platform_handle_is_null(lib.h)) {
       #define PROC(x) \
         lib.x = (x##_proc *)platform_library_load_proc(lib.h, #x); \
         if (!(lib.x)) log_error("%s: failed to load proc: [%s]", __func__, #x);
@@ -41,14 +29,14 @@ libkrueger_load(String8 dst_path, String8 src_path) {
       log_error("%s: failed to open library: [%s]", __func__, dst_path.str);
     }
   } else {
-    log_error("%s: failed to copy file path from [%s] to [%s]", __func__, src_path.str, dst_path.str);
+    log_error("%s: failed to copy file path: from [%s] to [%s]", __func__, src_path.str, dst_path.str);
   }
   return(lib);
 }
 
 internal void
 libkrueger_unload(Library lib) {
-  if (!platform_handle_match(lib.h, PLATFORM_HANDLE_NULL)) {
+  if (!platform_handle_is_null(lib.h)) {
     platform_library_close(lib.h);
   }
 }
@@ -117,7 +105,13 @@ main(void) {
 
   Arena misc_arena = arena_alloc(MB(64));
   String8 exec_file_path = platform_get_exec_file_path(&misc_arena);
-  uxx last_slash_index = str8_index_of_last(exec_file_path, PATH_SLASH_CHAR);
+
+#if PLATFORM_WINDOWS
+  uxx last_slash_index = str8_index_of_last(exec_file_path, '\\');
+#elif PLATFORM_LINUX
+  uxx last_slash_index = str8_index_of_last(exec_file_path, '/');
+#endif
+
   String8 path = str8_substr(exec_file_path, 0, last_slash_index + 1);
 
 #if PLATFORM_WINDOWS
@@ -132,26 +126,34 @@ main(void) {
   String8 dst_lib_path = str8_cat(&misc_arena, path, dst_lib_name);
 
   Library lib = libkrueger_load(dst_lib_path, src_lib_path);
-  if (!platform_handle_match(lib.h, PLATFORM_HANDLE_NULL)) {
+  if (!platform_handle_is_null(lib.h)) {
+    s32 window_scale = 5;
+
+    s32 render_w = 128;
+    s32 render_h = 128;
+
+    s32 window_w = window_scale*render_w;
+    s32 window_h = window_scale*render_h;
+
+    Platform_Handle window = platform_window_open(
+      str8_lit("STARFIGHTER"), window_w, window_h
+    );
+
+    Image back_buffer = image_alloc(render_w, render_h);
     Memory memory = memory_alloc(GB(1));
-    Image back_buffer = image_alloc(BACK_BUFFER_WIDTH, BACK_BUFFER_HEIGHT);
     Input input = {0};
-    Clock time = {0};
+
+    Platform_Graphics_Info graphics_info = platform_get_graphics_info();
+    Clock time = { .dt_sec = 1.0f/graphics_info.refresh_rate };
+    // Clock time = { .dt_sec = 1.0f/30.0f };
 
     if (lib.krueger_init) lib.krueger_init(&memory, &back_buffer);
-    Platform_Handle window = platform_window_open(WINDOW_TITLE,
-                                                  WINDOW_WIDTH,
-                                                  WINDOW_HEIGHT);
 
-#if 1
-    Platform_Graphics_Info graphics_info = platform_get_graphics_info();
-    time.dt_sec = 1.0f/graphics_info.refresh_rate;
-#else
-    time.dt_sec = 1.0f/30.0f;
-#endif
-    u64 time_start = platform_get_time_us();
-  
+    platform_window_toggle_fullscreen(window);
     platform_window_show(window);
+
+    u64 time_start = platform_get_time_us();
+
     for (b32 quit = false; !quit;) {
       Temp temp = temp_begin(&misc_arena);
       Platform_Event_List event_list = platform_get_event_list(temp.arena);
@@ -172,8 +174,7 @@ main(void) {
 
       if (input.kbd[KEY_Q].pressed) quit = true;
       if (input.kbd[KEY_F11].pressed) platform_window_toggle_fullscreen(window);
-
-      if (input.kbd[KEY_F4].pressed) {
+      if (input.kbd[KEY_R].pressed) {
         libkrueger_unload(lib);
         lib = libkrueger_load(dst_lib_path, src_lib_path);
       }

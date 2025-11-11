@@ -10,6 +10,12 @@ platform_handle_match(Platform_Handle a, Platform_Handle b) {
   return(result);
 }
 
+internal b32
+platform_handle_is_null(Platform_Handle handle) {
+  b32 result = platform_handle_match(handle, PLATFORM_HANDLE_NULL);
+  return(result);
+}
+
 internal void *
 platform_read_entire_file(Arena *arena, String8 filepath) {
   void *result = 0;
