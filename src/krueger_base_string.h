@@ -56,7 +56,7 @@ internal String8 str8_chop(String8 str, uxx amt);
 // NOTE: String Formatting
 
 internal String8 str8_cat(Arena *arena, String8 a, String8 b);
+internal String8 str8_fmt_args(Arena *arena, char *fmt, va_list args);
 internal String8 str8_fmt(Arena *arena, char *fmt, ...);
-#define push_str8_fmt(arena, ...) str8_fmt((arena), __VA_ARGS__);
 
 #endif // KRUEGER_BASE_STRING_H
