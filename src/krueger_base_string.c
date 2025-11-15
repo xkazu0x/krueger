@@ -1,4 +1,4 @@
-#ifndef KRUEGER_BASE_STRING_C
+#ifndef KRUEGER_BASE_STRING_Cstring
 #define KRUEGER_BASE_STRING_C
 
 //////////////////////////
@@ -118,7 +118,7 @@ internal String8
 str8_cstr(char *cstr) {
   String8 result = {
     .len = cstr_len(cstr),
-    .str = (u8 *)cstr,
+    .str = cast(u8 *) cstr,
   };
   return(result);
 }
@@ -145,7 +145,21 @@ str8_match(String8 a, String8 b) {
 }
 
 internal uxx
-str8_index_of_last(String8 str, u8 c) {
+str8_find_first(String8 str, u8 c) {
+  u8 *tmp_ptr = str.str;
+  for (uxx i = 0; i < str.len; ++i) {
+    u8 *str_ptr = str.str + i;
+    if (*str_ptr == c) {
+      tmp_ptr = str_ptr;
+      break;
+    }
+  }
+  uxx result = tmp_ptr - str.str;
+  return(result);
+}
+
+internal uxx
+str8_find_last(String8 str, u8 c) {
   u8 *tmp_ptr = str.str;
   for (uxx i = 0; i < str.len; ++i) {
     u8 *str_ptr = str.str + i;
@@ -205,7 +219,7 @@ str8_fmt(Arena *arena, char *fmt, ...) {
   u32 size = vsnprintf(0, 0, fmt, args) + 1;
   String8 result = {0};
   result.str = push_array(arena, u8, size);
-  result.len = vsnprintf((char *)result.str, size, fmt, args);
+  result.len = vsnprintf(cast(char *) result.str, size, fmt, args);
   result.str[result.len] = 0;
   va_end(args);
   return(result);

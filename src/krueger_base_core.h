@@ -87,21 +87,21 @@
 ///////////////////////////
 // NOTE: Linked List Macros
 
-// NOTE: doubly-linked-lists
+// NOTE: Doubly Linked Lists
 #define dll_push_back_np(f, l, n, next, prev) \
   (((f)==0) ? \
     ((f)=(l)=(n),(n)->next=(n)->prev=0):\
     ((n)->prev=(l),(l)->next=(n),(l)=(n),(n)->next=0))
 #define dll_remove_np(f, l, n, next, prev) \
   (((n)==(f) ? (f)=(n)->next : (0)), \
-   ((n)==(l) ? (l)=(n)->prev : (0)), \
+   ((n)==(l) ? (l)=(l)->prev : (0)), \
    ((n)->prev==0 ? (0) : ((n)->prev->next=(n)->next)), \
    ((n)->next==0 ? (0) : ((n)->next->prev=(n)->prev)))
 #define dll_push_back(f, l, n) dll_push_back_np(f, l, n, next, prev)
 #define dll_push_front(f, l, n) dll_push_back_np(l, f, n, prev, next)
 #define dll_remove(f, l, n) dll_remove_np(f, l, n, next, prev)
 
-// NOTE: singly-linked-lists (queues)
+// NOTE: Singly Linked Lists (Queues)
 #define sll_queue_push_n(f, l, n, next) \
   (((f)==0) ? \
     ((f)=(l)=(n),(n)->next=0) : \
@@ -111,7 +111,7 @@
 #define sll_queue_push(f, l, n) sll_queue_push_n(f, l, n, next)
 #define sll_queue_pop(f, l) sll_queue_pop_n(f, l, next)
 
-// NOTE: singly-linked-list (stacks)
+// NOTE: Singly Linked List (Stacks)
 #define sll_stack_push_n(f, n, next) ((n)->next=(f), (f)=(n))
 #define sll_stack_pop_n(f, next) ((f)=(f)->next)
 #define sll_stack_push(f, n) sll_stack_push_n(f, n, next);
@@ -121,14 +121,15 @@
 // NOTE: Misc. Helper Macros
 
 #define array_count(x) (sizeof(x)/sizeof(*(x)))
-#define sqr(x) ((x)*(x))
+#define square(x) ((x)*(x))
+#define cast(T) (T)
 
 #define swap_t(T, a, b) do { T t__ = a; a = b; b = t__; } while (0)
-#define sign_t(T, x) ((T)((x) > 0) - (T)((x) < 0))
+#define sign_t(T, x) (cast(T) ((x) > 0) - cast(T) ((x) < 0))
 #define abs_t(T, x) (sign_t(T, x)*(x))
-#define round_t(T, x) (T)((x) + 0.5f)
+#define round_t(T, x) cast(T) ((x) + 0.5f)
 
-#define radians_f32(x) ((x)*pi32/180.0f)
+#define radians_pi32(x) ((x)*pi32/180.0f)
 
 ////////////////////
 // NOTE: Basic Types
@@ -159,15 +160,15 @@ global u16 u16_max = 0xffff;
 global u32 u32_max = 0xffffffff;
 global u64 u64_max = 0xffffffffffffffffull;
 
-global s8  s8_max  =  (s8)0x7f;
-global s16 s16_max = (s16)0x7fff;
-global s32 s32_max = (s32)0x7fffffff;
-global s64 s64_max = (s64)0x7fffffffffffffffll;
+global s8  s8_max  = cast(s8)  0x7f;
+global s16 s16_max = cast(s16) 0x7fff;
+global s32 s32_max = cast(s32) 0x7fffffff;
+global s64 s64_max = cast(s64) 0x7fffffffffffffffll;
 
-global s8  s8_min  =  (s8)0x80;
-global s16 s16_min = (s16)0x8000;
-global s32 s32_min = (s32)0x80000000;
-global s64 s64_min = (s64)0x8000000000000000ll;
+global s8  s8_min  = cast(s8)  0x80;
+global s16 s16_min = cast(s16) 0x8000;
+global s32 s32_min = cast(s32) 0x80000000;
+global s64 s64_min = cast(s64) 0x8000000000000000ll;
 
 global f32 f32_max = FLT_MAX;
 global f32 f32_min = -FLT_MAX;
@@ -242,7 +243,7 @@ global const u32 bit28 = (1<<27);
 global const u32 bit29 = (1<<28);
 global const u32 bit30 = (1<<29);
 global const u32 bit31 = (1<<30);
-global const u32 bit32 = (u32)(1<<31);
+global const u32 bit32 = cast(u32) (1<<31);
 
 /////////////
 // NOTE: Time

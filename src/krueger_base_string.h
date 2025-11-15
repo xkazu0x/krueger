@@ -42,7 +42,8 @@ internal String8 str8_cstr(char *cstr);
 #define str8_match_lit(a, b) str8_match((a), str8_lit(b))
 #define str8_match_cstr(a, b) str8_match((a), str8_cstr(b))
 internal b32 str8_match(String8 a, String8 b);
-internal uxx str8_index_of_last(String8 str, u8 c);
+internal uxx str8_find_first(String8 str, u8 c);
+internal uxx str8_find_last(String8 str, u8 c);
 
 ///////////////////////
 // NOTE: String Slicing

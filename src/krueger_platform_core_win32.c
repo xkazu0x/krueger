@@ -78,66 +78,66 @@ platform_file_open(String8 filepath, Platform_File_Flags flags) {
   if (flags & PLATFORM_FILE_SHARE_READ)  share_mode |= FILE_SHARE_READ;
   if (flags & PLATFORM_FILE_SHARE_WRITE) share_mode |= FILE_SHARE_WRITE | FILE_SHARE_DELETE;
   if (flags & PLATFORM_FILE_WRITE)       creation_disposition = CREATE_ALWAYS;
-  HANDLE handle = CreateFileA((LPCSTR)filepath.str, desired_access, share_mode, 0, creation_disposition, FILE_ATTRIBUTE_NORMAL, 0);
+  HANDLE handle = CreateFileA(cast(LPCSTR) filepath.str, desired_access, share_mode, 0, creation_disposition, FILE_ATTRIBUTE_NORMAL, 0);
   if (handle != INVALID_HANDLE_VALUE) {
-    result.ptr[0] = (u64)handle; 
+    result.ptr[0] = cast(uxx) handle; 
   }
   return(result);
 }
 
 internal void
 platform_file_close(Platform_Handle file) {
-  HANDLE handle = (HANDLE)file.ptr[0];
+  HANDLE handle = cast(HANDLE) file.ptr[0];
   CloseHandle(handle);
 }
 
 internal u32
 platform_file_read(Platform_Handle file, void *buffer, u64 size) {
   u32 read_size = 0;
-  HANDLE handle = (HANDLE)file.ptr[0];
-  ReadFile(handle, buffer, (DWORD)size, (DWORD *)&read_size, 0);
+  HANDLE handle = cast(HANDLE) file.ptr[0];
+  ReadFile(handle, buffer, cast(DWORD) size, cast(DWORD *) &read_size, 0);
   return(read_size);
 }
 
 internal u32
 platform_file_write(Platform_Handle file, void *buffer, u64 size) {
   u32 write_size = 0;
-  HANDLE handle = (HANDLE)file.ptr[0];
-  WriteFile(handle, buffer, (DWORD)size, (DWORD *)&write_size, 0);
+  HANDLE handle = cast(HANDLE) file.ptr[0];
+  WriteFile(handle, buffer, cast(DWORD) size, cast(DWORD *) &write_size, 0);
   return(write_size);
 }
 
 internal u64
 platform_get_file_size(Platform_Handle file) {
   u64 result = 0;
-  HANDLE handle = (HANDLE)file.ptr[0];
-  GetFileSizeEx(handle, (LARGE_INTEGER *)&result);
+  HANDLE handle = cast(HANDLE) file.ptr[0];
+  GetFileSizeEx(handle, cast(LARGE_INTEGER *) &result);
   return(result);
 }
 
 internal b32
 platform_copy_file_path(String8 dst, String8 src) {
-  b32 result = CopyFileA((LPCSTR)src.str, (LPCSTR)dst.str, 0);
+  b32 result = CopyFileA(cast(LPCSTR) src.str, cast(LPCSTR) dst.str, 0);
   return(result);
 }
 
 internal Platform_Handle
 platform_library_open(String8 filepath) {
   Platform_Handle result = {0};
-  result.ptr[0] = (u64)LoadLibraryA((LPCSTR)filepath.str);
+  result.ptr[0] = cast(uxx) LoadLibraryA(cast(LPCSTR) filepath.str);
   return(result);
 }
 
 internal void *
 platform_library_load_proc(Platform_Handle lib, char *name) {
-  HMODULE module = (HMODULE)lib.ptr[0];
-  void *result = (void *)GetProcAddress(module, name);
+  HMODULE module = cast(HMODULE) lib.ptr[0];
+  void *result = cast(void *) GetProcAddress(module, name);
   return(result);
 }
 
 internal void
 platform_library_close(Platform_Handle lib) {
-  HMODULE module = (HMODULE)lib.ptr[0];
+  HMODULE module = cast(HMODULE) lib.ptr[0];
   FreeLibrary(module);
 }
 

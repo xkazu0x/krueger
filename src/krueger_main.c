@@ -68,7 +68,7 @@ wait_to_flip(f32 target_sec_per_frame, u64 time_start) {
   u64 time_end = platform_get_time_us();
   f32 sec_per_frame = get_seconds_elapsed(time_start, time_end);
   if (sec_per_frame < target_sec_per_frame) {
-    u32 sleep_ms = (u32)((target_sec_per_frame - sec_per_frame)*thousand(1.0f));
+    u32 sleep_ms = cast(u32) ((target_sec_per_frame - sec_per_frame)*thousand(1.0f));
     if (sleep_ms > 0) platform_sleep_ms(sleep_ms);
     while (sec_per_frame < target_sec_per_frame) {
       time_end = platform_get_time_us();
@@ -107,9 +107,9 @@ main(void) {
   String8 exec_file_path = platform_get_exec_file_path(&misc_arena);
 
 #if PLATFORM_WINDOWS
-  uxx last_slash_index = str8_index_of_last(exec_file_path, '\\');
+  uxx last_slash_index = str8_find_last(exec_file_path, '\\');
 #elif PLATFORM_LINUX
-  uxx last_slash_index = str8_index_of_last(exec_file_path, '/');
+  uxx last_slash_index = str8_find_last(exec_file_path, '/');
 #endif
 
   String8 path = str8_substr(exec_file_path, 0, last_slash_index + 1);
@@ -174,6 +174,7 @@ main(void) {
 
       if (input.kbd[KEY_Q].pressed) quit = true;
       if (input.kbd[KEY_F11].pressed) platform_window_toggle_fullscreen(window);
+
       if (input.kbd[KEY_R].pressed) {
         libkrueger_unload(lib);
         lib = libkrueger_load(dst_lib_path, src_lib_path);
@@ -187,7 +188,10 @@ main(void) {
       time._dt_ms = time._dt_us/thousand(1.0f);
       time_start = time_end;
 
-      platform_window_display_buffer(window, back_buffer.pixels, back_buffer.width, back_buffer.height);
+      platform_window_display_buffer(window,
+                                     back_buffer.pixels,
+                                     back_buffer.width,
+                                     back_buffer.height);
       input_reset(&input);
     }
 

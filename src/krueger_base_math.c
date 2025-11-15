@@ -336,7 +336,7 @@ internal Matrix4x4
 matrix4x4_perspective(f32 fov_deg, f32 aspect_ratio, f32 z_near, f32 z_far) {
   // NOTE: Row Major
   Matrix4x4 result = make_matrix4x4(1.0f);
-  f32 fov_rad = 1.0f / tan_f32(radians_f32(fov_deg*0.5f));
+  f32 fov_rad = 1.0f / tan_f32(radians_pi32(fov_deg*0.5f));
   result.buf[0][0] = fov_rad*aspect_ratio;
   result.buf[1][1] = fov_rad;
   result.buf[2][2] = z_far / (z_far - z_near);

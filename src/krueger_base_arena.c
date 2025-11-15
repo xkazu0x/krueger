@@ -12,6 +12,13 @@ make_arena(u8 *base, uxx res_size) {
 }
 
 internal Arena
+make_subarena(Arena *arena, uxx res_size) {
+  u8 *base = arena_push(arena, res_size);
+  Arena result = make_arena(base, res_size);
+  return(result);
+}
+
+internal Arena
 arena_alloc(uxx res_size) {
   u8 *base = platform_reserve(res_size);
   platform_commit(base, res_size);
@@ -29,9 +36,13 @@ arena_release(Arena *arena) {
 
 internal void *
 arena_push(Arena *arena, uxx cmt_size) {
-  assert((arena->cmt_size + cmt_size) <= arena->res_size);
-  void *result = (void *)(arena->base + arena->cmt_size);
-  arena->cmt_size += cmt_size;
+  void *result = 0;
+  if ((arena->cmt_size + cmt_size) <= arena->res_size) {
+    result = arena->base + arena->cmt_size;
+    arena->cmt_size += cmt_size;
+    mem_zero(result, cmt_size);
+  }
+  assert(result != 0);
   return(result);
 }
 
