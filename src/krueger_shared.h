@@ -20,6 +20,16 @@ make_image(u32 *pixels, u32 width, u32 height) {
 }
 
 internal Image
+image_alloc(u32 width, u32 height) {
+  uxx size = width*height*sizeof(u32);
+  u32 *pixels = platform_reserve(size);
+  platform_commit(pixels, size);
+  mem_zero(pixels, size);
+  Image result = make_image(pixels, width, height);
+  return(result);
+}
+
+internal Image
 image_scissor(Image image, u32 x, u32 y, u32 width, u32 height) {
   Image result = {
     .width = width,
@@ -60,6 +70,7 @@ typedef struct {
 } Clock;
 
 typedef struct {
+  b32 quit;
   uxx memory_size;
   u8 *memory_ptr;
 } Memory;

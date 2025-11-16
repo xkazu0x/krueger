@@ -88,16 +88,6 @@ memory_alloc(uxx memory_size) {
   return(result);
 }
 
-internal Image
-image_alloc(u32 width, u32 height) {
-  uxx size = width*height*sizeof(u32);
-  u32 *pixels = platform_reserve(size);
-  platform_commit(pixels, size);
-  mem_zero(pixels, size);
-  Image result = make_image(pixels, width, height);
-  return(result);
-}
-
 int
 main(void) {
   platform_core_init();
@@ -172,9 +162,7 @@ main(void) {
       }
       temp_end(temp);
 
-      if (input.kbd[KEY_Q].pressed) quit = true;
       if (input.kbd[KEY_F11].pressed) platform_window_toggle_fullscreen(window);
-
       if (input.kbd[KEY_R].pressed) {
         libkrueger_unload(lib);
         lib = libkrueger_load(dst_lib_path, src_lib_path);
@@ -192,7 +180,9 @@ main(void) {
                                      back_buffer.pixels,
                                      back_buffer.width,
                                      back_buffer.height);
+
       input_reset(&input);
+      quit = memory.quit;
     }
 
     platform_window_close(window);

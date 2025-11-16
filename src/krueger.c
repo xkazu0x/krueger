@@ -37,8 +37,8 @@ global u32 waves[WAVE_MAX][WAVE_W*WAVE_H] = {
 
   [2] = {
     0, 0, 0, 2, 0, 2, 0, 0, 0,
-    2, 0, 0, 1, 0, 1, 0, 0, 2,
-    0, 1, 0, 0, 1, 0, 0, 1, 0,
+    1, 0, 0, 1, 0, 1, 0, 0, 1,
+    0, 2, 0, 0, 1, 0, 0, 2, 0,
     0, 0, 1, 0, 0, 0, 1, 0, 0,
   },
 
@@ -220,7 +220,7 @@ typedef struct {
 typedef enum {
   ENEMY_NULL,
   ENEMY_BOMBER,
-  ENEMY_SHOOTER,
+  ENEMY_ASSASSIN,
 } Enemy_Type;
 
 typedef enum {
@@ -368,6 +368,10 @@ typedef struct {
   Font font;
   f32 tile_size;
   Vector2 screen_size;
+  
+  Image draw_buffer;
+  f32 shake_oscillation;
+  f32 shake_value;
 
   Screen_State screen_state;
   b32 pause;
@@ -802,6 +806,10 @@ draw_text_align(Image dst, Font font, String8 text,
 ///////////////////////
 // NOTE: Game Functions
 
+internal void enemy_behave(Entity *entity, Game_State *state, Clock *time);
+internal void update_entity_flame(Clock *time, Entity *entity);
+internal void change_screen(Game_State *state, Screen_State screen);
+
 // TODO: OLD, BUT COOL. THE ANIMATION NEEDS TO BE FASTER
 internal void
 _add_explosion_particles(Game_State *state) {
@@ -933,9 +941,8 @@ emit_flash_particles(Game_State *state) {
   mem_zero_struct(particle);
   particle->type = PARTICLE_FLASH;
   particle->color = CP_WHITE;
-  // particle->life = 1.0f;
-  // particle->dlife = -0.7f;
-  particle->life = 0.8f;
+  // particle->life = 0.8f;
+  particle->life = 0.5f;
   particle->dlife = -1.0f;
 }
 
@@ -1079,9 +1086,6 @@ linear_move(Entity *entity, Clock *time) {
 ////////////////////////
 // NOTE: Enemy Functions
 
-internal void enemy_behave(Entity *entity, Game_State *state, Clock *time);
-internal void update_entity_flame(Clock *time, Entity *entity);
-
 internal Entity *
 enemy_alloc(Game_State *state) {
   Entity *result = state->first_free_enemy;
@@ -1193,7 +1197,7 @@ simulate_bullets(Game_State *state, Clock *time) {
       Vector2 min = make_vector2(0.0f, 0.0f);
       Vector2 max = state->screen_size;
 
-      if (((x + half_size) < min.x) || ((x + half_size) > max.x) ||
+      if (((x + half_size) < min.x) || ((x - half_size) > max.x) ||
           ((y + half_size) < min.y) || ((y - half_size) > max.y)) {
         bullet->is_alive = false;
       }
@@ -1262,7 +1266,7 @@ enemy_behave(Entity *entity, Game_State *state, Clock *time) {
   switch (entity->behavior) {
     case ENEMY_BEHAVIOR_IDLE: {
       switch (entity->type) {
-        case ENEMY_SHOOTER: {
+        case ENEMY_ASSASSIN: {
           entity->charge_countdown = countdown(entity->charge_countdown, time);
           if (entity->charge_countdown) {
             linear_move(entity, time);
@@ -1303,7 +1307,7 @@ enemy_behave(Entity *entity, Game_State *state, Clock *time) {
             }
           }
         } break;
-        case ENEMY_SHOOTER: {
+        case ENEMY_ASSASSIN: {
           if (entity->position.x < state->player.position.x) {
             entity->velocity.x = 1.0f;
           } else {
@@ -1313,6 +1317,7 @@ enemy_behave(Entity *entity, Game_State *state, Clock *time) {
           f32 delta = abs_t(f32, entity->position.x - state->player.position.x);
           if (delta < 16.0f) {
             entity->behavior = ENEMY_BEHAVIOR_ATTACK;
+            // entity->speed = 70.0f;
           }
         } break;
       }
@@ -1345,7 +1350,7 @@ enemy_behave(Entity *entity, Game_State *state, Clock *time) {
             entity->shoot0 = 0.0f;
           }
         } break;
-        case ENEMY_SHOOTER: {
+        case ENEMY_ASSASSIN: {
           linear_move(entity, time);
           if (entity->bullet_fired_count < entity->bullet_per_attack) {
             entity->shoot0 += time->dt_sec;
@@ -1357,7 +1362,7 @@ enemy_behave(Entity *entity, Game_State *state, Clock *time) {
               bullet->position = entity->position;
               bullet->velocity = make_vector2(0.0f, 1.0f);
               bullet->size = make_vector2(2.0f, 2.0f);
-              bullet->sprite_index = 98;
+              bullet->sprite_index = 83;
               bullet->sprite_w = 1;
               bullet->sprite_h = 1;
 
@@ -1368,6 +1373,7 @@ enemy_behave(Entity *entity, Game_State *state, Clock *time) {
             entity->behavior = ENEMY_BEHAVIOR_IDLE;
             entity->charge_countdown = entity->charge_time;
             entity->bullet_fired_count = 0;
+            // entity->speed = 40.0f;
             entity->velocity.x *= -1.0f;
           }
         } break;
@@ -1457,7 +1463,7 @@ add_enemy(Game_State *state, Enemy_Type type) {
       enemy->sprite_h = 1;
       
     } break;
-    case ENEMY_SHOOTER: {
+    case ENEMY_ASSASSIN: {
       enemy->charge0 = 0.0f;
       enemy->charge1 = 0.8f;
       enemy->shoot0 = 0.0f;
@@ -1492,6 +1498,7 @@ hit_enemy(Game_State *state, Entity *entity, u32 damage) {
   if (entity->hp > 0) entity->hp -= damage;
   if (entity->hp <= 0) {
     emit_explosion_particles(state, entity->position);
+    // state->shake_oscillation += 1.0f;
     entity->is_alive = false;
     state->wave_remaining_enemy_count -= 1;
   }
@@ -1505,14 +1512,12 @@ hit_player(Game_State *state, Entity *entity, u32 damage) {
     entity->invul_t = entity->invul_cd;
     if (entity->hp > 0) {
       emit_flash_particles(state);
+      state->shake_oscillation += 4.0f;
       entity->hp -= damage;
     }
     if (entity->hp <= 0) {
       mem_zero_struct(entity);
-      state->lock_input_time = state->lock_input_cooldown + state->time;
-      state->screen_state = SCREEN_OVER;
-      remove_remaining_enemies(state);
-      remove_remaining_bullets(state);
+      change_screen(state, SCREEN_OVER);
     }
   }
   return(result);
@@ -1535,7 +1540,7 @@ update_entity_flame(Clock *time, Entity *entity) {
 internal void
 reset_enemy_attack_time(Game_State *state) {
   state->enemy_attack_time = 0.0f;
-  state->enemy_attack_cooldown = random_range(&state->entropy, 0.3f, 0.4f);
+  state->enemy_attack_cooldown = random_range(&state->entropy, 0.2f, 0.4f);
 }
 
 internal void
@@ -1562,10 +1567,26 @@ next_wave(Game_State *state) {
   state->wave_index += 1;
   if (state->wave_index >= WAVE_MAX) {
     state->player_win_position_t = 0.0f;
-    state->lock_input_time = state->lock_input_cooldown + state->time;
-    state->screen_state = SCREEN_WIN;
-    remove_remaining_enemies(state);
-    remove_remaining_bullets(state);
+    change_screen(state, SCREEN_WIN);
+  }
+}
+
+internal void
+change_screen(Game_State *state, Screen_State screen) {
+  state->screen_state = screen;
+  switch (screen) {
+    case SCREEN_GAME: {
+      init_player(state);
+      init_wave(state);
+    } break;
+    case SCREEN_MENU:
+    case SCREEN_WIN:
+    case SCREEN_OVER: {
+      state->wave_warn_time = 0.0f;
+      state->lock_input_time = state->lock_input_cooldown + state->time;
+      remove_remaining_enemies(state);
+      remove_remaining_bullets(state);
+    } break;
   }
 }
 
@@ -1609,6 +1630,10 @@ KRUEGER_INIT_PROC(krueger_init) {
   state->screen_size = make_vector2(cast(f32) back_buffer->width,
                                     cast(f32) back_buffer->height);
   state->screen_state = SCREEN_MENU;
+
+  state->draw_buffer = image_alloc(back_buffer->width, back_buffer->height);
+  state->shake_oscillation = 0.0f;
+  state->shake_value = 20.0f;
 
   state->time = 0.0f;
   state->blink_frequency = 12.0f;
@@ -1669,7 +1694,7 @@ KRUEGER_FRAME_PROC(krueger_frame) {
   if (kbd[KEY_P].pressed) state->pause = !state->pause;
   if (state->pause) return;
 
-  Image draw_buffer = *back_buffer; 
+  Image draw_buffer = state->draw_buffer;
   image_fill(draw_buffer, CP_BLACK);
  
 #if 0
@@ -1746,8 +1771,7 @@ KRUEGER_FRAME_PROC(krueger_frame) {
           particle->life += particle->dlife*time->dt_sec;
           particle->time += time->dt_sec;
           if (sin_f32(particle->time*48.0f) > 0.5f) {
-            draw_rect_fill(draw_buffer, 0, 0, draw_buffer.width, draw_buffer.height,
-                           particle->color);
+            image_fill(draw_buffer, CP_WHITE);
           }
         }
       } break;
@@ -1756,6 +1780,8 @@ KRUEGER_FRAME_PROC(krueger_frame) {
 
   switch (state->screen_state) {
     case SCREEN_MENU: {
+      if (kbd[KEY_Q].pressed) memory->quit = true;
+
       s32 bw = draw_buffer.width;
       s32 bh = draw_buffer.height;
 
@@ -1767,11 +1793,7 @@ KRUEGER_FRAME_PROC(krueger_frame) {
       }
       
       if (state->time > state->lock_input_time) {
-        if (kbd[KEY_Z].pressed) {
-          init_player(state);
-          init_wave(state);
-          state->screen_state = SCREEN_GAME;
-        }
+        if (kbd[KEY_Z].pressed) change_screen(state, SCREEN_GAME);
 
         String8 text = str8_lit("press [z] to start");
 
@@ -1787,6 +1809,8 @@ KRUEGER_FRAME_PROC(krueger_frame) {
     } break;
 
     case SCREEN_GAME: {
+      if (kbd[KEY_Q].pressed) change_screen(state, SCREEN_MENU);
+
       // NOTE: update player
       if (state->player.is_alive) {
         if (state->player.invul_t > 0.0f) {
@@ -2045,6 +2069,8 @@ KRUEGER_FRAME_PROC(krueger_frame) {
     } break;
 
     case SCREEN_OVER: {
+      if (kbd[KEY_Q].pressed) memory->quit = true;
+
       s32 bw = draw_buffer.width;
       s32 bh = draw_buffer.height;
 
@@ -2056,10 +2082,7 @@ KRUEGER_FRAME_PROC(krueger_frame) {
       }
 
       if (state->time > state->lock_input_time) {
-        if (kbd[KEY_Z].pressed) {
-          state->lock_input_time = state->lock_input_cooldown + state->time;
-          state->screen_state = SCREEN_MENU;
-        }
+        if (kbd[KEY_Z].pressed) change_screen(state, SCREEN_MENU);
 
         String8 text0 = str8_lit("press [z] to go");
         String8 text1 = str8_lit("back to menu");
@@ -2086,6 +2109,8 @@ KRUEGER_FRAME_PROC(krueger_frame) {
     } break;
 
     case SCREEN_WIN: {
+      if (kbd[KEY_Q].pressed) memory->quit = true;
+
       state->player_win_position_t += time->dt_sec*0.02f;
       if (state->player_win_position_t >= 1.0f) {
         state->player_win_position_t = 1.0f;
@@ -2213,4 +2238,19 @@ KRUEGER_FRAME_PROC(krueger_frame) {
 
     temp_end(temp);
   }
+  
+  f32 x = random_bilateral(&state->entropy)*state->shake_oscillation;
+  f32 y = random_bilateral(&state->entropy)*state->shake_oscillation;
+
+  if (state->shake_oscillation > 10.0f) {
+    state->shake_oscillation *= 0.9f;
+  }
+
+  state->shake_oscillation -= 2.0f*state->shake_oscillation*time->dt_sec;
+  if (state->shake_oscillation < 0.0f) {
+    state->shake_oscillation = 0.0f;
+  }
+
+  image_fill(*back_buffer, CP_BLACK);
+  draw_texture_f32(*back_buffer, draw_buffer, x, y);
 }
