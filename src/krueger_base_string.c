@@ -266,4 +266,32 @@ f32_from_str8(String8 str) {
   return(result);
 }
 
+////////////////////
+// NOTE: String List
+
+internal String8_Node *
+str8_list_push(Arena *arena, String8_List *list, String8 string) {
+  String8_Node *result = push_array(arena, String8_Node, 1);
+  sll_queue_push(list->first, list->last, result);
+  list->node_count += 1;
+  result->string = string;
+  return(result);
+}
+
+internal String8_Node *
+str8_list_push_fmt(Arena *arena, String8_List *list, char *fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+  String8 string = str8_fmt_args(arena, fmt, args);
+  String8_Node *result = str8_list_push(arena, list, string);
+  va_end(args);
+  return(result);
+}
+
+internal void
+str8_list_pop(String8_List *list) {
+  list->node_count -= 1;
+  sll_queue_pop(list->first, list->last);
+}
+
 #endif // KRUEGER_BASE_STRING_C

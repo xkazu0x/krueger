@@ -4,10 +4,25 @@
 /////////////////////
 // NOTE: String Types
 
-typedef struct {
+typedef struct String8 String8;
+struct String8 {
   uxx len;
   u8 *str;
-} String8;
+};
+
+typedef struct String8_Node String8_Node;
+struct String8_Node {
+  String8_Node *next;
+  String8 string;
+};
+
+typedef struct String8_List String8_List;
+struct String8_List {
+  String8_Node *first;
+  String8_Node *last;
+  u32 node_count;
+};
+
 
 //////////////////////////
 // NOTE: Character Helpers
@@ -58,5 +73,12 @@ internal String8 str8_chop(String8 str, uxx amt);
 internal String8 str8_cat(Arena *arena, String8 a, String8 b);
 internal String8 str8_fmt_args(Arena *arena, char *fmt, va_list args);
 internal String8 str8_fmt(Arena *arena, char *fmt, ...);
+
+////////////////////
+// NOTE: String List
+
+internal String8_Node *str8_list_push(Arena *arena, String8_List *list, String8 string);
+internal String8_Node *str8_list_push_fmt(Arena *arena, String8_List *list, char *fmt, ...);
+internal void str8_list_pop(String8_List *list);
 
 #endif // KRUEGER_BASE_STRING_H
