@@ -98,22 +98,17 @@ main(void) {
 
 #if PLATFORM_WINDOWS
   uxx last_slash_index = str8_find_last(exec_file_path, '\\');
-#elif PLATFORM_LINUX
-  uxx last_slash_index = str8_find_last(exec_file_path, '/');
-#endif
-
-  String8 path = str8_substr(exec_file_path, 0, last_slash_index + 1);
-
-#if PLATFORM_WINDOWS
   String8 src_lib_name = str8_lit("libkrueger.dll");
   String8 dst_lib_name = str8_lit("libkruegerx.dll");
 #elif PLATFORM_LINUX
+  uxx last_slash_index = str8_find_last(exec_file_path, '/');
   String8 src_lib_name = str8_lit("libkrueger.so");
   String8 dst_lib_name = str8_lit("libkruegerx.so");
 #endif
-
-  String8 src_lib_path = str8_cat(&misc_arena, path, src_lib_name);
-  String8 dst_lib_path = str8_cat(&misc_arena, path, dst_lib_name);
+  
+  String8 exec_path = str8_substr(exec_file_path, 0, last_slash_index + 1);
+  String8 src_lib_path = str8_cat(&misc_arena, exec_path, src_lib_name);
+  String8 dst_lib_path = str8_cat(&misc_arena, exec_path, dst_lib_name);
 
   Library lib = libkrueger_load(dst_lib_path, src_lib_path);
   if (!platform_handle_is_null(lib.h)) {

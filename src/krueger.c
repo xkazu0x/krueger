@@ -229,8 +229,6 @@ typedef enum {
 
 typedef enum {
   PARTICLE_STAR,
-  PARTICLE_EXPLOSION,
-  PARTICLE_FLASH,
 } Particle_Type;
 
 typedef struct {
@@ -419,20 +417,20 @@ typedef struct {
   f32 player_dshoot_r;
   u32 player_shoot_side;
   f32 player_win_position_t;
+  u32 bomb_count;
 
   Entity *player;
   Entity_Manager *enemy_manager;
   Entity_Manager *bullet_manager;
 
   // NOTE: Particle Manager
-  // TODO: clean this up
-  u32 star_particle_count;
-  u32 explosion_particle_count;
-  u32 particle_count;
-  Particle *particles;
-  Particle *star_particles;
-  Particle *explosion_particles;
+  Particle star_particles[32];
+  
   u32 next_explosion_particle;
+  Particle explosion_particles[1024];
+
+  u32 next_flash_particle;
+  Particle flash_particles[4];
 
   // NOTE: Wave System
   // TODO: clean this up
@@ -907,13 +905,12 @@ _add_explosion_particles(Game_State *state) {
 }
 
 internal void
-emit_explosion_particles(Game_State *state, Vector2 position) {
+emit_explosion(Game_State *state, Vector2 position) {
   {
     Particle *particle = state->explosion_particles + state->next_explosion_particle++;
-    if (state->next_explosion_particle >= state->explosion_particle_count) {
+    if (state->next_explosion_particle >= array_count(state->explosion_particles)) {
       state->next_explosion_particle = 0;
     }
-    particle->type = PARTICLE_EXPLOSION;
     particle->color = CP_WHITE;
     particle->speed = 0.0f;
     particle->age = 0.0f;
@@ -927,10 +924,9 @@ emit_explosion_particles(Game_State *state, Vector2 position) {
 
   for (u32 i = 0; i < 32; ++i) {
     Particle *particle = state->explosion_particles + state->next_explosion_particle++;
-    if (state->next_explosion_particle >= state->explosion_particle_count) {
+    if (state->next_explosion_particle >= array_count(state->explosion_particles)) {
       state->next_explosion_particle = 0;
     }
-    particle->type = PARTICLE_EXPLOSION;
     particle->color = CP_WHITE;
     particle->age = random_range(&state->entropy, 0.0f, 0.5f);
     particle->max_age = 1.0f;
@@ -945,15 +941,13 @@ emit_explosion_particles(Game_State *state, Vector2 position) {
 }
 
 internal void
-emit_flash_particles(Game_State *state) {
-  Particle *particle = state->explosion_particles + state->next_explosion_particle++;
-  if (state->next_explosion_particle >= state->explosion_particle_count) {
-    state->next_explosion_particle = 0;
+emit_flash(Game_State *state, u32 color) {
+  Particle *particle = state->flash_particles + state->next_flash_particle++;
+  if (state->next_flash_particle >= array_count(state->explosion_particles)) {
+    state->next_flash_particle = 0;
   }
   mem_zero_struct(particle);
-  particle->type = PARTICLE_FLASH;
-  particle->color = CP_WHITE;
-  // particle->life = 0.8f;
+  particle->color = color;
   particle->life = 0.5f;
   particle->dlife = -1.0f;
 }
@@ -1164,6 +1158,7 @@ init_player(Game_State *state) {
   state->player_max_shoot_r = 5.0f;
   state->player_shoot_r = 0.0f;
   state->player_dshoot_r = -80.0f;
+  state->bomb_count = 2;
 
   Entity *player = state->player;
   player->is_alive = true;
@@ -1205,7 +1200,7 @@ hit_player(Game_State *state, Entity *entity, u32 damage) {
   if (entity->is_alive &&
       entity->invencible_countdown <= 0.0f) {
     if (entity->hp > 0) {
-      emit_flash_particles(state);
+      emit_flash(state, CP_WHITE);
       state->shake_oscillation += 4.0f;
       entity->hp -= damage;
     }
@@ -1234,7 +1229,7 @@ add_enemy(Game_State *state, Enemy_Type type) {
 
   switch (enemy->type) {
     case ENEMY_BOMBER: {
-      enemy->hp = 11;
+      enemy->hp = 17;
       enemy->speed = 100.0f;
       enemy->size = make_vector2(TILE_SIZE, TILE_SIZE);
       enemy->velocity = make_vector2(0.0f, 1.0f);
@@ -1252,7 +1247,7 @@ add_enemy(Game_State *state, Enemy_Type type) {
       
     } break;
     case ENEMY_ASSASSIN: {
-      enemy->hp = 9;
+      enemy->hp = 15;
       enemy->speed = 40.0f;
       enemy->size = make_vector2(TILE_SIZE, TILE_SIZE);
       enemy->velocity = make_vector2(0.0f, 0.0f);
@@ -1424,7 +1419,7 @@ hit_enemy(Game_State *state, Entity *entity, u32 damage) {
   entity->flash_countdown = entity->flash_time;
   if (entity->hp > 0) entity->hp -= damage;
   if (entity->hp <= 0) {
-    emit_explosion_particles(state, entity->position);
+    emit_explosion(state, entity->position);
     state->shake_oscillation += 1.0f;
     entity->is_alive = false;
     state->wave_remaining_enemy_count -= 1;
@@ -1503,28 +1498,6 @@ change_screen(Game_State *state, Screen_State screen) {
   }
 }
 
-internal void
-spawn_stars(Game_State *state, Image *back_buffer) {
-  f32 min_star_speed = 32.0f;
-  f32 max_star_speed = 64.0f;
-
-  for (u32 i = 0; i < state->star_particle_count; ++i) {
-    Particle *particle = state->star_particles + i;
-    particle->radius = cast(f32) random_choice(&state->entropy, 3);
-    particle->speed = random_range(&state->entropy, min_star_speed, max_star_speed);
-    
-    if (particle->speed >= 0.5f*(min_star_speed + max_star_speed)) {
-      particle->color = CP_DARK_GRAY;
-    } else {
-      particle->color = CP_DARK_BLUE;
-    }
-
-    particle->position.x = random_unilateral(&state->entropy)*back_buffer->width;
-    particle->position.y = random_unilateral(&state->entropy)*back_buffer->height;
-    particle->velocity = make_vector2(0.0f, -1.0f);
-  }
-}
-
 shared_function
 KRUEGER_INIT_PROC(krueger_init) {
   assert(sizeof(Game_State) <= memory->memory_size);
@@ -1570,24 +1543,31 @@ KRUEGER_INIT_PROC(krueger_init) {
   state->blink_frequency = 12.0f;
   state->lock_input_cooldown = 1.0f;
   state->lock_input_time = state->lock_input_cooldown;
-  
+
   state->player = push_array(&state->main_arena, Entity, 1);
   state->enemy_manager = entity_manager_alloc(&state->main_arena, 256);
   state->bullet_manager = entity_manager_alloc(&state->main_arena, 256);
-  
-  state->star_particle_count = 32;
-  state->explosion_particle_count = 256;
-  state->particle_count = (state->star_particle_count + 
-                           state->explosion_particle_count);
-  state->particles = push_array(&state->main_arena, Particle, state->particle_count);
-  mem_zero_typed(state->particles, state->particle_count);
-  
-  s32 offset = 0;
-  state->star_particles = state->particles;
-  offset += state->star_particle_count;
-  state->explosion_particles = state->particles + offset;
 
-  spawn_stars(state, back_buffer);
+  f32 min_star_speed = 32.0f;
+  f32 max_star_speed = 64.0f;
+
+  for (u32 particle_index = 0;
+       particle_index < array_count(state->star_particles);
+       ++particle_index) {
+    Particle *particle = state->star_particles + particle_index;
+    particle->radius = cast(f32) random_choice(&state->entropy, 3);
+    particle->speed = random_range(&state->entropy, min_star_speed, max_star_speed);
+
+    if (particle->speed >= 0.5f*(min_star_speed + max_star_speed)) {
+      particle->color = CP_DARK_GRAY;
+    } else {
+      particle->color = CP_DARK_BLUE;
+    }
+
+    particle->position.x = random_unilateral(&state->entropy)*back_buffer->width;
+    particle->position.y = random_unilateral(&state->entropy)*back_buffer->height;
+    particle->velocity = make_vector2(0.0f, -1.0f);
+  }
 
   state->draw_time_info = false;
   state->draw_debug_info = false;
@@ -1629,68 +1609,75 @@ KRUEGER_FRAME_PROC(krueger_frame) {
   }
 #endif
 
-  // NOTE: update and draw particles
+  // NOTE: star particles
   for (u32 particle_index = 0;
-       particle_index < state->particle_count;
+       particle_index < array_count(state->star_particles);
        ++particle_index) {
-    Particle *particle = state->particles + particle_index;
-    switch (particle->type) {
-      case PARTICLE_STAR: {
-        if (state->time < state->wave_warn_time ||
-            state->screen_state == SCREEN_WIN) {
-          particle->position.y += 2.5f*particle->speed*time->dt_sec;
-        } else {
-          particle->position.y += particle->speed*time->dt_sec;
-        }
-        if (particle->position.y - particle->radius > (f32)draw_buffer.height) {
-          particle->position.x = random_unilateral(&state->entropy)*draw_buffer.width;
-          particle->position.y = -particle->radius;
-        }
+    Particle *particle = state->star_particles + particle_index;
+    if (state->time < state->wave_warn_time ||
+      state->screen_state == SCREEN_WIN) {
+      particle->position.y += 2.5f*particle->speed*time->dt_sec;
+    } else {
+      particle->position.y += particle->speed*time->dt_sec;
+    }
+    if (particle->position.y - particle->radius > (f32)draw_buffer.height) {
+      particle->position.x = random_unilateral(&state->entropy)*draw_buffer.width;
+      particle->position.y = -particle->radius;
+    }
 
-        if (particle->radius <= 1.0f) {
-          draw_circle_line2(draw_buffer, particle->position,
-                            particle->radius, particle->color);
-        } else {
-          draw_circle_fill2(draw_buffer, particle->position,
-                            particle->radius, particle->color);
-        }
-      } break;
-      case PARTICLE_EXPLOSION: {
-        if (particle->radius > 0.0f) {
-          Vector2 velocity = vector2_mul(particle->velocity, particle->speed*time->dt_sec);
-          particle->position = vector2_add(particle->position, velocity);
-
-          particle->speed -= particle->fric*time->dt_sec;
-          if (particle->speed < 0.0f) particle->speed = 0.0f;
-
-          particle->fric += (particle->fric*0.9f)*time->dt_sec;
-
-          particle->age += 2.0f*time->dt_sec;
-          if (particle->age > 0.15f) particle->color = CP_YELLOW;
-          if (particle->age > 0.27f) particle->color = CP_ORANGE;
-          if (particle->age > 0.43f) particle->color = CP_RED;
-          if (particle->age > 0.7f) particle->color = CP_DARK_RED;
-          if (particle->age > 0.9f) particle->color = CP_DARK_BROWN;
-          if (particle->age > particle->max_age) {
-            particle->radius -= particle->dradius*time->dt_sec;
-          }
-
-          draw_circle_fill2(draw_buffer, particle->position,
-                            particle->radius, particle->color);
-        }
-      } break;
-      case PARTICLE_FLASH: {
-        if (particle->life > 0.0f) {
-          particle->life += particle->dlife*time->dt_sec;
-          particle->time += time->dt_sec;
-          if (sin_f32(particle->time*48.0f) > 0.5f) {
-            image_fill(draw_buffer, CP_WHITE);
-          }
-        }
-      } break;
+    if (particle->radius <= 1.0f) {
+      draw_circle_line2(draw_buffer, particle->position,
+                        particle->radius, particle->color);
+    } else {
+      draw_circle_fill2(draw_buffer, particle->position,
+                        particle->radius, particle->color);
     }
   }
 
+  // NOTE: explosion particles
+  for (u32 particle_index = 0;
+       particle_index < array_count(state->explosion_particles);
+       ++particle_index) {
+    Particle *particle = state->explosion_particles + particle_index;
+    if (particle->radius > 0.0f) {
+      Vector2 velocity = vector2_mul(particle->velocity, particle->speed*time->dt_sec);
+      particle->position = vector2_add(particle->position, velocity);
+
+      particle->speed -= particle->fric*time->dt_sec;
+      if (particle->speed < 0.0f) particle->speed = 0.0f;
+
+      particle->fric += (particle->fric*0.9f)*time->dt_sec;
+
+      particle->age += 2.0f*time->dt_sec;
+      if (particle->age > 0.15f) particle->color = CP_YELLOW;
+      if (particle->age > 0.27f) particle->color = CP_ORANGE;
+      if (particle->age > 0.43f) particle->color = CP_RED;
+      if (particle->age > 0.7f) particle->color = CP_DARK_RED;
+      if (particle->age > 0.9f) particle->color = CP_DARK_BROWN;
+      if (particle->age > particle->max_age) {
+        particle->radius -= particle->dradius*time->dt_sec;
+      }
+
+      draw_circle_fill2(draw_buffer, particle->position,
+                        particle->radius, particle->color);
+    }
+  }
+
+  // NOTE: flash particles
+  for (u32 particle_index = 0;
+       particle_index < array_count(state->flash_particles);
+       ++particle_index) {
+    Particle *particle = state->flash_particles + particle_index;
+    if (particle->life > 0.0f) {
+      particle->life += particle->dlife*time->dt_sec;
+      particle->time += time->dt_sec;
+      if (sin_f32(particle->time*48.0f) > 0.5f) {
+        image_fill(draw_buffer, particle->color);
+      }
+    }
+  }
+
+  // NOTE: state
   switch (state->screen_state) {
     case SCREEN_MENU: {
       s32 bw = draw_buffer.width;
@@ -1780,6 +1767,25 @@ KRUEGER_FRAME_PROC(krueger_frame) {
               bullet->sprite_h = 1;
               player->shoot_cooldown = player->shoot_time;
               state->player_shoot_r = state->player_max_shoot_r;
+            }
+          }
+        }
+
+        // NOTE: player fire bomb
+        if (kbd[KEY_X].pressed &&
+            state->bomb_count > 0 &&
+            player->invencible_countdown <= 0.0f) {
+          state->bomb_count -= 1;
+          player->invencible_countdown = player->invencible_time*0.7f;
+          state->shake_oscillation += 8.0f;
+          emit_flash(state, CP_ORANGE);
+          for (Entity *bullet = state->bullet_manager->list.first;
+               bullet != 0;
+               bullet = bullet->next) {
+            if (bullet->is_alive &&
+                !bullet->is_player_friendly) {
+              bullet->is_alive = false;
+              emit_explosion(state, bullet->position);
             }
           }
         }
@@ -1995,10 +2001,23 @@ KRUEGER_FRAME_PROC(krueger_frame) {
         u32 sprite_index = 32;
         Image sprite = tilemap_get_tile(state->sprites_tilemap, sprite_index);
         Vector2 position = make_vector2(0.0f, 0.0f);
-        Vector2 offset = make_vector2(hp_index*sprite.width + 1.0f, -1.0f);
+        Vector2 offset = make_vector2(cast(f32) hp_index*sprite.width, 0.0f);
         draw_sprite(draw_buffer, state->sprites_tilemap,
                     sprite_index, 1, 1,
                     position, vec2(0.0f, 0.0f), offset);
+      }
+
+      // NOTE: draw bomb
+      for (u32 bomb_index = 0;
+          bomb_index < state->bomb_count;
+          ++bomb_index) {
+        u32 sprite_index = 34;
+        Image sprite = tilemap_get_tile(state->sprites_tilemap, sprite_index);
+        Vector2 position = make_vector2(cast(f32) bomb_index*sprite.width,
+                                        cast(f32) sprite.width);
+        draw_sprite(draw_buffer, state->sprites_tilemap,
+                    sprite_index, 1, 1,
+                    position, vec2(0.0f, 0.0f), vec2(0.0f, 0.0f));
       }
 
       // NOTE: draw wave warn
