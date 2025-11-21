@@ -120,8 +120,7 @@ win32_window_proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam) {
       case WM_KEYDOWN: {
         // b32 was_down = lparam&bit31);
         b32 is_down = !(lparam&bit32);
-        Platform_Event_Type type =
-          (is_down) ?
+        Platform_Event_Type type = (is_down) ?
           PLATFORM_EVENT_KEY_PRESS :
           PLATFORM_EVENT_KEY_RELEASE;
         Platform_Event *event = win32_push_event(type, window);

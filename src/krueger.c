@@ -1681,7 +1681,7 @@ reset_wave(Game_State *state) {
 
 internal void
 init_wave(Game_State *state) {
-  state->wave_index = LAST_WAVE;
+  state->wave_index = 0;
   state->wave_warn_cooldown = 2.5f;
   state->enemy_spawn_cooldown = 0.4f;
   reset_wave(state);

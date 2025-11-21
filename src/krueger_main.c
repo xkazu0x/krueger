@@ -88,6 +88,68 @@ memory_alloc(uxx memory_size) {
   return(result);
 }
 
+#pragma comment(lib, "dsound.lib")
+#include <dsound.h>
+
+#define DIRECT_SOUND_CREATE(x) HRESULT WINAPI x(LPCGUID pcGuidDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter)
+typedef DIRECT_SOUND_CREATE(direct_sound_create_proc);
+
+internal void
+platform_sound_init(Platform_Handle window_handle,
+                    s32 samples_per_sec) {
+  String8 lib = str8_lit("dsound.dll");
+  Platform_Handle dsound_lib = platform_library_open(lib);
+  if (!platform_handle_is_null(dsound_lib)) {
+    direct_sound_create_proc *direct_sound_create = (direct_sound_create_proc *)
+      platform_library_load_proc(dsound_lib, "DirectSoundCreate");
+
+    LPDIRECTSOUND direct_sound;
+    if (SUCCEEDED(direct_sound_create(0, &direct_sound, 0))) {
+      WAVEFORMATEX wave_format = {0};
+      wave_format.wFormatTag = WAVE_FORMAT_PCM;
+      wave_format.nChannels = 2;
+      wave_format.wBitsPerSample = 16;
+      wave_format.nBlockAlign = (wave_format.wBitsPerSample/8)*wave_format.nChannels;
+      wave_format.nSamplesPerSec = samples_per_sec;
+      wave_format.nAvgBytesPerSec = wave_format.nSamplesPerSec*wave_format.nBlockAlign;
+      wave_format.cbSize = 0;
+
+      Win32_Window *window = win32_window_from_handle(window_handle);
+      if (SUCCEEDED(IDirectSound_SetCooperativeLevel(direct_sound, window->hwnd, DSSCL_PRIORITY))) {
+        DSBUFFERDESC buffer_desc = {0};
+        buffer_desc.dwSize = sizeof(buffer_desc);
+        buffer_desc.dwFlags = DSBCAPS_PRIMARYBUFFER;
+
+        LPDIRECTSOUNDBUFFER primary_buffer;
+        if (SUCCEEDED(IDirectSound_CreateSoundBuffer(direct_sound, &buffer_desc, &primary_buffer, 0))) {
+          HRESULT hresult = IDirectSoundBuffer_SetFormat(primary_buffer, &wave_format);
+          if (SUCCEEDED(hresult)) {
+            log_info("%s: direct sound: primary buffer format was set", __func__);
+          } else {
+            log_error("%s: direct sound: failed to set primary buffer format", __func__);
+          }
+        }
+      }
+
+      DSBUFFERDESC buffer_desc = {0};
+      buffer_desc.dwSize = sizeof(buffer_desc);
+      buffer_desc.dwFlags = 0;
+      buffer_desc.dwBufferBytes = samples_per_sec*sizeof(s16)*wave_format.nChannels;
+      buffer_desc.lpwfxFormat = &wave_format;
+
+      LPDIRECTSOUNDBUFFER secondary_buffer;
+      HRESULT hresult = IDirectSound_CreateSoundBuffer(direct_sound, &buffer_desc, &secondary_buffer, 0);
+      if (SUCCEEDED(hresult)) {
+        log_info("%s: direct sound: secondary buffer created successfully", __func__);
+      } else {
+        log_error("%s: direct sound: failed to create secondary buffer", __func__);
+      }
+    }
+  } else {
+    log_error("%s: failed to open library: [%s]", __func__, lib.str);
+  }
+}
+
 int
 main(void) {
   platform_core_init();
@@ -123,6 +185,8 @@ main(void) {
     Platform_Handle window = platform_window_open(
       str8_lit("STARFIGHTER"), window_w, window_h
     );
+
+    platform_sound_init(window, 48000);
 
     Image back_buffer = image_alloc(render_w, render_h);
     Memory memory = memory_alloc(GB(1));
