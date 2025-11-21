@@ -8,11 +8,12 @@
 #include "krueger_random.c"
 
 // TODO:
-// correct player diagonal movement
+// final boss
+// more enemies/levels?
+// particle emitter
 // asset manager:
 // - sprite group
 // - sprite animation system
-// particle emitter
 // audio
 
 ////////////////
@@ -23,6 +24,7 @@
 #define WAVE_MAX 6
 #define WAVE_W 9
 #define WAVE_H 4
+#define LAST_WAVE (WAVE_MAX - 1)
 
 global u32 waves[WAVE_MAX][WAVE_W*WAVE_H] = {
   [0] = {
@@ -60,9 +62,9 @@ global u32 waves[WAVE_MAX][WAVE_W*WAVE_H] = {
     0, 2, 0, 1, 0, 1, 0, 2, 0,
   },
 
-  [5] = {
+  [LAST_WAVE] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 1, 0, 0, 0, 0, 0, 1, 0,
+    0, 0, 0, 0, 4, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0,
   },
@@ -217,15 +219,9 @@ typedef struct {
 } Tilemap;
 
 typedef struct {
-  char *chars;
+  String8 chars;
   Tilemap tilemap;
 } Font;
-
-typedef enum {
-  ENEMY_NULL,
-  ENEMY_BOMBER,
-  ENEMY_ASSASSIN,
-} Enemy_Type;
 
 typedef enum {
   PARTICLE_STAR,
@@ -250,10 +246,24 @@ typedef struct {
 } Particle;
 
 typedef enum {
+  ENEMY_NULL,
+  ENEMY_BOMBER,
+  ENEMY_ASSASSIN,
+  ENEMY_MINE,
+  ENEMY_BOSS,
+} Enemy_Type;
+
+typedef enum {
   ENEMY_BEHAVIOR_FLYING,
   ENEMY_BEHAVIOR_IDLE,
   ENEMY_BEHAVIOR_CHARGE,
   ENEMY_BEHAVIOR_ATTACK,
+
+  ENEMY_BEHAVIOR_BOSS1,
+  ENEMY_BEHAVIOR_BOSS2,
+  ENEMY_BEHAVIOR_BOSS3,
+  ENEMY_BEHAVIOR_BOSS4,
+  ENEMY_BEHAVIOR_BOSS5,
 } Enemy_Behavior;
 
 typedef struct Entity Entity;
@@ -263,7 +273,8 @@ struct Entity {
 
   b32 is_alive;
   b32 is_player_friendly;
-
+  
+  u32 max_hp;
   u32 hp;
   f32 speed;
   Vector2 velocity;
@@ -283,9 +294,14 @@ struct Entity {
   // {
   Enemy_Type type;
   Enemy_Behavior behavior;
-
+  
+  Vector2 position0;
+  Vector2 position1;
   Vector2 target_position;
   Vector2 shoot_direction;
+
+  f32 time;
+  f32 transition_time;
 
   f32 flash_time;
   f32 flash_countdown;
@@ -297,7 +313,8 @@ struct Entity {
   f32 attack_countdown;
 
   u32 bullet_per_attack;
-  u32 bullet_fired_count;
+  u32 bullet_fired;
+  u32 attack_count;
   // }
 
   u32 sprite_index;
@@ -411,6 +428,7 @@ typedef struct {
   f32 blink_frequency;
   f32 lock_input_time;
   f32 lock_input_cooldown;
+  f32 record_time;
 
   f32 player_max_shoot_r;
   f32 player_shoot_r;
@@ -493,7 +511,7 @@ tilemap_get_wide_tile(Tilemap tilemap, u32 tile_index, u32 tile_count_x, u32 til
 }
 
 internal Font
-make_font(char *chars, Tilemap tilemap) {
+make_font(String8 chars, Tilemap tilemap) {
   Font result = {
     .chars = chars,
     .tilemap = tilemap,
@@ -795,10 +813,10 @@ draw_text(Image dst, Font font, String8 text,
         glyph_x += 2*glyph_w;
       } continue;
     }
-    u32 char_index = (u32)cstr_index_of(font.chars, c);
-    assert(font.chars[char_index] == c);
+    u32 char_index = cast(u32) cstr_index_of(cast(char *) font.chars.str, c);
+    assert(font.chars.str[char_index] == c);
     Image sprite = tilemap_get_tile(font.tilemap, char_index);
-    Vector2 position = make_vector2((f32)glyph_x, (f32)glyph_y);
+    Vector2 position = make_vector2(cast(f32) glyph_x, cast(f32) glyph_y);
     draw_texture_shader2(dst, sprite, position, shader_color_blend, &color);
     glyph_x += glyph_w;
   }
@@ -943,10 +961,9 @@ emit_explosion(Game_State *state, Vector2 position) {
 internal void
 emit_flash(Game_State *state, u32 color) {
   Particle *particle = state->flash_particles + state->next_flash_particle++;
-  if (state->next_flash_particle >= array_count(state->explosion_particles)) {
+  if (state->next_flash_particle >= array_count(state->flash_particles)) {
     state->next_flash_particle = 0;
   }
-  mem_zero_struct(particle);
   particle->color = color;
   particle->life = 0.5f;
   particle->dlife = -1.0f;
@@ -1025,7 +1042,7 @@ enemy_emit_flame_particles(Entity *entity, Game_State *state, Clock *time) {
     particle->dspeed = -150.0f;
 
     particle->position = entity->position;
-    particle->position.y -= TILE_SIZE*0.6f;
+    particle->position.y -= entity->sprite_h*TILE_SIZE*0.5f + 1.0f;
     particle->velocity = make_vector2(random_range(&state->entropy, -0.2f, 0.2f), -1.0f);
 
     entity->particle_emission_time = 0.0f;
@@ -1074,7 +1091,9 @@ draw_enemies(Image draw_buffer, Entity_Manager *manager, Tilemap tilemap, Clock 
 
       draw_sprite(draw_buffer, tilemap,
                   enemy->next_flame_sprite_frame, 1, 1,
-                  enemy->position, vec2(0.5f, 0.5f), vec2(0.0f, -8.0f));
+                  enemy->position,
+                  vec2(0.5f, 0.0f),
+                  vec2(0.0f, -1.0f*TILE_SIZE - enemy->sprite_h*TILE_SIZE*0.5f));
       draw_sprite_shader(draw_buffer, tilemap,
                          enemy->sprite_index, enemy->sprite_w, enemy->sprite_h,
                          enemy->position, vec2(0.5f, 0.5f), vec2(0.0f, 0.0f),
@@ -1171,7 +1190,8 @@ init_player(Game_State *state) {
   player->position.y = state->draw_buffer.height - state->draw_buffer.height*0.25f;
   player->size = make_vector2(1.0f, 1.0f);
   
-  player->shoot_time = 0.08f;
+  // player->shoot_time = 0.08f;
+  player->shoot_time = 0.09f;
   player->shoot_cooldown = 0.0f;
 
   player->invencible_time = 3.0f;
@@ -1229,13 +1249,13 @@ add_enemy(Game_State *state, Enemy_Type type) {
 
   switch (enemy->type) {
     case ENEMY_BOMBER: {
-      enemy->hp = 17;
+      enemy->hp = 15;
       enemy->speed = 100.0f;
       enemy->size = make_vector2(TILE_SIZE, TILE_SIZE);
       enemy->velocity = make_vector2(0.0f, 1.0f);
 
-      // enemy->shoot_time = 0.08f;
-      enemy->shoot_time = 0.1f;
+      // enemy->shoot_time = 0.1f;
+      enemy->shoot_time = 0.15f;
       enemy->shoot_cooldown = 0.0f;
 
       enemy->charge_time = 0.8f;
@@ -1247,7 +1267,7 @@ add_enemy(Game_State *state, Enemy_Type type) {
       
     } break;
     case ENEMY_ASSASSIN: {
-      enemy->hp = 15;
+      enemy->hp = 13;
       enemy->speed = 40.0f;
       enemy->size = make_vector2(TILE_SIZE, TILE_SIZE);
       enemy->velocity = make_vector2(0.0f, 0.0f);
@@ -1258,12 +1278,36 @@ add_enemy(Game_State *state, Enemy_Type type) {
       enemy->charge_time = 1.0f;
       enemy->charge_countdown = enemy->charge_time;
       
-      enemy->bullet_fired_count = 0;
+      enemy->bullet_fired = 0;
       enemy->bullet_per_attack = 3;
 
       enemy->sprite_index = 66;
       enemy->sprite_w = 1;
       enemy->sprite_h = 1;
+    } break;
+    case ENEMY_MINE: {
+      enemy->hp = 10;
+      enemy->speed = 30.0f;
+      enemy->size = make_vector2(TILE_SIZE, TILE_SIZE);
+      enemy->velocity = make_vector2(0.0f, 0.0f);
+
+      enemy->sprite_index = 68;
+      enemy->sprite_w = 1;
+      enemy->sprite_h = 1;
+    } break;
+    case ENEMY_BOSS: {
+      enemy->max_hp = 300;
+      enemy->hp = enemy->max_hp;
+      enemy->speed = 40.0f;
+      enemy->size = make_vector2(TILE_SIZE, TILE_SIZE);
+      enemy->velocity = make_vector2(0.0f, 0.0f);
+
+      enemy->shoot_time = 1.0f;
+      enemy->shoot_cooldown = 0.0f;
+
+      enemy->sprite_index = 91;
+      enemy->sprite_w = 2;
+      enemy->sprite_h = 2;
     } break;
     default: {
       invalid_path;
@@ -1288,6 +1332,18 @@ add_enemy(Game_State *state, Enemy_Type type) {
 }
 
 internal void
+hit_enemy(Game_State *state, Entity *entity, u32 damage) {
+  entity->flash_countdown = entity->flash_time;
+  if (entity->hp > 0) entity->hp -= damage;
+  if (entity->hp <= 0) {
+    emit_explosion(state, entity->position);
+    state->shake_oscillation += 1.0f;
+    entity->is_alive = false;
+    state->wave_remaining_enemy_count -= 1;
+  }
+}
+
+internal void
 enemy_behave(Entity *entity, Game_State *state, Clock *time) {
   switch (entity->behavior) {
     case ENEMY_BEHAVIOR_FLYING: {
@@ -1295,10 +1351,150 @@ enemy_behave(Entity *entity, Game_State *state, Clock *time) {
       entity->position.y += (entity->target_position.y - entity->position.y)/20.0f;
       f32 dy = abs_t(f32, entity->target_position.y - entity->position.y);
       if (dy < 1.0f) {
+        entity->time = state->time;
         entity->position = entity->target_position;
         entity->behavior = ENEMY_BEHAVIOR_IDLE;
+
+        if (entity->type == ENEMY_BOSS) {
+          entity->velocity.x = 1.0f;
+          entity->position0.x = state->draw_buffer.width*0.25f;
+          entity->position1.x = state->draw_buffer.width - state->draw_buffer.width*0.25f;
+          entity->behavior = ENEMY_BEHAVIOR_BOSS1;
+        }
       }
     } break;
+
+    case ENEMY_BEHAVIOR_BOSS1: {
+      linear_move(entity, time);
+
+      b32 change = false;
+      if (entity->position.x <= entity->position0.x) {
+        entity->position.x = entity->position0.x;
+        change = true;
+      }
+
+      if (entity->position.x >= entity->position1.x) {
+        entity->position.x = entity->position1.x;
+        change = true;
+      }
+
+      if (change) {
+        entity->velocity.x *= -1.0f;
+        entity->behavior = ENEMY_BEHAVIOR_BOSS2;
+      }
+
+    } break;
+    case ENEMY_BEHAVIOR_BOSS2: {
+      entity->shoot_time = 0.3f;
+      countdown(&entity->shoot_cooldown, time);
+      if (entity->shoot_cooldown <= 0.0f) {
+        f32 offset = random_bilateral(&state->entropy)*10.0f;
+        for (u32 i = 0; i < 3; ++i) {
+          Entity *bullet = entity_alloc(state->bullet_manager);
+          bullet->is_alive = true;
+          bullet->is_player_friendly = false;
+          bullet->speed = 80.0f;
+          bullet->position = entity->position;
+          f32 theta_radians = radians_pi32(75.0f + offset) + radians_pi32(i*15.0f);
+          bullet->velocity.x = cos_f32(theta_radians);
+          bullet->velocity.y = sin_f32(theta_radians);
+          bullet->size = make_vector2(4.0f, 4.0f);
+          bullet->sprite_index = 97;
+          bullet->sprite_w = 1;
+          bullet->sprite_h = 1;
+          entity->shoot_cooldown = entity->shoot_time;
+        }
+        entity->bullet_fired += 1;
+      }
+      if (entity->bullet_fired == 6) {
+        entity->attack_count += 1;
+        entity->bullet_fired = 0;
+        if (entity->attack_count < 2) {
+          entity->behavior = ENEMY_BEHAVIOR_BOSS1;
+        } else {
+          entity->attack_count = 0;
+          entity->position0.x = entity->position.x;
+          entity->position1.x = state->draw_buffer.width*0.5f;
+          entity->behavior = ENEMY_BEHAVIOR_BOSS3;
+        }
+      }
+    } break;
+
+    case ENEMY_BEHAVIOR_BOSS3: {
+      linear_move(entity, time);
+      f32 delta = abs_t(f32, entity->position1.x - entity->position.x);
+      if (delta < 1.0f) {
+        entity->behavior = ENEMY_BEHAVIOR_BOSS4;
+      }
+    } break;
+
+    case ENEMY_BEHAVIOR_BOSS4: {
+      entity->shoot_time = 0.1f;
+      countdown(&entity->shoot_cooldown, time);
+      if (entity->shoot_cooldown <= 0.0f) {
+        f32 offset = 10.0f*entity->bullet_fired;
+        for (u32 i = 0; i < 8; ++i) {
+          Entity *bullet = entity_alloc(state->bullet_manager);
+          bullet->is_alive = true;
+          bullet->is_player_friendly = false;
+          bullet->speed = 30.0f;
+          bullet->position = entity->position;
+          f32 theta_radians = radians_pi32(i*45.0f + offset);
+          bullet->velocity.x = cos_f32(theta_radians);
+          bullet->velocity.y = sin_f32(theta_radians);
+          bullet->size = make_vector2(2.0f, 2.0f);
+          bullet->sprite_index = 96;
+          bullet->sprite_w = 1;
+          bullet->sprite_h = 1;
+          entity->shoot_cooldown = entity->shoot_time;
+        }
+        entity->bullet_fired += 1;
+      }
+      if (entity->bullet_fired > 36) {
+        entity->bullet_fired = 0;
+        entity->velocity.x = 1.0f;
+        entity->position0.x = state->draw_buffer.width*0.25f;
+        entity->position1.x = state->draw_buffer.width - state->draw_buffer.width*0.25f;
+        entity->behavior = ENEMY_BEHAVIOR_BOSS5;
+      }
+    } break;
+
+    case ENEMY_BEHAVIOR_BOSS5: {
+      if (entity->position.x != entity->position1.x) {
+        linear_move(entity, time);
+        f32 delta = abs_t(f32, entity->position1.x - entity->position.x);
+        if (delta < 1.0f) {
+          entity->position.x = entity->position1.x;
+        }
+      } else {
+        entity->shoot_time = 0.5f;
+        countdown(&entity->shoot_cooldown, time);
+        if (entity->shoot_cooldown <= 0.0f) {
+          Vector2 delta = vector2_sub(state->player->position, entity->position);
+          f32 theta_radians = atan2f(delta.y, delta.x);
+
+          Entity *enemy = add_enemy(state, ENEMY_MINE);
+          enemy->hp = 8;
+          enemy->speed = 75.0f;
+          enemy->position = entity->position;
+          enemy->velocity.x = cos_f32(theta_radians);
+          enemy->velocity.y = sin_f32(theta_radians);
+          enemy->behavior = ENEMY_BEHAVIOR_IDLE;
+
+          entity->shoot_cooldown = entity->shoot_time;
+          entity->bullet_fired += 1;
+        }
+
+        if (entity->bullet_fired > 1) {
+          entity->velocity.x = 1.0f;
+          entity->position0.x = state->draw_buffer.width*0.25f;
+          entity->position1.x = state->draw_buffer.width - state->draw_buffer.width*0.25f;
+          entity->bullet_fired = 0;
+          entity->behavior = ENEMY_BEHAVIOR_BOSS1;
+        }
+      }
+    } break;
+
     case ENEMY_BEHAVIOR_IDLE: {
       switch (entity->type) {
         case ENEMY_ASSASSIN: {
@@ -1314,6 +1510,15 @@ enemy_behave(Entity *entity, Game_State *state, Clock *time) {
               entity->velocity.x *= -1.0f;
             }
           }
+        } break;
+        case ENEMY_MINE: {
+          Vector2 delta = vector2_sub(state->player->position, entity->position);
+          f32 distance = abs_t(f32, square(delta.x) + square(delta.y));
+          if (distance < square(TILE_SIZE*6.0f)) {
+            entity->behavior = ENEMY_BEHAVIOR_ATTACK;
+          }
+          entity->velocity = vector2_normalize(delta);
+          linear_move(entity, time);
         } break;
       }
     } break;
@@ -1382,7 +1587,7 @@ enemy_behave(Entity *entity, Game_State *state, Clock *time) {
         case ENEMY_ASSASSIN: {
           linear_move(entity, time);
 
-          if (entity->bullet_fired_count < entity->bullet_per_attack) {
+          if (entity->bullet_fired < entity->bullet_per_attack) {
             countdown(&entity->shoot_cooldown, time);
             if (entity->shoot_cooldown <= 0.0f) {
               Entity *bullet = entity_alloc(state->bullet_manager);
@@ -1397,13 +1602,40 @@ enemy_behave(Entity *entity, Game_State *state, Clock *time) {
               bullet->sprite_h = 1;
 
               entity->shoot_cooldown = entity->shoot_time;
-              entity->bullet_fired_count += 1;
+              entity->bullet_fired += 1;
             }
           } else {
             entity->velocity.x *= -1.0f;
-            entity->bullet_fired_count = 0;
+            entity->bullet_fired = 0;
             entity->charge_countdown = entity->charge_time;
             entity->behavior = ENEMY_BEHAVIOR_IDLE;
+          }
+        } break;
+
+        case ENEMY_MINE: {
+          entity->attack_time = 0.3f;
+          countdown(&entity->attack_countdown, time);
+          if (entity->attack_countdown <= 0.0f) {
+            entity->flash_countdown = entity->flash_time;
+            entity->attack_count += 1;
+            entity->attack_countdown = entity->attack_time;
+          }
+          if (entity->attack_count > 3) {
+            hit_enemy(state, entity, entity->hp);
+            for (u32 i = 0; i < 16; ++i) {
+              Entity *bullet = entity_alloc(state->bullet_manager);
+              bullet->is_alive = true;
+              bullet->is_player_friendly = false;
+              bullet->speed = 60.0f;
+              bullet->position = entity->position;
+              f32 theta_radians = radians_pi32(i*22.5f);
+              bullet->velocity.x = cos_f32(theta_radians);
+              bullet->velocity.y = sin_f32(theta_radians);
+              bullet->size = make_vector2(2.0f, 2.0f);
+              bullet->sprite_index = 112;
+              bullet->sprite_w = 1;
+              bullet->sprite_h = 1;
+            }
           }
         } break;
       }
@@ -1411,18 +1643,6 @@ enemy_behave(Entity *entity, Game_State *state, Clock *time) {
     default: {
       invalid_path;
     } break;
-  }
-}
-
-internal void
-hit_enemy(Game_State *state, Entity *entity, u32 damage) {
-  entity->flash_countdown = entity->flash_time;
-  if (entity->hp > 0) entity->hp -= damage;
-  if (entity->hp <= 0) {
-    emit_explosion(state, entity->position);
-    state->shake_oscillation += 1.0f;
-    entity->is_alive = false;
-    state->wave_remaining_enemy_count -= 1;
   }
 }
 
@@ -1461,7 +1681,7 @@ reset_wave(Game_State *state) {
 
 internal void
 init_wave(Game_State *state) {
-  state->wave_index = 0;
+  state->wave_index = LAST_WAVE;
   state->wave_warn_cooldown = 2.5f;
   state->enemy_spawn_cooldown = 0.4f;
   reset_wave(state);
@@ -1484,6 +1704,11 @@ change_screen(Game_State *state, Screen_State screen) {
   state->screen_state = screen;
   switch (screen) {
     case SCREEN_GAME: {
+      state->record_time = 0.0f;
+      state->next_explosion_particle = 0;
+      state->next_flash_particle = 0;
+      mem_zero_array(state->explosion_particles);
+      mem_zero_array(state->flash_particles);
       init_player(state);
       init_wave(state);
     } break;
@@ -1527,12 +1752,16 @@ KRUEGER_INIT_PROC(krueger_init) {
   state->font_tilemap = make_tilemap(state->font_image, 4, 6, 16, 6);
   state->sprites_tilemap = make_tilemap(state->sprites_image, 8, 8, 16, 16);
 
-  char *chars = " !\"#$%&'()*+,-./"
-                "0123456789:;<=>?"
-                "@ABCDEFGHIJKLMNO"
-                "PQRSTUVWXYZ[\\]^_"
-                "`abcdefghijklmno"
-                "pqrstuvwxyz{|}~ ";
+  String8 chars = str8_lit(
+    " !\"#$%&'()*+,-./"
+    "0123456789:;<=>?"
+    "@ABCDEFGHIJKLMNO"
+    "PQRSTUVWXYZ[\\]^_"
+    "`abcdefghijklmno"
+    "pqrstuvwxyz{|}~ "
+  );
+
+  chars = push_str8_copy(&state->main_arena, chars);
   state->font = make_font(chars, state->font_tilemap);
   state->draw_buffer = image_alloc(back_buffer->width, back_buffer->height);
 
@@ -1546,7 +1775,7 @@ KRUEGER_INIT_PROC(krueger_init) {
 
   state->player = push_array(&state->main_arena, Entity, 1);
   state->enemy_manager = entity_manager_alloc(&state->main_arena, 256);
-  state->bullet_manager = entity_manager_alloc(&state->main_arena, 256);
+  state->bullet_manager = entity_manager_alloc(&state->main_arena, 1024);
 
   f32 min_star_speed = 32.0f;
   f32 max_star_speed = 64.0f;
@@ -1581,11 +1810,9 @@ KRUEGER_FRAME_PROC(krueger_frame) {
   Digital_Button *kbd = input->kbd;
   if (kbd[KEY_F1].pressed) state->draw_debug_info = !state->draw_debug_info;
   if (kbd[KEY_F2].pressed) state->draw_time_info = !state->draw_time_info;
-
-  if (kbd[KEY_Q].pressed) memory->quit = true;
+  
   if (kbd[KEY_P].pressed) state->pause = !state->pause;
-
-  if (state->pause) return;
+  if (state->pause) return(quit);
 
   Image draw_buffer = state->draw_buffer;
   image_fill(draw_buffer, CP_BLACK);
@@ -1680,6 +1907,8 @@ KRUEGER_FRAME_PROC(krueger_frame) {
   // NOTE: state
   switch (state->screen_state) {
     case SCREEN_MENU: {
+      if (kbd[KEY_Q].pressed) quit = true;
+
       s32 bw = draw_buffer.width;
       s32 bh = draw_buffer.height;
 
@@ -1693,7 +1922,7 @@ KRUEGER_FRAME_PROC(krueger_frame) {
       if (state->time > state->lock_input_time) {
         if (kbd[KEY_Z].pressed) change_screen(state, SCREEN_GAME);
 
-        String8 text = str8_lit("press [z] to start");
+        String8 text = str8_lit("PRESS [Z] TO START");
 
         s32 x = bw/2;
         s32 y = bh - bh/3;
@@ -1707,6 +1936,9 @@ KRUEGER_FRAME_PROC(krueger_frame) {
     } break;
 
     case SCREEN_GAME: {
+      if (kbd[KEY_Q].pressed) change_screen(state, SCREEN_MENU);
+      state->record_time += time->dt_sec;
+
       { // NOTE: update player
         Entity *player = state->player;
         if (player->is_alive) {
@@ -1718,7 +1950,9 @@ KRUEGER_FRAME_PROC(krueger_frame) {
           player_update_and_draw_particles(player, time, draw_buffer);
           update_entity_flame(time, player);
 
+          player->velocity = make_vector2(0.0f, 0.0f);
           player->sprite_index = 1;
+
           if (kbd[KEY_UP].is_down) {
             player->velocity.y = -1.0f;
           }
@@ -1733,9 +1967,11 @@ KRUEGER_FRAME_PROC(krueger_frame) {
             player->velocity.x = 1.0f;
             player->sprite_index = 2;
           }
+          if (player->velocity.x != 0.0f && player->velocity.y != 0.0f) {
+            player->velocity = vector2_mul(player->velocity, 0.707106781187f);
+          }
 
           linear_move(player, time);
-          player->velocity = make_vector2(0.0f, 0.0f);
 
           if (player->position.x < 0.0f) {
             player->position.x = 0;
@@ -1752,8 +1988,8 @@ KRUEGER_FRAME_PROC(krueger_frame) {
 
           // NOTE: player fire bullets
           countdown(&player->shoot_cooldown, time);
-          if (player->shoot_cooldown <= 0.0f) {
-            if (kbd[KEY_Z].is_down) {
+          if (kbd[KEY_Z].is_down) {
+            if (player->shoot_cooldown <= 0.0f) {
               Entity *bullet = entity_alloc(state->bullet_manager);
               bullet->is_alive = true;
               bullet->is_player_friendly = true;
@@ -1772,7 +2008,7 @@ KRUEGER_FRAME_PROC(krueger_frame) {
         }
 
         // NOTE: player fire bomb
-        if (kbd[KEY_X].pressed &&
+        if (kbd[KEY_X].is_down &&
             state->bomb_count > 0 &&
             player->invencible_countdown <= 0.0f) {
           state->bomb_count -= 1;
@@ -1791,11 +2027,8 @@ KRUEGER_FRAME_PROC(krueger_frame) {
         }
       }
 
-      // NOTE: go to next wave when all enemies died
-      if (state->enemies_spawned && state->wave_remaining_enemy_count == 0) {
-        next_wave(state);
-      }
-
+#if BUILD_DEBUG
+      // NOTE: kill all enemies [debug code only]
       if (state->enemies_spawned) {
         if (kbd[KEY_K].pressed) {
           remove_all_entities(state->bullet_manager);
@@ -1805,6 +2038,12 @@ KRUEGER_FRAME_PROC(krueger_frame) {
             hit_enemy(state, enemy, enemy->hp);
           }
         }
+      }
+#endif
+
+      // NOTE: go to next wave when all enemies died
+      if (state->enemies_spawned && state->wave_remaining_enemy_count == 0) {
+        next_wave(state);
       }
 
       // NOTE: add enemies
@@ -1843,18 +2082,22 @@ KRUEGER_FRAME_PROC(krueger_frame) {
       if (state->enemies_spawned) {
         state->enemy_attack_time += time->dt_sec;
         if (state->enemy_attack_time > state->enemy_attack_cooldown) {
-          u32 enemy_index = random_choice(&state->entropy,
-                                          state->enemy_manager->list.count);
-          Entity *enemy = state->enemy_manager->list.first;
-          for (u32 j = 0; j < enemy_index; ++j) {
-            enemy = enemy->next;
-          }
-          if (enemy->is_alive) {
-            if (enemy->behavior == ENEMY_BEHAVIOR_IDLE) {
-              enemy->behavior = ENEMY_BEHAVIOR_CHARGE;
+          if (state->enemy_manager->list.count > 0) {
+            u32 enemy_index = random_choice(&state->entropy,
+                                            state->enemy_manager->list.count);
+            Entity *enemy = state->enemy_manager->list.first;
+            for (u32 j = 0; j < enemy_index; ++j) {
+              enemy = enemy->next;
             }
+            if (enemy->is_alive) {
+              if (enemy->type != ENEMY_MINE) {
+                if (enemy->behavior == ENEMY_BEHAVIOR_IDLE) {
+                  enemy->behavior = ENEMY_BEHAVIOR_CHARGE;
+                }
+              }
+            }
+            reset_enemy_attack_time(state);
           }
-          reset_enemy_attack_time(state);
         }
       }
 
@@ -1902,7 +2145,9 @@ KRUEGER_FRAME_PROC(krueger_frame) {
             if (enemy->is_alive) {
               if (entity_collide(*enemy, *player)) {
                 if (hit_player(state, player, 1)) {
-                  hit_enemy(state, enemy, enemy->hp);
+                  if (enemy->type != ENEMY_BOSS) {
+                    hit_enemy(state, enemy, enemy->hp);
+                  }
                 }
               }
             }
@@ -1939,12 +2184,12 @@ KRUEGER_FRAME_PROC(krueger_frame) {
         }
       }
 
-      remove_dead_entities(state->enemy_manager);
       remove_dead_entities(state->bullet_manager);
+      remove_dead_entities(state->enemy_manager);
 
       // TODO: get rid off enemy_update_draw_particles;
-      draw_enemies(draw_buffer, state->enemy_manager, state->sprites_tilemap, time);
       draw_bullets(draw_buffer, state->bullet_manager, state->sprites_tilemap);
+      draw_enemies(draw_buffer, state->enemy_manager, state->sprites_tilemap, time);
 
       { // NOTE: draw player
         Entity *player = state->player;
@@ -1982,16 +2227,18 @@ KRUEGER_FRAME_PROC(krueger_frame) {
       // NOTE: draw ui
       s32 bw = draw_buffer.width;
       s32 bh = draw_buffer.height;
-
-      { // NOTE: draw enemy count
-        Temp temp = temp_begin(&state->temp_arena);
-        String8 text = str8_fmt(temp.arena, "%d/%d",
-                                state->wave_remaining_enemy_count,
-                                state->wave_enemy_count);
-        s32 x = bw - 1;
-        s32 y = 1;
-        draw_text_align(draw_buffer, state->font, text, x, y, 1.0f, 0.0f, CP_RED);
-        temp_end(temp);
+      
+      if (state->wave_index != LAST_WAVE) {
+        { // NOTE: draw enemy count
+          Temp temp = temp_begin(&state->temp_arena);
+          String8 text = str8_fmt(temp.arena, "%d/%d",
+                                  state->wave_remaining_enemy_count,
+                                  state->wave_enemy_count);
+          s32 x = draw_buffer.width/2;
+          s32 y = 1;
+          draw_text_align(draw_buffer, state->font, text, x, y, 0.5f, 0.0f, CP_RED);
+          temp_end(temp);
+        }
       }
 
       // NOTE: draw player hp
@@ -2013,11 +2260,10 @@ KRUEGER_FRAME_PROC(krueger_frame) {
           ++bomb_index) {
         u32 sprite_index = 34;
         Image sprite = tilemap_get_tile(state->sprites_tilemap, sprite_index);
-        Vector2 position = make_vector2(cast(f32) bomb_index*sprite.width,
-                                        cast(f32) sprite.width);
+        Vector2 position = make_vector2(cast(f32)(draw_buffer.width - bomb_index*sprite.width), 0.0f);
         draw_sprite(draw_buffer, state->sprites_tilemap,
                     sprite_index, 1, 1,
-                    position, vec2(0.0f, 0.0f), vec2(0.0f, 0.0f));
+                    position, vec2(1.0f, 0.0f), vec2(0.0f, 0.0f));
       }
 
       // NOTE: draw wave warn
@@ -2035,9 +2281,44 @@ KRUEGER_FRAME_PROC(krueger_frame) {
         }
         temp_end(temp);
       }
+
+      if (state->wave_index == LAST_WAVE) {
+        Entity *boss = state->enemy_manager->list.first;
+        if (boss) {
+          f32 margin = TILE_SIZE;
+          f32 top_margin = TILE_SIZE*1.25f;
+
+          f32 bar_w = draw_buffer.width - 2.0f*margin;
+          f32 bar_h = TILE_SIZE*0.5f;
+
+          s32 x0 = cast(s32) margin;
+          s32 y0 = cast(s32) top_margin;
+          s32 x1 = cast(s32) (x0 + bar_w);
+          s32 y1 = cast(s32) (y0 + bar_h);
+
+          draw_rect_fill(draw_buffer, x0, y0, x1, y1, CP_BLACK);
+
+          x0 += 1;
+          y0 += 1;
+          x1 -= 1;
+          y1 -= 1;
+          bar_w -= 2;
+          bar_h -= 2;
+
+          draw_rect_fill(draw_buffer, x0, y0, x1, y1, CP_DARK_BLUE);
+
+          f32 t = cast(f32)boss->hp/cast(f32)boss->max_hp;
+          x1 = cast(s32) (x0 + bar_w*t);
+
+          draw_rect_fill(draw_buffer, x0, y0, x1, y1, CP_RED);
+        }
+      }
+
     } break;
 
     case SCREEN_OVER: {
+      if (kbd[KEY_Q].pressed) quit = true;
+
       s32 bw = draw_buffer.width;
       s32 bh = draw_buffer.height;
 
@@ -2047,11 +2328,23 @@ KRUEGER_FRAME_PROC(krueger_frame) {
         draw_text_align(draw_buffer, state->font, str8_lit("GAME OVER"),
                         x, y, 0.5f, 0.5f, CP_RED);
       }
+      
+      if (state->time > state->lock_input_time - state->lock_input_cooldown*0.5f) {
+        { // NOTE: draw record
+          Temp temp = temp_begin(&state->temp_arena);
+          String8 text = str8_fmt(temp.arena, "RECORD: %.2f", state->record_time);
+          s32 x = bw/2;
+          s32 y = bh/2;
+          draw_text_align(draw_buffer, state->font, text,
+                          x, y, 0.5f, 0.5f, CP_WHITE);
+          temp_end(temp);
+        }
+      }
 
       if (state->time > state->lock_input_time) {
         if (kbd[KEY_Z].pressed) change_screen(state, SCREEN_MENU);
 
-        String8 text0 = str8_lit("press [z] to go");
+        String8 text0 = str8_lit("press [Z] to go");
         String8 text1 = str8_lit("back to menu");
 
         s32 th = state->font.tilemap.tile_h;
@@ -2076,8 +2369,12 @@ KRUEGER_FRAME_PROC(krueger_frame) {
     } break;
 
     case SCREEN_WIN: {
+      if (kbd[KEY_Q].pressed) quit = true;
+
       s32 bw = draw_buffer.width;
       s32 bh = draw_buffer.height;
+
+      s32 th = state->font.tilemap.tile_h;
 
       // NOTE: draw player animation
       state->player_win_position_t += time->dt_sec*0.02f;
@@ -2106,9 +2403,21 @@ KRUEGER_FRAME_PROC(krueger_frame) {
 
       { // NOTE: draw win
         s32 x = bw/2;
-        s32 y = bh/3;
+        s32 y = bh/4 + th/2;
         draw_text_align(draw_buffer, state->font, str8_lit("YOU WIN!"),
                         x, y, 0.5f, 0.5f, CP_BLUE);
+      }
+
+      if (state->time > state->lock_input_time - state->lock_input_cooldown*0.5f) {
+        { // NOTE: draw record
+          Temp temp = temp_begin(&state->temp_arena);
+          String8 text = str8_fmt(temp.arena, "RECORD: %.2f", state->record_time);
+          s32 x = bw/2;
+          s32 y = bh/3 + th/2;
+          draw_text_align(draw_buffer, state->font, text,
+                          x, y, 0.5f, 0.5f, CP_WHITE);
+          temp_end(temp);
+        }
       }
 
       if (state->time > state->lock_input_time) {
@@ -2117,10 +2426,8 @@ KRUEGER_FRAME_PROC(krueger_frame) {
           state->screen_state = SCREEN_MENU;
         }
 
-        String8 text0 = str8_lit("press [z] to go");
+        String8 text0 = str8_lit("press [Z] to go");
         String8 text1 = str8_lit("back to menu");
-
-        s32 th = state->font.tilemap.tile_h;
 
         s32 x = bw/2;
         s32 y = bh - bh/3;
@@ -2160,16 +2467,16 @@ KRUEGER_FRAME_PROC(krueger_frame) {
     s32 th = state->font.tilemap.tile_h;
 
     s32 x = bw - 2;
-    s32 y = bh - list->node_count*th - 2;
+    s32 y = bh - list->count*th - 2;
     
     for (String8_Node *node = list->first; node != 0; node = node->next) {
-      String8 string = node->string;
-      s32 x0 = x - cast(s32) string.len*tw;
+      String8 str = node->str;
+      s32 x0 = x - cast(s32) str.len*tw;
       s32 y0 = y;
       s32 x1 = x + 1;
       s32 y1 = y0 + th + 1;
       draw_rect_fill(draw_buffer, x0, y0, x1, y1, CP_BLACK);
-      draw_text_align(draw_buffer, state->font, string, x, y, 1.0f, 0.0f, CP_DARK_GRAY);
+      draw_text_align(draw_buffer, state->font, str, x, y, 1.0f, 0.0f, CP_DARK_GRAY);
       str8_list_pop(list);
       y += th;
     }
@@ -2186,28 +2493,12 @@ KRUEGER_FRAME_PROC(krueger_frame) {
     Entity_Manager *manager = state->enemy_manager;
     u32 count = manager->list.count;
     u32 total_count = manager->list.total_count;
-    str8_list_push_fmt(temp.arena, list, "enemies: %d/%d", count, total_count);
+    str8_list_push_fmt(temp.arena, list, "enemies:%d/%d", count, total_count);
     
     manager = state->bullet_manager;
     count = manager->list.count;
     total_count = manager->list.total_count;
-    str8_list_push_fmt(temp.arena, list, "bullets: %d/%d", count, total_count);
-
-    uxx cmt_size = state->main_arena.cmt_size;
-    uxx res_size = state->main_arena.res_size;
-
-    f32 size0 = cast(f32)cmt_size/cast(f32)res_size;
-    f32 size1 = cast(f32)res_size/cast(f32)res_size;
-
-    str8_list_push_fmt(temp.arena, list, "main: %.2f/%.2f", size0, size1);
-    
-    cmt_size = state->temp_arena.cmt_size;
-    res_size = state->temp_arena.res_size;
-
-    size0 = cast(f32)cmt_size/cast(f32)res_size;
-    size1 = cast(f32)res_size/cast(f32)res_size;
-
-    str8_list_push_fmt(temp.arena, list, "temp: %.2f/%.2f", size0, size1);
+    str8_list_push_fmt(temp.arena, list, "bullets:%d/%d", count, total_count);
 
     // s32 bw = draw_buffer.width;
     s32 bh = draw_buffer.height;
@@ -2216,16 +2507,16 @@ KRUEGER_FRAME_PROC(krueger_frame) {
     s32 th = state->font.tilemap.tile_h;
 
     s32 x = 1;
-    s32 y = bh - list->node_count*th - 2;
+    s32 y = bh - list->count*th - 2;
 
     for (String8_Node *node = list->first; node != 0; node = node->next) {
-      String8 string = node->string;
+      String8 str = node->str;
       s32 x0 = x;
       s32 y0 = y;
-      s32 x1 = x0 + cast(s32) string.len*tw + 1;
+      s32 x1 = x0 + cast(s32) str.len*tw + 1;
       s32 y1 = y0 + th + 1;
       draw_rect_fill(draw_buffer, x0, y0, x1, y1, CP_BLACK);
-      draw_text_align(draw_buffer, state->font, string, x, y, 0.0f, 0.0f, CP_DARK_GRAY);
+      draw_text_align(draw_buffer, state->font, str, x, y, 0.0f, 0.0f, CP_DARK_GRAY);
       str8_list_pop(list);
       y += th;
     }
@@ -2248,4 +2539,6 @@ KRUEGER_FRAME_PROC(krueger_frame) {
 
   image_fill(*back_buffer, CP_BLACK);
   draw_texture_f32(*back_buffer, draw_buffer, x, y);
+
+  return(quit);
 }

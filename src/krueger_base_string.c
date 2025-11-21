@@ -213,6 +213,16 @@ str8_cat(Arena *arena, String8 a, String8 b) {
 }
 
 internal String8
+str8_copy(Arena *arena, String8 str) {
+  String8 result = {0};
+  result.len = str.len;
+  result.str = push_array(arena, u8, str.len + 1);
+  mem_cpy(result.str, str.str, str.len);
+  result.str[result.len] = 0;
+  return(result);
+}
+
+internal String8
 str8_fmt_args(Arena *arena, char *fmt, va_list args) {
   va_list args_copy;
   va_copy(args_copy, args);
@@ -270,11 +280,11 @@ f32_from_str8(String8 str) {
 // NOTE: String List
 
 internal String8_Node *
-str8_list_push(Arena *arena, String8_List *list, String8 string) {
+str8_list_push(Arena *arena, String8_List *list, String8 str) {
   String8_Node *result = push_array(arena, String8_Node, 1);
   sll_queue_push(list->first, list->last, result);
-  list->node_count += 1;
-  result->string = string;
+  list->count += 1;
+  result->str = str;
   return(result);
 }
 
@@ -282,15 +292,15 @@ internal String8_Node *
 str8_list_push_fmt(Arena *arena, String8_List *list, char *fmt, ...) {
   va_list args;
   va_start(args, fmt);
-  String8 string = str8_fmt_args(arena, fmt, args);
-  String8_Node *result = str8_list_push(arena, list, string);
+  String8 str = str8_fmt_args(arena, fmt, args);
+  String8_Node *result = str8_list_push(arena, list, str);
   va_end(args);
   return(result);
 }
 
 internal void
 str8_list_pop(String8_List *list) {
-  list->node_count -= 1;
+  list->count -= 1;
   sll_queue_pop(list->first, list->last);
 }
 

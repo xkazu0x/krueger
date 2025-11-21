@@ -130,6 +130,7 @@ main(void) {
 
     Platform_Graphics_Info graphics_info = platform_get_graphics_info();
     Clock time = { .dt_sec = 1.0f/graphics_info.refresh_rate };
+    // Clock time = { .dt_sec = 1.0f/60.0f };
     // Clock time = { .dt_sec = 1.0f/30.0f };
 
     if (lib.krueger_init) lib.krueger_init(&memory, &back_buffer);
@@ -137,10 +138,11 @@ main(void) {
     platform_window_toggle_fullscreen(window);
     platform_window_show(window);
 
+    Arena event_arena = arena_alloc(MB(64));
     u64 time_start = platform_get_time_us();
 
     for (b32 quit = false; !quit;) {
-      Temp temp = temp_begin(&misc_arena);
+      Temp temp = temp_begin(&event_arena);
       Platform_Event_List event_list = platform_get_event_list(temp.arena);
       for (Platform_Event *event = event_list.first; event != 0; event = event->next) {
         switch (event->type) {
@@ -163,7 +165,9 @@ main(void) {
         lib = libkrueger_load(dst_lib_path, src_lib_path);
       }
 
-      if (lib.krueger_frame) lib.krueger_frame(&memory, &back_buffer, &input, &time);
+      if (lib.krueger_frame) {
+        quit = lib.krueger_frame(&memory, &back_buffer, &input, &time, quit);
+      }
       wait_to_flip(time.dt_sec, time_start);
 
       u64 time_end = platform_get_time_us();
@@ -177,7 +181,6 @@ main(void) {
                                      back_buffer.height);
 
       input_reset(&input);
-      quit = memory.quit;
     }
 
     platform_window_close(window);

@@ -130,6 +130,7 @@
 #define round_t(T, x) cast(T) ((x) + 0.5f)
 
 #define radians_pi32(x) ((x)*pi32/180.0f)
+#define radians_tau32(x) ((x)*tau32/360.0f)
 
 ////////////////////
 // NOTE: Basic Types

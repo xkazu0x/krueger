@@ -13,14 +13,14 @@ struct String8 {
 typedef struct String8_Node String8_Node;
 struct String8_Node {
   String8_Node *next;
-  String8 string;
+  String8 str;
 };
 
 typedef struct String8_List String8_List;
 struct String8_List {
   String8_Node *first;
   String8_Node *last;
-  u32 node_count;
+  u32 count;
 };
 
 
@@ -67,17 +67,20 @@ internal String8 str8_substr(String8 str, uxx min, uxx max);
 internal String8 str8_skip(String8 str, uxx amt);
 internal String8 str8_chop(String8 str, uxx amt);
 
-//////////////////////////
-// NOTE: String Formatting
+////////////////////////////////////
+// NOTE: String Formatting & Copying
 
 internal String8 str8_cat(Arena *arena, String8 a, String8 b);
+internal String8 str8_copy(Arena *arena, String8 str);
 internal String8 str8_fmt_args(Arena *arena, char *fmt, va_list args);
 internal String8 str8_fmt(Arena *arena, char *fmt, ...);
+
+#define push_str8_copy(arena, str) str8_copy((arena), (str));
 
 ////////////////////
 // NOTE: String List
 
-internal String8_Node *str8_list_push(Arena *arena, String8_List *list, String8 string);
+internal String8_Node *str8_list_push(Arena *arena, String8_List *list, String8 str);
 internal String8_Node *str8_list_push_fmt(Arena *arena, String8_List *list, char *fmt, ...);
 internal void str8_list_pop(String8_List *list);
 

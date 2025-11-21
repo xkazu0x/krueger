@@ -70,13 +70,12 @@ typedef struct {
 } Clock;
 
 typedef struct {
-  b32 quit;
   uxx memory_size;
   u8 *memory_ptr;
 } Memory;
 
 #define KRUEGER_INIT_PROC(x) void x(Memory *memory, Image *back_buffer)
-#define KRUEGER_FRAME_PROC(x) void x(Memory *memory, Image *back_buffer, Input *input, Clock *time)
+#define KRUEGER_FRAME_PROC(x) b32 x(Memory *memory, Image *back_buffer, Input *input, Clock *time, b32 quit)
 
 typedef KRUEGER_INIT_PROC(krueger_init_proc);
 typedef KRUEGER_FRAME_PROC(krueger_frame_proc);
