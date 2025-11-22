@@ -75,8 +75,6 @@ internal String8 str8_copy(Arena *arena, String8 str);
 internal String8 str8_fmt_args(Arena *arena, char *fmt, va_list args);
 internal String8 str8_fmt(Arena *arena, char *fmt, ...);
 
-#define push_str8_copy(arena, str) str8_copy((arena), (str));
-
 ////////////////////
 // NOTE: String List
 

@@ -176,12 +176,6 @@ platform_window_open(String8 title, s32 width, s32 height) {
   s32 window_w = width;
   s32 window_h = height;
 
-  s32 monitor_w = GetSystemMetrics(SM_CXSCREEN);
-  s32 monitor_h = GetSystemMetrics(SM_CYSCREEN);
-
-  s32 window_x = (monitor_w - window_w)/2;
-  s32 window_y = (monitor_h - window_h)/2;
-
   u32 window_style = WS_OVERLAPPEDWINDOW;
   u32 window_style_ex = WS_EX_APPWINDOW;
 
@@ -195,6 +189,12 @@ platform_window_open(String8 title, s32 width, s32 height) {
     window_w = window_rectangle.right - window_rectangle.left;
     window_h = window_rectangle.bottom - window_rectangle.top;
   }
+
+  s32 monitor_w = GetSystemMetrics(SM_CXSCREEN);
+  s32 monitor_h = GetSystemMetrics(SM_CYSCREEN);
+
+  s32 window_x = (monitor_w - window_w)/2;
+  s32 window_y = (monitor_h - window_h)/2;
 
   HWND hwnd = CreateWindowExA(window_style_ex,
                               MAKEINTATOM(win32_graphics_state->atom),

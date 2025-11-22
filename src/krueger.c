@@ -1761,7 +1761,7 @@ KRUEGER_INIT_PROC(krueger_init) {
     "pqrstuvwxyz{|}~ "
   );
 
-  chars = push_str8_copy(&state->main_arena, chars);
+  chars = str8_copy(&state->main_arena, chars);
   state->font = make_font(chars, state->font_tilemap);
   state->draw_buffer = image_alloc(back_buffer->width, back_buffer->height);
 
@@ -1922,7 +1922,7 @@ KRUEGER_FRAME_PROC(krueger_frame) {
       if (state->time > state->lock_input_time) {
         if (kbd[KEY_Z].pressed) change_screen(state, SCREEN_GAME);
 
-        String8 text = str8_lit("PRESS [Z] TO START");
+        String8 text = str8_lit("press [z] to start");
 
         s32 x = bw/2;
         s32 y = bh - bh/3;
@@ -2344,7 +2344,7 @@ KRUEGER_FRAME_PROC(krueger_frame) {
       if (state->time > state->lock_input_time) {
         if (kbd[KEY_Z].pressed) change_screen(state, SCREEN_MENU);
 
-        String8 text0 = str8_lit("press [Z] to go");
+        String8 text0 = str8_lit("press [z] to go");
         String8 text1 = str8_lit("back to menu");
 
         s32 th = state->font.tilemap.tile_h;
@@ -2426,7 +2426,7 @@ KRUEGER_FRAME_PROC(krueger_frame) {
           state->screen_state = SCREEN_MENU;
         }
 
-        String8 text0 = str8_lit("press [Z] to go");
+        String8 text0 = str8_lit("press [z] to go");
         String8 text1 = str8_lit("back to menu");
 
         s32 x = bw/2;
