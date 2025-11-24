@@ -25,14 +25,22 @@
 #define false 0
 #define true 1
 
-////////////////
-// NOTE: Asserts
-
 #if PLATFORM_WINDOWS
 # define shared_function __declspec(dllexport)
 #else
 # define shared_function
 #endif
+
+#if COMPILER_MSVC
+# define thread_static __declspec(thread)
+#elif COMPILER_CLANG || COMPILER_GCC
+# define thread_static __thread
+#else
+# error thread_static not defined for this compiler.
+#endif
+
+////////////////
+// NOTE: Asserts
 
 #if COMPILER_MSVC
 #define trap() __debugbreak()

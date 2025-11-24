@@ -2,17 +2,16 @@
 #define KRUEGER_BASE_LOG_C
 
 internal void
-log_msg(Log_Type type, char *msg, ...) {
-  char msg_buf[1024];
-  char print_buf[2048];
-
-  va_list arg_list;
-  va_start(arg_list, msg);
-  vsprintf_s(msg_buf, sizeof(msg_buf), msg, arg_list);
-  va_end(arg_list);
-
-  sprintf(print_buf, "%s %s\n", log_types_str[type], msg_buf);
-  printf("%s", print_buf);
+log_msg(Log_Type type, char *fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+  Temp scratch = scratch_begin(0, 0);
+  String8 msg = str8_fmt_args(scratch.arena, fmt, args);
+  String8 prefix = str8_cstr(log_type_table[type]);
+  String8 out = str8_fmt(scratch.arena, "%s %s\n", prefix.str, msg.str);
+  printf("%s", out.str);
+  scratch_end(scratch);
+  va_end(args);
 }
 
 #endif // KRUEGER_BASE_LOG_C

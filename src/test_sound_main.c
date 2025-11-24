@@ -7,30 +7,191 @@
 #include "krueger_platform.c"
 
 #include <dsound.h>
-#pragma comment(lib, "dsound.lib")
+// #pragma comment(lib, "dsound.lib")
 
 #define DIRECT_SOUND_CREATE(x) HRESULT WINAPI x(LPCGUID pcGuidDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter)
 typedef DIRECT_SOUND_CREATE(direct_sound_create_proc);
 
+typedef struct {
+  u16 bits_per_sample;
+  u16 num_channels;
+  u16 block_align;
+  u32 sample_rate;
+  u32 byte_rate;
+} Audio_Format;
+
+internal Audio_Format
+make_audio_format(u32 sample_rate, u16 bits_per_sample, u16 num_channels) {
+  Audio_Format result = {0};
+  result.bits_per_sample = bits_per_sample;
+  result.num_channels = num_channels;
+  result.block_align = (bits_per_sample/8)*num_channels;
+  result.sample_rate = sample_rate;
+  result.byte_rate = sample_rate*result.block_align;
+  return(result);
+}
+
+internal u32
+buffer_size_from_audio_format(Audio_Format format) {
+  u32 result = format.sample_rate*(format.bits_per_sample/8)*format.num_channels;
+  return(result);
+}
+
+typedef struct {
+  Audio_Format format;
+  u32 size;
+  s16 *data;
+} Audio_File;
+
+typedef struct Win32_Audio_Device Win32_Audio_Device;
+struct Win32_Audio_Device {
+  Win32_Audio_Device *next;
+  Win32_Audio_Device *prev;
+  Audio_Format format;
+  LPDIRECTSOUND direct_sound;
+  LPDIRECTSOUNDBUFFER primary_buffer;
+  LPDIRECTSOUNDBUFFER secondary_buffer;
+};
+
+typedef struct {
+  Arena arena;
+  Platform_Handle lib;
+  Win32_Audio_Device *first_device;
+  Win32_Audio_Device *last_device;
+  Win32_Audio_Device *free_device;
+} Win32_Audio_State;
+
+global Win32_Audio_State *win32_audio_state;
+
+internal Win32_Audio_Device *
+win32_audio_device_alloc(void) {
+  Win32_Audio_Device *result = win32_audio_state->free_device;
+  if (result) {
+    sll_stack_pop(win32_audio_state->free_device);
+  } else {
+    result = push_array(&win32_audio_state->arena, Win32_Audio_Device, 1);
+  }
+  mem_zero_struct(result);
+  dll_push_back(win32_audio_state->first_device,
+                win32_audio_state->last_device,
+                result);
+  return(result);
+}
+
+internal void
+win32_audio_device_release(Win32_Audio_Device *device) {
+  IDirectSoundBuffer_Release(device->secondary_buffer);
+  IDirectSoundBuffer_Release(device->primary_buffer);
+  IDirectSound_Release(device->direct_sound);
+  dll_remove(win32_audio_state->first_device,
+             win32_audio_state->last_device,
+             device);
+  sll_stack_push(win32_audio_state->free_device, device);
+}
+
+internal void
+platform_audio_init(void) {
+  Arena arena = arena_alloc(MB(64));
+  win32_audio_state = push_array(&arena, Win32_Audio_State, 1);
+  win32_audio_state->arena = arena;
+
+  String8 lib_name = str8_lit("dsound.dll");
+  win32_audio_state->lib = platform_library_open(lib_name);
+  if (platform_handle_is_null(win32_audio_state->lib)) {
+    log_error("%s: failed to open library: [%s]", __func__, lib_name.str);
+  }
+}
+
+internal Platform_Handle
+platform_audio_device_open(Platform_Handle window, Audio_Format format) {
+  Platform_Handle result = {0};
+
+  LPDIRECTSOUND direct_sound;
+  LPDIRECTSOUNDBUFFER primary_buffer;
+  LPDIRECTSOUNDBUFFER secondary_buffer;
+
+  direct_sound_create_proc *direct_sound_create = (direct_sound_create_proc *)
+    platform_library_load_proc(win32_audio_state->lib, "DirectSoundCreate");
+
+  if (SUCCEEDED(direct_sound_create(0, &direct_sound, 0))) {
+    WAVEFORMATEX wave_format = {0};
+    wave_format.wFormatTag = WAVE_FORMAT_PCM;
+    wave_format.nChannels = format.num_channels;
+    wave_format.wBitsPerSample = format.bits_per_sample;
+    wave_format.nBlockAlign = (wave_format.wBitsPerSample/8)*wave_format.nChannels;
+    wave_format.nSamplesPerSec = format.sample_rate;
+    wave_format.nAvgBytesPerSec = wave_format.nSamplesPerSec*wave_format.nBlockAlign;
+
+    Win32_Window *win32_window = win32_window_from_handle(window);
+    if (SUCCEEDED(IDirectSound_SetCooperativeLevel(direct_sound,
+                                                   win32_window->hwnd,
+                                                   DSSCL_PRIORITY))) {
+      DSBUFFERDESC primary_buffer_desc = {0};
+      primary_buffer_desc.dwSize = sizeof(primary_buffer_desc);
+      primary_buffer_desc.dwFlags = DSBCAPS_PRIMARYBUFFER;
+
+      if (SUCCEEDED(IDirectSound_CreateSoundBuffer(direct_sound,
+                                                   &primary_buffer_desc,
+                                                   &primary_buffer,
+                                                   0))) {
+        HRESULT hr = IDirectSoundBuffer_SetFormat(primary_buffer, &wave_format);
+        if (SUCCEEDED(hr)) {
+          DSBUFFERDESC secondary_buffer_desc = {0};
+          secondary_buffer_desc.dwSize = sizeof(secondary_buffer_desc);
+          secondary_buffer_desc.dwFlags = 0;
+          secondary_buffer_desc.dwBufferBytes = buffer_size_from_audio_format(format);
+          secondary_buffer_desc.lpwfxFormat = &wave_format;
+
+          hr = IDirectSound_CreateSoundBuffer(direct_sound,
+                                              &secondary_buffer_desc,
+                                              &secondary_buffer,
+                                              0);
+          if (SUCCEEDED(hr)) {
+            Win32_Audio_Device *device = win32_audio_device_alloc();
+            device->format = format;
+            device->direct_sound = direct_sound;
+            device->primary_buffer = primary_buffer;
+            device->secondary_buffer = secondary_buffer;
+
+            result.ptr[0] = cast(uxx)device;
+          } else {
+            log_error("%s: direct sound: failed to create secondary buffer", __func__);
+          }
+        } else {
+          log_error("%s: direct sound: failed to set primary buffer format", __func__);
+        }
+      } else {
+        log_error("%s: direct sound: failed to create primary buffer", __func__);
+      }
+    }
+  }
+
+  return(result);
+}
+
 global LPDIRECTSOUNDBUFFER secondary_buffer;
 
 internal void
-win32_direct_sound_init(Platform_Handle window) {
-  String8 lib = str8_lit("dsound.dll");
-  Platform_Handle dsound_lib = platform_library_open(lib);
-  if (!platform_handle_is_null(dsound_lib)) {
+win32_direct_sound_init(Platform_Handle window, Audio_Format format) {
+  Arena arena = arena_alloc(MB(64));
+  win32_audio_state = push_array(&arena, Win32_Audio_State, 1);
+  win32_audio_state->arena = arena;
+
+  String8 lib_name = str8_lit("dsound.dll");
+  win32_audio_state->lib = platform_library_open(lib_name);
+  if (!platform_handle_is_null(win32_audio_state->lib)) {
     direct_sound_create_proc *direct_sound_create = (direct_sound_create_proc *)
-      platform_library_load_proc(dsound_lib, "DirectSoundCreate");
+      platform_library_load_proc(win32_audio_state->lib, "DirectSoundCreate");
 
     LPDIRECTSOUND direct_sound;
     if (SUCCEEDED(direct_sound_create(0, &direct_sound, 0))) {
       WAVEFORMATEX wave_format = {0};
       wave_format.wFormatTag = WAVE_FORMAT_PCM;
-      wave_format.nChannels = 2;
-      wave_format.wBitsPerSample = 16;
-      wave_format.nBlockAlign = (wave_format.wBitsPerSample/8)*wave_format.nChannels;
-      wave_format.nSamplesPerSec = 48000;
-      wave_format.nAvgBytesPerSec = wave_format.nSamplesPerSec*wave_format.nBlockAlign;
+      wave_format.wBitsPerSample = format.bits_per_sample;
+      wave_format.nChannels = format.num_channels;
+      wave_format.nBlockAlign = format.block_align;
+      wave_format.nSamplesPerSec = format.sample_rate;
+      wave_format.nAvgBytesPerSec = format.byte_rate;
 
       Win32_Window *win32_window = win32_window_from_handle(window);
       if (SUCCEEDED(IDirectSound_SetCooperativeLevel(direct_sound,
@@ -45,8 +206,8 @@ win32_direct_sound_init(Platform_Handle window) {
                                                      &buffer_desc,
                                                      &primary_buffer,
                                                      0))) {
-          HRESULT hresult = IDirectSoundBuffer_SetFormat(primary_buffer, &wave_format);
-          if (SUCCEEDED(hresult)) {
+          HRESULT hr = IDirectSoundBuffer_SetFormat(primary_buffer, &wave_format);
+          if (SUCCEEDED(hr)) {
             log_info("%s: direct sound: primary buffer format was set", __func__);
           } else {
             log_error("%s: direct sound: failed to set primary buffer format", __func__);
@@ -57,18 +218,21 @@ win32_direct_sound_init(Platform_Handle window) {
       DSBUFFERDESC buffer_desc = {0};
       buffer_desc.dwSize = sizeof(buffer_desc);
       buffer_desc.dwFlags = 0;
-      buffer_desc.dwBufferBytes = 48000*sizeof(s16)*wave_format.nChannels;
+      buffer_desc.dwBufferBytes = buffer_size_from_audio_format(format);
       buffer_desc.lpwfxFormat = &wave_format;
 
-      HRESULT hresult = IDirectSound_CreateSoundBuffer(direct_sound, &buffer_desc, &secondary_buffer, 0);
-      if (SUCCEEDED(hresult)) {
+      HRESULT hr = IDirectSound_CreateSoundBuffer(direct_sound,
+                                                  &buffer_desc,
+                                                  &secondary_buffer,
+                                                  0);
+      if (SUCCEEDED(hr)) {
         log_info("%s: direct sound: secondary buffer created successfully", __func__);
       } else {
         log_error("%s: direct sound: failed to create secondary buffer", __func__);
       }
     }
   } else {
-    log_error("%s: failed to open library: [%s]", __func__, lib.str);
+    log_error("%s: failed to open library: [%s]", __func__, lib_name.str);
   }
 }
 
@@ -93,14 +257,6 @@ typedef struct {
 } Wave_Header;
 #pragma pack(pop)
 
-typedef struct {
-  u16 num_channels;
-  u16 bits_per_sample;
-  u16 block_align;
-  u32 sample_rate;
-  u32 byte_rate;
-} Audio_File;
-
 internal void
 load_wave(Arena *arena, Temp scratch, String8 file_path) {
   void *file_data = platform_read_entire_file(scratch.arena, file_path);
@@ -123,28 +279,31 @@ int
 main(void) {
   platform_core_init();
   platform_graphics_init();
-  
-  Arena main_arena = arena_alloc(MB(64));
-  Arena misc_arena = arena_alloc(MB(64));
 
-  Temp scratch = temp_begin(&misc_arena);
-  load_wave(&main_arena, scratch, str8_lit("../res/test.wav"));
-  temp_end(scratch);
+  Thread_Context *context = thread_context_alloc();
+  thread_context_select(context);
+
+  // Arena main_arena = arena_alloc(MB(64));
+  // Arena misc_arena = arena_alloc(MB(64));
+  //
+  // Temp temp = temp_begin(&misc_arena);
+  // load_wave(&main_arena, temp, str8_lit("../res/test.wav"));
+  // temp_end(temp);
 
   Platform_Handle window = platform_window_open(str8_lit("sound test"), 800, 600);
   platform_window_show(window);
 
-  u32 samples_per_sec = 48000;
-  u32 num_channels = 2;
-  u32 bytes_per_sample = sizeof(s16)*num_channels;
-  u32 secondary_buffer_size = samples_per_sec*bytes_per_sample;
-  u32 latency_sample_count = samples_per_sec/15;
+  Audio_Format audio_format = make_audio_format(48000, 16, 2);
+  win32_direct_sound_init(window, audio_format);
+
   u32 running_sample_index = 0;
+  u32 samples_per_sec = audio_format.sample_rate;
+  u32 bytes_per_sample = audio_format.block_align;
+  u32 latency_sample_count = audio_format.sample_rate/15;
+  u32 secondary_buffer_size = buffer_size_from_audio_format(audio_format);
 
   s16 *samples = platform_reserve(secondary_buffer_size);
   platform_commit(samples, secondary_buffer_size);
-
-  win32_direct_sound_init(window);
 
   { // NOTE: Clear Sound Buffer
     VOID *region1;
@@ -178,13 +337,12 @@ main(void) {
 
   IDirectSoundBuffer_Play(secondary_buffer, 0, 0, DSBPLAY_LOOPING);
 
-  Arena event_arena = arena_alloc(MB(64));
   u64 time_start = platform_get_time_us();
   u64 cycles_start = __rdtsc();
 
   for (b32 quit = false; !quit;) {
-    Temp temp = temp_begin(&event_arena);
-    Platform_Event_List event_list = platform_get_event_list(temp.arena);
+    Temp scratch = scratch_begin(0, 0);
+    Platform_Event_List event_list = platform_get_event_list(scratch.arena);
     for (Platform_Event *event = event_list.first; event != 0; event = event->next) {
       switch (event->type) {
         case PLATFORM_EVENT_WINDOW_CLOSE: {
@@ -192,8 +350,7 @@ main(void) {
         } break;
       }
     }
-    temp_end(temp);
-    
+
     DWORD byte_to_lock = 0;
     DWORD bytes_to_write = 0;
     DWORD target_cursor;
@@ -289,10 +446,8 @@ main(void) {
     time_start = time_end;
     cycles_start = cycles_end;
 
-    temp = temp_begin(&misc_arena);
-    String8 text = str8_fmt(temp.arena, "%.2ffps, %.2fms, %.2fmc", fps, dt_ms, dt_mc);
-    log_info((char *)text.str);
-    temp_end(temp);
+    log_info("%.2ffps, %.2fms, %.2fmc", fps, dt_ms, dt_mc);
+    scratch_end(scratch);
   }
 
   platform_window_close(window);

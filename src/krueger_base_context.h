@@ -13,7 +13,7 @@
 #define PLATFORM_LINUX 1
 #elif defined(__APPLE__) && defined(__MACH__)
 #define PLATFORM_MAC 1
-#error compiler/platform is not supported
+#error compiler/platform not supported.
 #endif
 
 #if defined(__amd64__) || defined(__amd64) || defined(__x86_64__) || defined(__x86_64)
@@ -25,7 +25,7 @@
 #elif defined(__arm__)
 #define ARCH_ARM32 1
 #else
-#error architecture is not supported
+#error architecture not supported.
 #endif
 
 //////////////////////////////
@@ -37,7 +37,7 @@
 #if defined(_WIN32)
 #define PLATFORM_WINDOWS 1
 #else
-#error compiler/platform is not supported
+#error compiler/platform not supported.
 #endif
 
 #if defined(_M_AMD64)
@@ -49,7 +49,7 @@
 #elif defined(_M_ARM)
 #define ARCH_ARM32 1
 #else
-#error architecture is not supported
+#error architecture not supported.
 #endif
 
 /////////////////////////////
@@ -65,7 +65,7 @@
 #elif defined(__APPLE__) && defined(__MACH__)
 #define PLATFORM_MAC 1
 #else
-#error compiler/platform is not supported
+#error compiler/platform not supported.
 #endif
 
 #if defined(__amd64__) || defined(__amd64) || defined(__x86_64__) || defined(__x86_64)
@@ -77,11 +77,11 @@
 #elif defined(__arm__)
 #define ARCH_ARM32 1
 #else
-#error architecture is not supported
+#error architecture not supported.
 #endif
 
 #else
-#error compiler is not supported
+#error compiler not supported.
 #endif
 
 //////////////////////////////
