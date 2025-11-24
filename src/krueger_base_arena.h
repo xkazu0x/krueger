@@ -4,6 +4,12 @@
 typedef struct {
   uxx res_size;
   uxx cmt_size;
+  void *base;
+} Arena_Params;
+
+typedef struct {
+  uxx res_size;
+  uxx cmt_size;
   u8 *base;
 } Arena;
 
@@ -12,10 +18,15 @@ typedef struct {
   uxx cmt_size;
 } Temp;
 
-internal Arena make_arena(u8 *base, uxx res_size);
-internal Arena make_subarena(Arena *arena, uxx res_size);
+global uxx arena_default_res_size = MB(64);
+global uxx arena_default_cmt_size = sizeof(Arena);
 
-internal Arena arena_alloc(uxx res_size);
+#define arena_alloc(...) _arena_alloc(&(Arena_Params){ \
+  .res_size = arena_default_res_size, \
+  .cmt_size = arena_default_cmt_size, \
+  __VA_ARGS__ \
+})
+internal Arena *_arena_alloc(Arena_Params *params);
 internal void arena_release(Arena *arena);
 
 internal void *arena_push(Arena *arena, uxx cmt_size);

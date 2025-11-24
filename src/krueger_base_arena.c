@@ -1,28 +1,25 @@
 #ifndef KRUEGER_BASE_ARENA_C
 #define KRUEGER_BASE_ARENA_C
 
-internal Arena
-make_arena(u8 *base, uxx res_size) {
-  Arena result = {
-    .res_size = res_size,
-    .cmt_size = 0,
-    .base = base,
-  };
-  return(result);
-}
+internal Arena *
+_arena_alloc(Arena_Params *params) {
+  assert(params->res_size >= arena_default_cmt_size);
+  assert(params->cmt_size >= arena_default_cmt_size);
 
-internal Arena
-make_subarena(Arena *arena, uxx res_size) {
-  u8 *base = arena_push(arena, res_size);
-  Arena result = make_arena(base, res_size);
-  return(result);
-}
+  uxx res_size = params->res_size;
+  uxx cmt_size = params->cmt_size;
 
-internal Arena
-arena_alloc(uxx res_size) {
-  u8 *base = platform_reserve(res_size);
-  platform_commit(base, res_size);
-  Arena result = make_arena(base, res_size);
+  void *base = params->base;
+  if (!base) {
+    base = platform_reserve(res_size);
+    platform_commit(base, res_size);
+  }
+
+  Arena *result = (Arena *)base;
+  result->res_size = res_size;
+  result->cmt_size = cmt_size;
+  result->base = base;
+
   return(result);
 }
 

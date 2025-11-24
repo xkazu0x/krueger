@@ -36,7 +36,7 @@ win32_window_alloc(void) {
   if (result) {
     sll_stack_pop(win32_graphics_state->free_window);
   } else {
-    result = push_array(&win32_graphics_state->arena, Win32_Window, 1);
+    result = push_array(win32_graphics_state->arena, Win32_Window, 1);
   }
   mem_zero_struct(result);
   if (result) {
@@ -138,8 +138,8 @@ win32_window_proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam) {
 
 internal void
 platform_graphics_init(void) {
-  Arena arena = arena_alloc(MB(64));
-  win32_graphics_state = push_array(&arena, Win32_Graphics_State, 1);
+  Arena *arena = arena_alloc();
+  win32_graphics_state = push_array(arena, Win32_Graphics_State, 1);
   win32_graphics_state->arena = arena;
 
   win32_graphics_state->instance = GetModuleHandleA(0);

@@ -74,7 +74,7 @@ typedef struct {
   u8 *memory_ptr;
 } Memory;
 
-#define KRUEGER_INIT_PROC(x) void x(Memory *memory, Image *back_buffer)
+#define KRUEGER_INIT_PROC(x) void x(Thread_Context *thread_context, Memory *memory, Image *back_buffer)
 #define KRUEGER_FRAME_PROC(x) b32 x(Memory *memory, Image *back_buffer, Input *input, Clock *time, b32 quit)
 
 typedef KRUEGER_INIT_PROC(krueger_init_proc);

@@ -20,7 +20,7 @@ struct Win32_Window {
 };
 
 typedef struct {
-  Arena arena;
+  Arena *arena;
   HINSTANCE instance;
   ATOM atom;
   Platform_Graphics_Info graphics_info;

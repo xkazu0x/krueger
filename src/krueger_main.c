@@ -93,8 +93,11 @@ main(void) {
   platform_core_init();
   platform_graphics_init();
 
-  Arena misc_arena = arena_alloc(MB(64));
-  String8 exec_file_path = platform_get_exec_file_path(&misc_arena);
+  Thread_Context *thread_context = thread_context_alloc();
+  thread_context_select(thread_context);
+
+  Arena *arena = arena_alloc();
+  String8 exec_file_path = platform_get_exec_file_path(arena);
 
 #if PLATFORM_WINDOWS
   uxx last_slash_index = str8_find_last(exec_file_path, '\\');
@@ -107,8 +110,8 @@ main(void) {
 #endif
 
   String8 exec_path = str8_substr(exec_file_path, 0, last_slash_index + 1);
-  String8 src_lib_path = str8_cat(&misc_arena, exec_path, src_lib_name);
-  String8 dst_lib_path = str8_cat(&misc_arena, exec_path, dst_lib_name);
+  String8 src_lib_path = str8_cat(arena, exec_path, src_lib_name);
+  String8 dst_lib_path = str8_cat(arena, exec_path, dst_lib_name);
 
   Library lib = libkrueger_load(dst_lib_path, src_lib_path);
   if (!platform_handle_is_null(lib.h)) {
@@ -133,17 +136,16 @@ main(void) {
     // Clock time = { .dt_sec = 1.0f/60.0f };
     // Clock time = { .dt_sec = 1.0f/30.0f };
 
-    if (lib.krueger_init) lib.krueger_init(&memory, &back_buffer);
+    if (lib.krueger_init) lib.krueger_init(thread_context, &memory, &back_buffer);
 
     platform_window_toggle_fullscreen(window);
     platform_window_show(window);
 
-    Arena event_arena = arena_alloc(MB(64));
     u64 time_start = platform_get_time_us();
 
     for (b32 quit = false; !quit;) {
-      Temp temp = temp_begin(&event_arena);
-      Platform_Event_List event_list = platform_get_event_list(temp.arena);
+      Temp scratch = scratch_begin(0, 0);
+      Platform_Event_List event_list = platform_get_event_list(scratch.arena);
       for (Platform_Event *event = event_list.first; event != 0; event = event->next) {
         switch (event->type) {
           case PLATFORM_EVENT_WINDOW_CLOSE: {
@@ -157,7 +159,7 @@ main(void) {
           } break;
         }
       }
-      temp_end(temp);
+      scratch_end(scratch);
 
       if (input.kbd[KEY_F11].pressed) platform_window_toggle_fullscreen(window);
       if (input.kbd[KEY_R].pressed) {

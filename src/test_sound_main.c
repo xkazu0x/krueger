@@ -54,7 +54,7 @@ struct Win32_Audio_Device {
 };
 
 typedef struct {
-  Arena arena;
+  Arena *arena;
   Platform_Handle lib;
   Win32_Audio_Device *first_device;
   Win32_Audio_Device *last_device;
@@ -69,7 +69,7 @@ win32_audio_device_alloc(void) {
   if (result) {
     sll_stack_pop(win32_audio_state->free_device);
   } else {
-    result = push_array(&win32_audio_state->arena, Win32_Audio_Device, 1);
+    result = push_array(win32_audio_state->arena, Win32_Audio_Device, 1);
   }
   mem_zero_struct(result);
   dll_push_back(win32_audio_state->first_device,
@@ -91,8 +91,8 @@ win32_audio_device_release(Win32_Audio_Device *device) {
 
 internal void
 platform_audio_init(void) {
-  Arena arena = arena_alloc(MB(64));
-  win32_audio_state = push_array(&arena, Win32_Audio_State, 1);
+  Arena *arena = arena_alloc();
+  win32_audio_state = push_array(arena, Win32_Audio_State, 1);
   win32_audio_state->arena = arena;
 
   String8 lib_name = str8_lit("dsound.dll");
@@ -173,8 +173,8 @@ global LPDIRECTSOUNDBUFFER secondary_buffer;
 
 internal void
 win32_direct_sound_init(Platform_Handle window, Audio_Format format) {
-  Arena arena = arena_alloc(MB(64));
-  win32_audio_state = push_array(&arena, Win32_Audio_State, 1);
+  Arena *arena = arena_alloc();
+  win32_audio_state = push_array(arena, Win32_Audio_State, 1);
   win32_audio_state->arena = arena;
 
   String8 lib_name = str8_lit("dsound.dll");
@@ -258,7 +258,8 @@ typedef struct {
 #pragma pack(pop)
 
 internal void
-load_wave(Arena *arena, Temp scratch, String8 file_path) {
+load_wave(Arena *arena, String8 file_path) {
+  Temp scratch = scratch_begin(&arena, 1);
   void *file_data = platform_read_entire_file(scratch.arena, file_path);
   if (file_data) {
     Wave_Header *header = (Wave_Header *)file_data;
@@ -273,6 +274,7 @@ load_wave(Arena *arena, Temp scratch, String8 file_path) {
   } else {
     log_error("%s: failed to read file: %s", __func__, file_path);
   }
+  scratch_end(scratch);
 }
 
 int
@@ -283,12 +285,8 @@ main(void) {
   Thread_Context *context = thread_context_alloc();
   thread_context_select(context);
 
-  // Arena main_arena = arena_alloc(MB(64));
-  // Arena misc_arena = arena_alloc(MB(64));
-  //
-  // Temp temp = temp_begin(&misc_arena);
-  // load_wave(&main_arena, temp, str8_lit("../res/test.wav"));
-  // temp_end(temp);
+  Arena *arena = arena_alloc();
+  load_wave(arena, str8_lit("../res/test.wav"));
 
   Platform_Handle window = platform_window_open(str8_lit("sound test"), 800, 600);
   platform_window_show(window);

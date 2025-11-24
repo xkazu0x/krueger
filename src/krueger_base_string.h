@@ -80,6 +80,5 @@ internal String8 str8_fmt(Arena *arena, char *fmt, ...);
 
 internal String8_Node *str8_list_push(Arena *arena, String8_List *list, String8 str);
 internal String8_Node *str8_list_push_fmt(Arena *arena, String8_List *list, char *fmt, ...);
-internal void str8_list_pop(String8_List *list);
 
 #endif // KRUEGER_BASE_STRING_H

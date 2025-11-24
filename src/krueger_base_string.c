@@ -298,10 +298,4 @@ str8_list_push_fmt(Arena *arena, String8_List *list, char *fmt, ...) {
   return(result);
 }
 
-internal void
-str8_list_pop(String8_List *list) {
-  list->count -= 1;
-  sll_queue_pop(list->first, list->last);
-}
-
 #endif // KRUEGER_BASE_STRING_C
