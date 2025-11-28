@@ -67,39 +67,6 @@ win32_push_event(Platform_Event_Type type, Win32_Window *window) {
   return(event);
 }
 
-internal Keycode
-win32_keycode_from_virtual_key(WPARAM vkey) {
-  local b32 first = true;
-  local Keycode key_table[256];
-
-  if (first) {
-    first = false;
-    mem_zero_array(key_table);
-
-    key_table[VK_ESCAPE] = KEY_ESCAPE;
-    key_table[VK_SPACE] = KEY_SPACE;
-
-    key_table[VK_UP] = KEY_UP;
-    key_table[VK_LEFT] = KEY_LEFT;
-    key_table[VK_DOWN] = KEY_DOWN;
-    key_table[VK_RIGHT] = KEY_RIGHT;
-
-    for (u32 i = VK_F1, j = KEY_F1; i <= VK_F24; ++i, ++j) {
-      key_table[i] = j;
-    }
-
-    for (u32 i = '0', j = KEY_0; i <= '9'; ++i, ++j) {
-      key_table[i] = j;
-    }
-
-    for (u32 i = 'A', j = KEY_A; i <= 'Z'; ++i, ++j) {
-      key_table[i] = j;
-    }
-  }
-
-  Keycode result = key_table[vkey&bitmask8];
-  return(result);
-}
 
 internal LRESULT CALLBACK
 win32_window_proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam) {
@@ -124,7 +91,7 @@ win32_window_proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam) {
           PLATFORM_EVENT_KEY_PRESS :
           PLATFORM_EVENT_KEY_RELEASE;
         Platform_Event *event = win32_push_event(type, window);
-        event->keycode = win32_keycode_from_virtual_key(wparam);
+        event->keycode = win32_graphics_state->key_table[wparam&bitmask8];
       } break;
       default: {
         result = DefWindowProcA(hwnd, message, wparam, lparam);
@@ -158,6 +125,26 @@ platform_graphics_init(void) {
   DEVMODEA devmode = { .dmSize = sizeof(DEVMODE) };
   if (EnumDisplaySettingsA(0, ENUM_CURRENT_SETTINGS, &devmode)) {
     win32_graphics_state->graphics_info.refresh_rate = cast(f32) devmode.dmDisplayFrequency;
+  }
+
+  win32_graphics_state->key_table[VK_ESCAPE] = KEY_ESCAPE;
+  win32_graphics_state->key_table[VK_SPACE] = KEY_SPACE;
+
+  win32_graphics_state->key_table[VK_UP] = KEY_UP;
+  win32_graphics_state->key_table[VK_LEFT] = KEY_LEFT;
+  win32_graphics_state->key_table[VK_DOWN] = KEY_DOWN;
+  win32_graphics_state->key_table[VK_RIGHT] = KEY_RIGHT;
+
+  for (u32 i = VK_F1, j = KEY_F1; i <= VK_F24; ++i, ++j) {
+    win32_graphics_state->key_table[i] = j;
+  }
+
+  for (u32 i = '0', j = KEY_0; i <= '9'; ++i, ++j) {
+    win32_graphics_state->key_table[i] = j;
+  }
+
+  for (u32 i = 'A', j = KEY_A; i <= 'Z'; ++i, ++j) {
+    win32_graphics_state->key_table[i] = j;
   }
 }
 
@@ -313,15 +300,8 @@ platform_get_event_list(Arena *arena) {
   mem_zero_struct(&win32_event_list);
   MSG message;
   while (PeekMessage(&message, 0, 0, 0, PM_REMOVE)) {
-    switch (message.message) {
-      case WM_QUIT: {
-        win32_push_event(PLATFORM_EVENT_WINDOW_CLOSE, 0);
-      } break;
-      default: {
-        TranslateMessage(&message);
-        DispatchMessage(&message);
-      }
-    }
+    TranslateMessage(&message);
+    DispatchMessage(&message);
   }
   return(win32_event_list);
 }

@@ -27,6 +27,7 @@ typedef struct {
   Win32_Window *first_window;
   Win32_Window *last_window;
   Win32_Window *free_window;
+  Keycode key_table[0xFF];
 } Win32_Graphics_State;
 
 ////////////////////////
@@ -45,7 +46,6 @@ internal Win32_Window *   win32_window_from_hwnd(HWND hwnd);
 internal Win32_Window *   win32_window_alloc(void);
 internal void             win32_window_release(Win32_Window *window);
 internal Platform_Event * win32_push_event(Platform_Event_Type type, Win32_Window *window);
-internal Keycode          win32_keycode_from_virtual_key(WPARAM vkey);
 internal LRESULT CALLBACK win32_window_proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam);
 
 #endif // KRUEGER_PLATFORM_GRAPHICS_WIN32_H
