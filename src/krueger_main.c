@@ -78,13 +78,11 @@ wait_to_flip(f32 target_sec_per_frame, u64 time_start) {
 }
 
 internal Memory
-memory_alloc(uxx memory_size) {
-  u8 *memory_ptr = platform_reserve(memory_size);
-  platform_commit(memory_ptr, memory_size);
-  Memory result = {
-    .memory_size = memory_size,
-    .memory_ptr = memory_ptr,
-  };
+memory_alloc(uxx size) {
+  Memory result = {0};
+  result.size = size;
+  result.ptr = platform_reserve(size);
+  platform_commit(result.ptr, size);
   return(result);
 }
 
@@ -115,29 +113,26 @@ main(void) {
 
   Library lib = libkrueger_load(dst_lib_path, src_lib_path);
   if (!platform_handle_is_null(lib.h)) {
-    s32 window_scale = 5;
+    Krueger_Config config = {0};
+    config.render_w = 800;
+    config.render_h = 600;
+    config.window_w = config.render_w;
+    config.window_h = config.render_h;
+    config.window_title = str8_lit("krueger");
+    lib.krueger_config(&config);
 
-    s32 render_w = 128;
-    s32 render_h = 128;
-
-    s32 window_w = window_scale*render_w;
-    s32 window_h = window_scale*render_h;
-
-    Platform_Handle window = platform_window_open(
-      str8_lit("STARFIGHTER"), window_w, window_h
-    );
-
-    Image back_buffer = image_alloc(render_w, render_h);
     Memory memory = memory_alloc(GB(1));
+    Image back_buffer = image_alloc(config.render_w, config.render_h);
     Input input = {0};
-
     Platform_Graphics_Info graphics_info = platform_get_graphics_info();
     Clock time = { .dt_sec = 1.0f/graphics_info.refresh_rate };
     // Clock time = { .dt_sec = 1.0f/60.0f };
     // Clock time = { .dt_sec = 1.0f/30.0f };
+    lib.krueger_init(thread_context, &memory, config);
 
-    if (lib.krueger_init) lib.krueger_init(thread_context, &memory, &back_buffer);
-
+    Platform_Handle window = platform_window_open(config.window_title,
+                                                  config.window_w,
+                                                  config.window_h);
     platform_window_toggle_fullscreen(window);
     platform_window_show(window);
 
@@ -159,16 +154,20 @@ main(void) {
           } break;
         }
       }
-      scratch_end(scratch);
+      if (quit) break;
 
-      if (input.kbd[KEY_F11].pressed) platform_window_toggle_fullscreen(window);
+#if BUILD_DEBUG
       if (input.kbd[KEY_R].pressed) {
         libkrueger_unload(lib);
         lib = libkrueger_load(dst_lib_path, src_lib_path);
       }
+#endif
 
+      if (input.kbd[KEY_F11].pressed) platform_window_toggle_fullscreen(window);
       if (lib.krueger_frame) {
-        quit = lib.krueger_frame(&memory, &back_buffer, &input, &time, quit);
+        if (lib.krueger_frame(thread_context, &memory, &back_buffer, &input, &time)) {
+          break;
+        }
       }
       wait_to_flip(time.dt_sec, time_start);
 
@@ -181,13 +180,14 @@ main(void) {
                                      back_buffer.pixels,
                                      back_buffer.width,
                                      back_buffer.height);
-
       input_reset(&input);
+      scratch_end(scratch);
     }
 
     platform_window_close(window);
     libkrueger_unload(lib);
   }
+
   platform_core_shutdown();
   return(0);
 }

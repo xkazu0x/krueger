@@ -24,9 +24,18 @@ image_alloc(u32 width, u32 height) {
   uxx size = width*height*sizeof(u32);
   u32 *pixels = platform_reserve(size);
   platform_commit(pixels, size);
-  mem_zero(pixels, size);
   Image result = make_image(pixels, width, height);
   return(result);
+}
+
+internal void
+image_release(Image *image) {
+  uxx size = image->width*image->height*sizeof(u32);
+  platform_release(image->pixels, size);
+  image->width = 0;
+  image->height = 0;
+  image->pitch = 0;
+  image->pixels = 0;
 }
 
 internal Image
@@ -70,17 +79,28 @@ typedef struct {
 } Clock;
 
 typedef struct {
-  uxx memory_size;
-  u8 *memory_ptr;
+  uxx size;
+  u8 *ptr; // NOTE: REQUIRED to be cleared at startup
 } Memory;
 
-#define KRUEGER_INIT_PROC(x) void x(Thread_Context *thread_context, Memory *memory, Image *back_buffer)
-#define KRUEGER_FRAME_PROC(x) b32 x(Memory *memory, Image *back_buffer, Input *input, Clock *time, b32 quit)
+typedef struct {
+  u32 render_w;
+  u32 render_h;
+  u32 window_w;
+  u32 window_h;
+  String8 window_title;
+} Krueger_Config;
 
+#define KRUEGER_CONFIG_PROC(x) void x(Krueger_Config *config)
+#define KRUEGER_INIT_PROC(x) void x(Thread_Context *thread_context, Memory *memory, Krueger_Config config)
+#define KRUEGER_FRAME_PROC(x) b32 x(Thread_Context *thread_context, Memory *memory, Image *back_buffer, Input *input, Clock *time)
+
+typedef KRUEGER_CONFIG_PROC(krueger_config_proc);
 typedef KRUEGER_INIT_PROC(krueger_init_proc);
 typedef KRUEGER_FRAME_PROC(krueger_frame_proc);
 
 #define KRUEGER_PROC_LIST \
+  PROC(krueger_config) \
   PROC(krueger_init) \
   PROC(krueger_frame)
 

@@ -841,7 +841,7 @@ draw_text_align(Image dst, Font font, String8 text,
   Vector2 text_size = measure_text_size(font, text);
   align = vector2_hadamard(align, text_size);
   position = vector2_sub(position, align);
-  draw_text(dst, font, text, (s32)position.x, (s32)position.y, color);
+  draw_text(dst, font, text, cast(s32) position.x, cast(s32) position.y, color);
 }
 
 /////////////////
@@ -850,89 +850,6 @@ draw_text_align(Image dst, Font font, String8 text,
 internal void enemy_behave(Entity *entity, Game_State *state, Clock *time);
 internal void update_entity_flame(Clock *time, Entity *entity);
 internal void change_screen(Game_State *state, Screen_State screen);
-
-internal void
-_add_explosion_particles(Game_State *state) {
-#if 0
-  for (u32 j = 0; j < 4; ++j) {
-    Particle *particle = state->explosion_particles + state->next_explosion_particle++;
-    if (state->next_explosion_particle >= array_count(state->explosion_particles)) {
-      state->next_explosion_particle = 0;
-    }
-    particle->speed = 60.0f;
-    particle->position = state->enemy.position;
-    particle->position.y += random_range(&state->entropy, -4.0f, 2.0f);
-    particle->velocity = make_vector2(random_range(&state->entropy, -0.3f, 0.3f),
-                                  -0.5f);
-    particle->color = CP_DARK_RED;
-    particle->radius = random_range(&state->entropy, 8.0f, 12.0f);
-    particle->dradius = -5.0f;
-  }
-  for (u32 j = 0; j < 2; ++j) {
-    Particle *particle = state->explosion_particles + state->next_explosion_particle++;
-    if (state->next_explosion_particle >= array_count(state->explosion_particles)) {
-      state->next_explosion_particle = 0;
-    }
-    particle->speed = 40.0f;
-    particle->position = state->enemy.position;
-    particle->position.y += random_range(&state->entropy, -6.0f, 2.0f);
-    particle->velocity = make_vector2(random_range(&state->entropy, -0.3f, 0.3f),
-                                  -0.5f);
-    particle->color = CP_RED;
-    particle->radius = random_range(&state->entropy, 8.0f, 10.0f);
-    particle->dradius = -5.0f;
-  }
-  for (u32 j = 0; j < 3; ++j) {
-    Particle *particle = state->explosion_particles + state->next_explosion_particle++;
-    if (state->next_explosion_particle >= array_count(state->explosion_particles)) {
-      state->next_explosion_particle = 0;
-    }
-    particle->speed = 40.0f;
-    particle->position = state->enemy.position;
-    particle->velocity = make_vector2(random_range(&state->entropy, -0.2f, 0.2f),
-                                  -random_unilateral(&state->entropy));
-    particle->color = CP_ORANGE;
-    particle->radius = random_range(&state->entropy, 8.0f, 10.0f);
-    particle->dradius = -10.0f;
-  }
-  for (u32 j = 0; j < 3; ++j) {
-    Particle *particle = state->explosion_particles + state->next_explosion_particle++;
-    if (state->next_explosion_particle >= array_count(state->explosion_particles)) {
-      state->next_explosion_particle = 0;
-    }
-    particle->speed = 20.0f;
-    particle->position = state->enemy.position;
-    particle->velocity = make_vector2(random_range(&state->entropy, -0.2f, 0.2f),
-                                  -random_unilateral(&state->entropy));
-    particle->color = CP_YELLOW;
-    particle->radius = random_range(&state->entropy, 4.0f, 6.0f);
-    particle->dradius = -4.0f;
-  }
-#endif
-#if 0
-  u32 color_table[] = {
-    CP_DARK_BROWN,
-    CP_DARK_RED,
-    CP_RED,
-    CP_ORANGE,
-    CP_YELLOW,
-  };
-  for (u32 j = 0; j < 16; ++j) {
-    Particle *particle = state->explosion_particles + state->next_explosion_particle++;
-    if (state->next_explosion_particle >= array_count(state->explosion_particles)) {
-      state->next_explosion_particle = 0;
-    }
-    particle->speed = random_range(&state->entropy, 50.0f, 100.0f);
-    particle->position = state->enemy.position;
-    particle->velocity = make_vector2(random_bilateral(&state->entropy),
-                                  random_bilateral(&state->entropy));
-    u32 color_index = random_choice(&state->entropy, array_count(color_table));
-    particle->color = color_table[color_index];
-    particle->radius = random_range(&state->entropy, 4.0f, 8.0f);
-    particle->dradius = random_range(&state->entropy, -8.0f, -4.0f);
-  }
-#endif
-}
 
 internal void
 emit_explosion(Game_State *state, Vector2 position) {
@@ -1736,22 +1653,32 @@ change_screen(Game_State *state, Screen_State screen) {
 }
 
 shared_function
+KRUEGER_CONFIG_PROC(krueger_config) {
+  u32 window_scale = 5;
+  config->render_w = 128;
+  config->render_h = 128;
+  config->window_w = window_scale*config->render_w;
+  config->window_h = window_scale*config->render_h;
+  config->window_title = str8_lit("STARFIGHTER");
+}
+
+shared_function
 KRUEGER_INIT_PROC(krueger_init) {
   thread_context_select(thread_context);
 
-  assert(sizeof(Game_State) <= memory->memory_size);
-  Game_State *state = cast(Game_State *) memory->memory_ptr;
+  assert(sizeof(Game_State) <= memory->size);
+  Game_State *state = cast(Game_State *) memory->ptr;
 
   Date_Time date_time = platform_get_date_time();
   Dense_Time dense_time = dense_time_from_date_time(date_time);
   state->entropy = random_seed(cast(u32) dense_time);
 
-  uxx half_memory_size = memory->memory_size/2;
+  uxx half_memory_size = memory->size/2;
   uxx perm_memory_size = half_memory_size - sizeof(Game_State);
   uxx temp_memory_size = half_memory_size;
 
-  u8 *perm_memory_ptr = cast(u8 *) memory->memory_ptr + sizeof(Game_State);
-  u8 *temp_memory_ptr = memory->memory_ptr + half_memory_size;
+  u8 *perm_memory_ptr = cast(u8 *) memory->ptr + sizeof(Game_State);
+  u8 *temp_memory_ptr = memory->ptr + half_memory_size;
 
   state->main_arena = arena_alloc(.base = perm_memory_ptr, .res_size = perm_memory_size);
   state->temp_arena = arena_alloc(.base = temp_memory_ptr, .res_size = temp_memory_size);
@@ -1773,7 +1700,7 @@ KRUEGER_INIT_PROC(krueger_init) {
 
   chars = str8_copy(state->main_arena, chars);
   state->font = make_font(chars, state->font_tilemap);
-  state->draw_buffer = image_alloc(back_buffer->width, back_buffer->height);
+  state->draw_buffer = image_alloc(config.render_w, config.render_h);
 
   state->screen_state = SCREEN_MENU;
   state->pause = false;
@@ -1803,8 +1730,8 @@ KRUEGER_INIT_PROC(krueger_init) {
       particle->color = CP_DARK_BLUE;
     }
 
-    particle->position.x = random_unilateral(&state->entropy)*back_buffer->width;
-    particle->position.y = random_unilateral(&state->entropy)*back_buffer->height;
+    particle->position.x = random_unilateral(&state->entropy)*config.render_w;
+    particle->position.y = random_unilateral(&state->entropy)*config.render_h;
     particle->velocity = make_vector2(0.0f, -1.0f);
   }
 
@@ -1814,13 +1741,16 @@ KRUEGER_INIT_PROC(krueger_init) {
 
 shared_function
 KRUEGER_FRAME_PROC(krueger_frame) {
-  Game_State *state = cast(Game_State *) memory->memory_ptr;
+  thread_context_select(thread_context);
+
+  Game_State *state = cast(Game_State *) memory->ptr;
   state->time += time->dt_sec;
 
   Digital_Button *kbd = input->kbd;
   if (kbd[KEY_F1].pressed) state->draw_debug_info = !state->draw_debug_info;
   if (kbd[KEY_F2].pressed) state->draw_time_info = !state->draw_time_info;
   
+  b32 quit = false;
   if (kbd[KEY_P].pressed) state->pause = !state->pause;
   if (state->pause) return(quit);
 
