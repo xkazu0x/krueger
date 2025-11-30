@@ -23,14 +23,6 @@ _arena_alloc(Arena_Params *params) {
   return(result);
 }
 
-internal void
-arena_release(Arena *arena) {
-  platform_release(arena->base, arena->res_size);
-  arena->res_size = 0;
-  arena->cmt_size = 0;
-  arena->base = 0;
-}
-
 internal void *
 arena_push(Arena *arena, uxx cmt_size) {
   void *result = 0;
@@ -41,6 +33,11 @@ arena_push(Arena *arena, uxx cmt_size) {
   }
   assert(result != 0);
   return(result);
+}
+
+internal void
+arena_release(Arena *arena) {
+  platform_release(arena->base, arena->res_size);
 }
 
 internal void

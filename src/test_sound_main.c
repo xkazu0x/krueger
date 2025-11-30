@@ -79,7 +79,7 @@ internal Physical_Device *
 push_physical_device(Arena *arena, Physical_Device_List *list) {
   Physical_Device *result = push_array(arena, Physical_Device, 1);
   mem_zero_struct(result);
-  sll_queue_push(list->first, list->last, result);
+  queue_push(list->first, list->last, result);
   list->count += 1;
   return(result);
 }
@@ -105,7 +105,7 @@ internal Win32_Audio_Device *
 win32_audio_device_alloc(void) {
   Win32_Audio_Device *result = win32_audio_state->free_device;
   if (result) {
-    sll_stack_pop(win32_audio_state->free_device);
+    stack_pop(win32_audio_state->free_device);
   } else {
     result = push_array(win32_audio_state->arena, Win32_Audio_Device, 1);
   }
@@ -219,7 +219,7 @@ platform_audio_device_close(Platform_Handle handle) {
   dll_remove(win32_audio_state->first_device,
              win32_audio_state->last_device,
              device);
-  sll_stack_push(win32_audio_state->free_device, device);
+  stack_push(win32_audio_state->free_device, device);
 }
 
 #pragma pack(push, 1)

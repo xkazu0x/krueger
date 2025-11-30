@@ -38,7 +38,7 @@ date_time_from_dense_time(Dense_Time time) {
   time /= 31;
   result.month = time % 12;
   time /= 12;
-  result.year  = cast(u16) time;
+  result.year  = (u16)time;
   return(result);
 }
 

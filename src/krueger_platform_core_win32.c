@@ -17,6 +17,11 @@ platform_core_shutdown(void) {
   timeEndPeriod(1);
 }
 
+internal void
+platform_abort(s32 exit_code) {
+  ExitProcess(exit_code);
+}
+
 internal Date_Time
 platform_get_date_time(void) {
   SYSTEMTIME system;
@@ -39,7 +44,7 @@ platform_get_exec_file_path(Arena *arena) {
   GetModuleFileName(0, path, MAX_PATH);
   uxx len = cstr_len(path);
   u8 *str = push_array(arena, u8, len);
-  mem_cpy(str, path, len);
+  mem_copy(str, path, len);
   String8 result = make_str8(str, len);
   return(result);
 }
@@ -67,7 +72,7 @@ platform_release(void *ptr, uxx size) {
 }
 
 internal Platform_Handle
-platform_file_open(String8 filepath, Platform_File_Flags flags) {
+platform_file_open(String8 file_path, Platform_File_Flags flags) {
   Platform_Handle result = {0};
   DWORD desired_access = 0;
   DWORD share_mode = 0;
@@ -78,66 +83,66 @@ platform_file_open(String8 filepath, Platform_File_Flags flags) {
   if (flags & PLATFORM_FILE_SHARE_READ)  share_mode |= FILE_SHARE_READ;
   if (flags & PLATFORM_FILE_SHARE_WRITE) share_mode |= FILE_SHARE_WRITE | FILE_SHARE_DELETE;
   if (flags & PLATFORM_FILE_WRITE)       creation_disposition = CREATE_ALWAYS;
-  HANDLE handle = CreateFileA(cast(LPCSTR) filepath.str, desired_access, share_mode, 0, creation_disposition, FILE_ATTRIBUTE_NORMAL, 0);
+  HANDLE handle = CreateFileA((LPCSTR)file_path.str, desired_access, share_mode, 0, creation_disposition, FILE_ATTRIBUTE_NORMAL, 0);
   if (handle != INVALID_HANDLE_VALUE) {
-    result.ptr[0] = cast(uxx) handle; 
+    result.ptr[0] = (uxx)handle; 
   }
   return(result);
 }
 
 internal void
 platform_file_close(Platform_Handle file) {
-  HANDLE handle = cast(HANDLE) file.ptr[0];
+  HANDLE handle = (HANDLE)file.ptr[0];
   CloseHandle(handle);
 }
 
 internal u32
 platform_file_read(Platform_Handle file, void *buffer, u64 size) {
   u32 read_size = 0;
-  HANDLE handle = cast(HANDLE) file.ptr[0];
-  ReadFile(handle, buffer, cast(DWORD) size, cast(DWORD *) &read_size, 0);
+  HANDLE handle = (HANDLE)file.ptr[0];
+  ReadFile(handle, buffer, (DWORD)size, (DWORD *)&read_size, 0);
   return(read_size);
 }
 
 internal u32
 platform_file_write(Platform_Handle file, void *buffer, u64 size) {
   u32 write_size = 0;
-  HANDLE handle = cast(HANDLE) file.ptr[0];
-  WriteFile(handle, buffer, cast(DWORD) size, cast(DWORD *) &write_size, 0);
+  HANDLE handle = (HANDLE)file.ptr[0];
+  WriteFile(handle, buffer, (DWORD)size, (DWORD *)&write_size, 0);
   return(write_size);
 }
 
 internal u64
 platform_get_file_size(Platform_Handle file) {
   u64 result = 0;
-  HANDLE handle = cast(HANDLE) file.ptr[0];
-  GetFileSizeEx(handle, cast(LARGE_INTEGER *) &result);
+  HANDLE handle = (HANDLE)file.ptr[0];
+  GetFileSizeEx(handle, (LARGE_INTEGER *)&result);
   return(result);
 }
 
 internal b32
 platform_copy_file_path(String8 dst, String8 src) {
-  b32 result = CopyFileA(cast(LPCSTR) src.str, cast(LPCSTR) dst.str, 0);
+  b32 result = CopyFileA((LPCSTR)src.str, (LPCSTR)dst.str, 0);
   return(result);
 }
 
 internal Platform_Handle
-platform_library_open(String8 filepath) {
+platform_library_open(String8 file_path) {
   Platform_Handle result = {0};
-  result.ptr[0] = cast(uxx) LoadLibraryA(cast(LPCSTR) filepath.str);
+  result.ptr[0] = (uxx)LoadLibraryA((LPCSTR)file_path.str);
   return(result);
 }
 
 internal void *
 platform_library_load_proc(Platform_Handle lib, char *name) {
-  HMODULE module = cast(HMODULE) lib.ptr[0];
-  void *result = cast(void *) GetProcAddress(module, name);
+  HMODULE module = (HMODULE)lib.ptr[0];
+  void *result = (void *)GetProcAddress(module, name);
   return(result);
 }
 
 internal void
 platform_library_close(Platform_Handle lib) {
-  HMODULE module = cast(HMODULE) lib.ptr[0];
+  HMODULE module = (HMODULE)lib.ptr[0];
   FreeLibrary(module);
 }
 
@@ -153,5 +158,21 @@ internal void
 platform_sleep_ms(u32 ms) {
   Sleep(ms);
 }
+
+#if BUILD_ENTRY_POINT
+#if BUILD_CONSOLE_INTERFACE
+int
+main(int argc, char **argv) {
+  base_entry_point(argc, argv);
+  return(0);
+}
+#else
+int
+WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line, int cmd_show) {
+  base_entry_point(__argc, __argv);
+  return(0);
+}
+#endif
+#endif
 
 #endif // KRUEGER_PLATFORM_CORE_WIN32_C

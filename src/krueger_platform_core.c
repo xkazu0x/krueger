@@ -17,9 +17,9 @@ platform_handle_is_null(Platform_Handle handle) {
 }
 
 internal void *
-platform_read_entire_file(Arena *arena, String8 filepath) {
+platform_read_entire_file(Arena *arena, String8 file_path) {
   void *result = 0;
-  Platform_Handle file = platform_file_open(filepath, PLATFORM_FILE_READ | PLATFORM_FILE_SHARE_READ);
+  Platform_Handle file = platform_file_open(file_path, PLATFORM_FILE_READ | PLATFORM_FILE_SHARE_READ);
   if (!platform_handle_match(file, PLATFORM_HANDLE_NULL)) {
     u64 file_size = platform_get_file_size(file);
     result = arena_push(arena, file_size);

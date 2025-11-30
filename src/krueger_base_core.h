@@ -67,9 +67,11 @@
 #define MB(n) (((u64)(n))<<20)
 #define GB(n) (((u64)(n))<<30)
 #define TB(n) (((u64)(n))<<40)
-#define thousand(n) ((n)*1000)
-#define million(n)  ((n)*1000000)
-#define billion(n)  ((n)*1000000000)
+
+#define thousand(n) ((n)*1000LL)
+#define million(n)  (thousand(n)*1000LL)
+#define billion(n)  (million(n)*1000LL)
+#define trillion(n) (billion(n)*1000LL)
 
 ////////////////////////////
 // NOTE: Clamps, Mins, Maxes
@@ -80,62 +82,75 @@
 #define clamp_bot(x, b) max(x, b);
 #define clamp(a, x, b) (((x)<(a))?(a):((x)>(b))?(b):(x))
 
+///////////////////////////////////
+// NOTE: Foor-Loop Construct Macros
+
+#define each_index(type, it, count)   (type it = 0; it < (count); ++it)
+#define each_element(type, it, array) (type it = 0; it < array_count(array); ++it)
+#define each_node(type, it, first)    (type *it = first; it != 0; it = it->next)
+
+#define for_each_index(type, it, count)   for (type it = 0; it < (count); ++it)
+#define for_each_element(type, it, array) for (type it = 0; it < array_count(array); ++it)
+#define for_each_node(type, it, first)    for (type *it = first; it != 0; it = it->next)
+
 ////////////////////////////////
 // NOTE: Memory Operation Macros
 
-#define mem_cpy(dst, src, size)     memmove((dst), (src), (size))
-#define mem_set(dst, byte, size)    memset((dst), (byte), (size))
-#define mem_cmp(a, b, size)         memcmp((a), (b), (size))
+#define mem_copy(dst, src, size)   memmove((dst), (src), (size))
+#define mem_set(dst, byte, size)   memset((dst), (byte), (size))
+#define mem_cmp(a, b, size)        memcmp((a), (b), (size))
 
-#define mem_zero(dst, size)         mem_set((dst), 0, (size))
-#define mem_zero_struct(dst)        mem_zero((dst), sizeof(*(dst)))
-#define mem_zero_array(dst)         mem_zero((dst), sizeof(dst));
-#define mem_zero_typed(dst, count)  mem_zero((dst), sizeof(*(dst))*(count))
+#define mem_zero(dst, size)        mem_set((dst), 0, (size))
+#define mem_zero_struct(dst)       mem_zero((dst), sizeof(*(dst)))
+#define mem_zero_array(dst)        mem_zero((dst), sizeof(dst));
+#define mem_zero_typed(dst, count) mem_zero((dst), sizeof(*(dst))*(count))
 
 ///////////////////////////
 // NOTE: Linked List Macros
 
-// NOTE: Doubly Linked Lists
-#define dll_push_back_np(f, l, n, next, prev) \
-  (((f)==0) ? \
-    ((f)=(l)=(n),(n)->next=(n)->prev=0):\
-    ((n)->prev=(l),(l)->next=(n),(l)=(n),(n)->next=0))
+// NOTE: Doubly Linked List
+#define dll_push_back_np(f, l, n, next, prev) ((f)==0 ? \
+  ((f)=(l)=(n),(n)->next=(n)->prev=0) : \
+  ((n)->prev=(l),(l)->next=(n),(l)=(n),(n)->next=0))
+#define dll_push_front_np(f, l, n, next, prev) \
+  dll_push_back_np(l, f, n, prev, next)
 #define dll_remove_np(f, l, n, next, prev) \
   (((n)==(f) ? (f)=(n)->next : (0)), \
    ((n)==(l) ? (l)=(l)->prev : (0)), \
    ((n)->prev==0 ? (0) : ((n)->prev->next=(n)->next)), \
    ((n)->next==0 ? (0) : ((n)->next->prev=(n)->prev)))
-#define dll_push_back(f, l, n) dll_push_back_np(f, l, n, next, prev)
-#define dll_push_front(f, l, n) dll_push_back_np(l, f, n, prev, next)
-#define dll_remove(f, l, n) dll_remove_np(f, l, n, next, prev)
+#define dll_push_back(f, l, n)  dll_push_back_np(f, l, n, next, prev)
+#define dll_push_front(f, l, n) dll_push_front_np(f, l, n, next, prev)
+#define dll_remove(f, l, n)     dll_remove_np(f, l, n, next, prev)
 
-// NOTE: Singly Linked Lists (Queues)
-#define sll_queue_push_n(f, l, n, next) \
-  (((f)==0) ? \
-    ((f)=(l)=(n),(n)->next=0) : \
-    ((l)->next=(n),(l)=(n),(n)->next=0))
-#define sll_queue_pop_n(f, l, next) \
-  ((f)==(l) ? ((f)=(l)=0) : ((f)=(f)->next))
-#define sll_queue_push(f, l, n) sll_queue_push_n(f, l, n, next)
-#define sll_queue_pop(f, l) sll_queue_pop_n(f, l, next)
+// NOTE: Singly Linked List (Queue)
+#define queue_push_n(f, l, n, next) ((f)==0 ? \
+  ((f)=(l)=(n),(n)->next=0) : \
+  ((l)->next=(n),(l)=(n),(n)->next=0))
+#define queue_pop_n(f, l, next) ((f)==(l) ? \
+  ((f)=(l)=0) : \
+  ((f)=(f)->next))
+#define queue_push(f, l, n) queue_push_n(f, l, n, next)
+#define queue_pop(f, l)     queue_pop_n(f, l, next)
 
-// NOTE: Singly Linked List (Stacks)
-#define sll_stack_push_n(f, n, next) ((n)->next=(f), (f)=(n))
-#define sll_stack_pop_n(f, next) ((f)=(f)->next)
-#define sll_stack_push(f, n) sll_stack_push_n(f, n, next);
-#define sll_stack_pop(f) sll_stack_pop_n(f, next);
+// NOTE: Singly Linked List (Stack)
+#define stack_push_n(f, n, next) \
+  ((n)->next=(f), (f)=(n))
+#define stack_pop_n(f, next) \
+  ((f)=(f)->next)
+#define stack_push(f, n) stack_push_n(f, n, next);
+#define stack_pop(f)     stack_pop_n(f, next);
 
 ////////////////////////////
 // NOTE: Misc. Helper Macros
 
 #define array_count(x) (sizeof(x)/sizeof(*(x)))
 #define square(x) ((x)*(x))
-#define cast(T) (T)
 
 #define swap_t(T, a, b) do { T t__ = a; a = b; b = t__; } while (0)
-#define sign_t(T, x) (cast(T) ((x) > 0) - cast(T) ((x) < 0))
+#define sign_t(T, x) ((T)((x) > 0) - (T)((x) < 0))
 #define abs_t(T, x) (sign_t(T, x)*(x))
-#define round_t(T, x) cast(T) ((x) + 0.5f)
+#define round_t(T, x) (T)((x) + 0.5f)
 
 #define radians_pi32(x) ((x)*pi32/180.0f)
 #define radians_tau32(x) ((x)*tau32/360.0f)
@@ -169,15 +184,15 @@ global u16 u16_max = 0xffff;
 global u32 u32_max = 0xffffffff;
 global u64 u64_max = 0xffffffffffffffffull;
 
-global s8  s8_max  = cast(s8)  0x7f;
-global s16 s16_max = cast(s16) 0x7fff;
-global s32 s32_max = cast(s32) 0x7fffffff;
-global s64 s64_max = cast(s64) 0x7fffffffffffffffll;
+global s8  s8_max  = (s8) 0x7f;
+global s16 s16_max = (s16)0x7fff;
+global s32 s32_max = (s32)0x7fffffff;
+global s64 s64_max = (s64)0x7fffffffffffffffll;
 
-global s8  s8_min  = cast(s8)  0x80;
-global s16 s16_min = cast(s16) 0x8000;
-global s32 s32_min = cast(s32) 0x80000000;
-global s64 s64_min = cast(s64) 0x8000000000000000ll;
+global s8  s8_min  = (s8) 0x80;
+global s16 s16_min = (s16)0x8000;
+global s32 s32_min = (s32)0x80000000;
+global s64 s64_min = (s64)0x8000000000000000ll;
 
 global f32 f32_max = FLT_MAX;
 global f32 f32_min = -FLT_MAX;
@@ -252,7 +267,7 @@ global const u32 bit28 = (1<<27);
 global const u32 bit29 = (1<<28);
 global const u32 bit30 = (1<<29);
 global const u32 bit31 = (1<<30);
-global const u32 bit32 = cast(u32) (1<<31);
+global const u32 bit32 = (u32)(1<<31);
 
 /////////////
 // NOTE: Time

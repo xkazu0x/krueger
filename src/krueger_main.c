@@ -1,4 +1,5 @@
-#define KRUEGER_PLATFORM_GRAPHICS 1
+#define BUILD_ENTRY_POINT 1
+#define PLATFORM_FEATURE_GRAPHICS 1
 
 #include "krueger_base.h"
 #include "krueger_platform.h"
@@ -68,7 +69,7 @@ wait_to_flip(f32 target_sec_per_frame, u64 time_start) {
   u64 time_end = platform_get_time_us();
   f32 sec_per_frame = get_seconds_elapsed(time_start, time_end);
   if (sec_per_frame < target_sec_per_frame) {
-    u32 sleep_ms = cast(u32) ((target_sec_per_frame - sec_per_frame)*thousand(1.0f));
+    u32 sleep_ms = (u32)((target_sec_per_frame - sec_per_frame)*thousand(1.0f));
     if (sleep_ms > 0) platform_sleep_ms(sleep_ms);
     while (sec_per_frame < target_sec_per_frame) {
       time_end = platform_get_time_us();
@@ -86,14 +87,8 @@ memory_alloc(uxx size) {
   return(result);
 }
 
-int
-main(void) {
-  platform_core_init();
-  platform_graphics_init();
-
-  Thread_Context *thread_context = thread_context_alloc();
-  thread_context_select(thread_context);
-
+internal void
+entry_point(int argc, char **argv) {
   Arena *arena = arena_alloc();
   String8 exec_file_path = platform_get_exec_file_path(arena);
 
@@ -122,19 +117,22 @@ main(void) {
     lib.krueger_config(&config);
 
     Memory memory = memory_alloc(GB(1));
-    Image back_buffer = image_alloc(config.render_w, config.render_h);
-    Input input = {0};
-    Platform_Graphics_Info graphics_info = platform_get_graphics_info();
-    Clock time = { .dt_sec = 1.0f/graphics_info.refresh_rate };
-    // Clock time = { .dt_sec = 1.0f/60.0f };
-    // Clock time = { .dt_sec = 1.0f/30.0f };
+    Thread_Context *thread_context = thread_context_selected();
+
     lib.krueger_init(thread_context, &memory, config);
 
+    Image back_buffer = image_alloc(config.render_w, config.render_h);
     Platform_Handle window = platform_window_open(config.window_title,
                                                   config.window_w,
                                                   config.window_h);
     platform_window_toggle_fullscreen(window);
     platform_window_show(window);
+
+    Platform_Graphics_Info graphics_info = platform_get_graphics_info();
+    Clock time = { .dt_sec = 1.0f/graphics_info.refresh_rate };
+    // Clock time = { .dt_sec = 1.0f/60.0f };
+    // Clock time = { .dt_sec = 1.0f/30.0f };
+    Input input = {0};
 
     u64 time_start = platform_get_time_us();
 
@@ -187,7 +185,4 @@ main(void) {
     platform_window_close(window);
     libkrueger_unload(lib);
   }
-
-  platform_core_shutdown();
-  return(0);
 }

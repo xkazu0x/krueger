@@ -91,6 +91,14 @@
 #define BUILD_DEBUG 1
 #endif
 
+#if !defined(BUILD_ENTRY_POINT)
+#define BUILD_ENTRY_POINT 1
+#endif
+
+#if !defined(BUILD_CONSOLE_INTERFACE)
+#define BUILD_CONSOLE_INTERFACE 0 
+#endif
+
 ///////////////////////////////////
 // NOTE: Zero All Undefined Options
 

@@ -1,5 +1,5 @@
-#ifndef KRUEGER_PLATFORM_META_H
-#define KRUEGER_PLATFORM_META_H
+#ifndef KRUEGER_KEYCODE_H
+#define KRUEGER_KEYCODE_H
 
 typedef u32 Keycode;
 enum {
@@ -79,4 +79,4 @@ enum {
   KEY_MAX,
 };
 
-#endif // KRUEGER_PLATFORM_META_H
+#endif // KRUEGER_KEYCODE_H

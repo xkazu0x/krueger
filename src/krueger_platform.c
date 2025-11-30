@@ -10,7 +10,7 @@
 #error platform core not implemented for the current platform.
 #endif
 
-#if KRUEGER_PLATFORM_GRAPHICS
+#if PLATFORM_FEATURE_GRAPHICS
 #if PLATFORM_WINDOWS
 #include "krueger_platform_graphics_win32.c"
 // #elif PLATFORM_LINUX

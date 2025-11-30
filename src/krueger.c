@@ -1,10 +1,15 @@
+#define BUILD_ENTRY_POINT 0
+
 #include "krueger_base.h"
 #include "krueger_platform.h"
+#include "krueger_keycode.h"
+
 #include "krueger_random.h"
 #include "krueger_shared.h"
 
 #include "krueger_base.c"
 #include "krueger_platform.c"
+
 #include "krueger_random.c"
 
 // TODO:
@@ -365,7 +370,7 @@ internal Entity *
 entity_alloc(Entity_Manager *manager) {
   Entity *result = manager->first_free;
   if (result) {
-    sll_stack_pop(manager->first_free);
+    stack_pop(manager->first_free);
   } else {
     result = push_array(manager->arena, Entity, 1);
     manager->list.total_count += 1;
@@ -380,7 +385,7 @@ internal void
 entity_release(Entity_Manager *manager, Entity *entity) {
   manager->list.count -= 1;
   dll_remove(manager->list.first, manager->list.last, entity);
-  sll_stack_push(manager->first_free, entity);
+  stack_push(manager->first_free, entity);
 }
 
 internal void
@@ -816,10 +821,10 @@ draw_text(Image dst, Font font, String8 text,
         glyph_x += 2*glyph_w;
       } continue;
     }
-    u32 char_index = cast(u32) cstr_index_of(cast(char *) font.chars.str, c);
+    u32 char_index = (u32)cstr_index_of((char *)font.chars.str, c);
     assert(font.chars.str[char_index] == c);
     Image sprite = tilemap_get_tile(font.tilemap, char_index);
-    Vector2 position = make_vector2(cast(f32) glyph_x, cast(f32) glyph_y);
+    Vector2 position = make_vector2((f32)glyph_x, (f32)glyph_y);
     draw_texture_shader2(dst, sprite, position, shader_color_blend, &color);
     glyph_x += glyph_w;
   }
@@ -828,8 +833,8 @@ draw_text(Image dst, Font font, String8 text,
 internal Vector2
 measure_text_size(Font font, String8 text) {
   Vector2 result = {
-    result.x = cast(f32) font.tilemap.tile_w*text.len,
-    result.y = cast(f32) font.tilemap.tile_h,
+    result.x = (f32)font.tilemap.tile_w*text.len,
+    result.y = (f32)font.tilemap.tile_h,
   };
   return(result);
 }
@@ -841,7 +846,7 @@ draw_text_align(Image dst, Font font, String8 text,
   Vector2 text_size = measure_text_size(font, text);
   align = vector2_hadamard(align, text_size);
   position = vector2_sub(position, align);
-  draw_text(dst, font, text, cast(s32) position.x, cast(s32) position.y, color);
+  draw_text(dst, font, text, (s32)position.x, (s32)position.y, color);
 }
 
 /////////////////
@@ -1102,7 +1107,7 @@ keep_point_between_range(Vector2 *point, Vector2 min, Vector2 max) {
 }
 
 internal Entity *
-init_player(Game_State *state) {
+player_init(Game_State *state) {
   state->player_max_shoot_r = 5.0f;
   state->player_shoot_r = 0.0f;
   state->player_dshoot_r = -80.0f;
@@ -1432,8 +1437,8 @@ enemy_behave(Entity *entity, Game_State *state, Clock *time) {
             linear_move(entity, time);
 
             Vector2 min = make_vector2(0.0f, 0.0f);
-            Vector2 max = make_vector2(cast(f32) state->draw_buffer.width,
-                                       cast(f32) state->draw_buffer.height);
+            Vector2 max = make_vector2((f32)state->draw_buffer.width,
+                                       (f32)state->draw_buffer.height);
 
             if (keep_point_between_range(&entity->position, min, max)) {
               entity->velocity.x *= -1.0f;
@@ -1599,7 +1604,7 @@ reset_enemy_attack_time(Game_State *state) {
 }
 
 internal void
-reset_wave(Game_State *state) {
+wave_reset(Game_State *state) {
   state->wave_warn_time = state->time + state->wave_warn_cooldown;
   state->enemy_spawn_time = state->wave_warn_time + state->enemy_spawn_cooldown;
   reset_enemy_attack_time(state);
@@ -1609,18 +1614,18 @@ reset_wave(Game_State *state) {
 }
 
 internal void
-init_wave(Game_State *state) {
+wave_init(Game_State *state) {
   state->wave_index = 0;
   state->wave_warn_cooldown = 2.5f;
   state->enemy_spawn_cooldown = 0.4f;
-  reset_wave(state);
+  wave_reset(state);
 }
 
 internal void
-next_wave(Game_State *state) {
-  reset_wave(state);
+wave_next(Game_State *state) {
+  wave_reset(state);
   state->wave_index += 1;
-  if (state->wave_index >= WAVE_MAX) {
+  if (state->wave_index == WAVE_MAX) {
     state->player_win_position_t = 0.0f;
     change_screen(state, SCREEN_WIN);
   }
@@ -1638,8 +1643,8 @@ change_screen(Game_State *state, Screen_State screen) {
       state->next_flash_particle = 0;
       mem_zero_array(state->explosion_particles);
       mem_zero_array(state->flash_particles);
-      init_player(state);
-      init_wave(state);
+      player_init(state);
+      wave_init(state);
     } break;
     case SCREEN_MENU:
     case SCREEN_WIN:
@@ -1667,17 +1672,17 @@ KRUEGER_INIT_PROC(krueger_init) {
   thread_context_select(thread_context);
 
   assert(sizeof(Game_State) <= memory->size);
-  Game_State *state = cast(Game_State *) memory->ptr;
+  Game_State *state = (Game_State *)memory->ptr;
 
   Date_Time date_time = platform_get_date_time();
   Dense_Time dense_time = dense_time_from_date_time(date_time);
-  state->entropy = random_seed(cast(u32) dense_time);
+  state->entropy = random_seed((u32)dense_time);
 
   uxx half_memory_size = memory->size/2;
   uxx perm_memory_size = half_memory_size - sizeof(Game_State);
   uxx temp_memory_size = half_memory_size;
 
-  u8 *perm_memory_ptr = cast(u8 *) memory->ptr + sizeof(Game_State);
+  u8 *perm_memory_ptr = (u8 *)memory->ptr + sizeof(Game_State);
   u8 *temp_memory_ptr = memory->ptr + half_memory_size;
 
   state->main_arena = arena_alloc(.base = perm_memory_ptr, .res_size = perm_memory_size);
@@ -1721,7 +1726,7 @@ KRUEGER_INIT_PROC(krueger_init) {
        particle_index < array_count(state->star_particles);
        ++particle_index) {
     Particle *particle = state->star_particles + particle_index;
-    particle->radius = cast(f32) random_choice(&state->entropy, 3);
+    particle->radius = (f32)random_choice(&state->entropy, 3);
     particle->speed = random_range(&state->entropy, min_star_speed, max_star_speed);
 
     if (particle->speed >= 0.5f*(min_star_speed + max_star_speed)) {
@@ -1743,7 +1748,7 @@ shared_function
 KRUEGER_FRAME_PROC(krueger_frame) {
   thread_context_select(thread_context);
 
-  Game_State *state = cast(Game_State *) memory->ptr;
+  Game_State *state = (Game_State *)memory->ptr;
   state->time += time->dt_sec;
 
   Digital_Button *kbd = input->kbd;
@@ -1758,15 +1763,15 @@ KRUEGER_FRAME_PROC(krueger_frame) {
   image_fill(draw_buffer, CP_BLACK);
  
 #if 0
-  s32 tile_count_x = cast(s32) (draw_buffer.width/state->tile_size);
-  s32 tile_count_y = cast(s32) (draw_buffer.height/state->tile_size);
+  s32 tile_count_x = (s32)(draw_buffer.width/state->tile_size);
+  s32 tile_count_y = (s32)(draw_buffer.height/state->tile_size);
 
   for (s32 y = 0; y < tile_count_y; ++y) {
     for (s32 x = 0; x < tile_count_x; ++x) {
-      s32 x0 = cast(s32) (x*state->tile_size);
-      s32 y0 = cast(s32) (y*state->tile_size);
-      s32 x1 = cast(s32) (x0 + state->tile_size);
-      s32 y1 = cast(s32) (y0 + state->tile_size);
+      s32 x0 = (s32)(x*state->tile_size);
+      s32 y0 = (s32)(y*state->tile_size);
+      s32 x1 = (s32)(x0 + state->tile_size);
+      s32 y1 = (s32)(y0 + state->tile_size);
       u32 color = CP_DARK_GRAY;
       if ((x + y) % 2 == 0) {
         color = CP_DARK_BLUE;
@@ -1917,11 +1922,11 @@ KRUEGER_FRAME_PROC(krueger_frame) {
           if (player->position.y < 0.0f) {
             player->position.y = 0;
           }
-          if (player->position.x > cast(f32) draw_buffer.width) {
-            player->position.x = cast(f32) draw_buffer.width;
+          if (player->position.x > (f32)draw_buffer.width) {
+            player->position.x = (f32)draw_buffer.width;
           }
-          if (player->position.y > cast(f32) draw_buffer.height) {
-            player->position.y = cast(f32) draw_buffer.height;
+          if (player->position.y > (f32)draw_buffer.height) {
+            player->position.y = (f32)draw_buffer.height;
           }
 
           // NOTE: player fire bullets
@@ -1980,8 +1985,9 @@ KRUEGER_FRAME_PROC(krueger_frame) {
 #endif
 
       // NOTE: go to next wave when all enemies died
-      if (state->enemies_spawned && state->wave_remaining_enemy_count == 0) {
-        next_wave(state);
+      if (state->enemies_spawned &&
+          state->wave_remaining_enemy_count == 0) {
+        wave_next(state);
       }
 
       // NOTE: add enemies
@@ -2064,8 +2070,8 @@ KRUEGER_FRAME_PROC(krueger_frame) {
           f32 y = bullet->position.y;
 
           Vector2 min = make_vector2(0.0f, 0.0f);
-          Vector2 max = make_vector2(cast(f32) state->draw_buffer.width,
-                                     cast(f32) state->draw_buffer.height);
+          Vector2 max = make_vector2((f32)state->draw_buffer.width,
+                                     (f32)state->draw_buffer.height);
 
           if (((x + half_size) < min.x) || ((x - half_size) > max.x) ||
               ((y + half_size) < min.y) || ((y - half_size) > max.y)) {
@@ -2169,9 +2175,9 @@ KRUEGER_FRAME_PROC(krueger_frame) {
       if (state->wave_index != LAST_WAVE) {
         { // NOTE: draw enemy count
           Temp scratch = scratch_begin(0, 0);
-          String8 text = str8_fmt(scratch.arena, "%d/%d",
-                                  state->wave_remaining_enemy_count,
-                                  state->wave_enemy_count);
+          String8 text = push_str8_fmt(scratch.arena, "%d/%d",
+                                       state->wave_remaining_enemy_count,
+                                       state->wave_enemy_count);
           Vector2 position = make_vector2(bw/2.0f, 1.0f);
           draw_text_align(draw_buffer, state->font, text,
                           position, vec2(0.5f, 0.0f), CP_RED);
@@ -2186,7 +2192,7 @@ KRUEGER_FRAME_PROC(krueger_frame) {
         u32 sprite_index = 32;
         Image sprite = tilemap_get_tile(state->sprites_tilemap, sprite_index);
         Vector2 position = make_vector2(0.0f, 0.0f);
-        Vector2 offset = make_vector2(cast(f32) hp_index*sprite.width, 0.0f);
+        Vector2 offset = make_vector2((f32)hp_index*sprite.width, 0.0f);
         draw_sprite(draw_buffer, state->sprites_tilemap,
                     sprite_index, 1, 1,
                     position, vec2(0.0f, 0.0f), offset);
@@ -2198,7 +2204,7 @@ KRUEGER_FRAME_PROC(krueger_frame) {
           ++bomb_index) {
         u32 sprite_index = 34;
         Image sprite = tilemap_get_tile(state->sprites_tilemap, sprite_index);
-        Vector2 position = make_vector2(cast(f32)(bw - bomb_index*sprite.width), 0.0f);
+        Vector2 position = make_vector2((f32)(bw - bomb_index*sprite.width), 0.0f);
         draw_sprite(draw_buffer, state->sprites_tilemap,
                     sprite_index, 1, 1,
                     position, vec2(1.0f, 0.0f), vec2(0.0f, 0.0f));
@@ -2207,7 +2213,7 @@ KRUEGER_FRAME_PROC(krueger_frame) {
       // NOTE: draw wave warn
       if (state->time < state->wave_warn_time) {
         Temp scratch = scratch_begin(0, 0);
-        String8 text = str8_fmt(scratch.arena, "WAVE %d", state->wave_index + 1);
+        String8 text = push_str8_fmt(scratch.arena, "WAVE %d", state->wave_index + 1);
         Vector2 position = make_vector2(bw/2.0f, bh/5.0f);
         if (sin_f32(state->time*state->blink_frequency) > -0.5f) {
           draw_text_align(draw_buffer, state->font, text,
@@ -2228,10 +2234,10 @@ KRUEGER_FRAME_PROC(krueger_frame) {
           f32 bar_w = draw_buffer.width - 2.0f*margin;
           f32 bar_h = TILE_SIZE*0.5f;
 
-          s32 x0 = cast(s32) margin;
-          s32 y0 = cast(s32) top_margin;
-          s32 x1 = cast(s32) (x0 + bar_w);
-          s32 y1 = cast(s32) (y0 + bar_h);
+          s32 x0 = (s32)margin;
+          s32 y0 = (s32)top_margin;
+          s32 x1 = (s32)(x0 + bar_w);
+          s32 y1 = (s32)(y0 + bar_h);
 
           draw_rect_fill(draw_buffer, x0, y0, x1, y1, CP_BLACK);
 
@@ -2244,8 +2250,8 @@ KRUEGER_FRAME_PROC(krueger_frame) {
 
           draw_rect_fill(draw_buffer, x0, y0, x1, y1, CP_DARK_BLUE);
 
-          f32 t = cast(f32)boss->hp/cast(f32)boss->max_hp;
-          x1 = cast(s32) (x0 + bar_w*t);
+          f32 t = (f32)boss->hp/(f32)boss->max_hp;
+          x1 = (s32)(x0 + bar_w*t);
 
           draw_rect_fill(draw_buffer, x0, y0, x1, y1, CP_RED);
         }
@@ -2260,15 +2266,18 @@ KRUEGER_FRAME_PROC(krueger_frame) {
       s32 bh = draw_buffer.height;
 
       { // NOTE: draw game over
+        Temp scratch = scratch_begin(0, 0);
+        String8 text = push_str8_lit(scratch.arena, "GAME OVER");
         Vector2 position = make_vector2(bw/2.0f, bh/3.0f);
-        draw_text_align(draw_buffer, state->font, str8_lit("GAME OVER"),
+        draw_text_align(draw_buffer, state->font, text,
                         position, vec2(0.5f, 0.5f), CP_RED);
+        scratch_end(scratch);
       }
       
       if (state->time > state->lock_input_time - state->lock_input_cooldown*0.5f) {
         { // NOTE: draw record
           Temp scratch = scratch_begin(0, 0);
-          String8 text = str8_fmt(scratch.arena, "RECORD: %.2f", state->record_time);
+          String8 text = push_str8_fmt(scratch.arena, "RECORD: %.2f", state->record_time);
           Vector2 position = make_vector2(bw/2.0f, bh/2.0f);
           draw_text_align(draw_buffer, state->font, text,
                           position, vec2(0.5f, 0.5f), CP_WHITE);
@@ -2278,13 +2287,14 @@ KRUEGER_FRAME_PROC(krueger_frame) {
 
       if (state->time > state->lock_input_time) {
         if (kbd[KEY_Z].pressed) change_screen(state, SCREEN_MENU);
+        Temp scratch = scratch_begin(0, 0);
+
+        String8 text0 = push_str8_lit(scratch.arena, "press [z] to go");
+        String8 text1 = push_str8_lit(scratch.arena, "back to menu");
 
         s32 th = state->font.tilemap.tile_h;
 
-        String8 text0 = str8_lit("press [z] to go");
-        String8 text1 = str8_lit("back to menu");
-
-        Vector2 position = make_vector2(bw/2.0f, bh - bh/3.0f);
+        Vector2 position = make_vector2(bw/2.0f, bh + bh/3.0f);
 
         if (sin_f32(state->time*state->blink_frequency) > -0.5f) {
           draw_text_align(draw_buffer, state->font, text0,
@@ -2299,6 +2309,7 @@ KRUEGER_FRAME_PROC(krueger_frame) {
           draw_text_align(draw_buffer, state->font, text1,
                           position, vec2(0.5f, 0.5f), CP_GRAY);
         }
+        scratch_end(scratch);
       }
     } break;
 
@@ -2321,7 +2332,7 @@ KRUEGER_FRAME_PROC(krueger_frame) {
       Entity *player = state->player;
 
       Vector2 position0 = player->position;
-      Vector2 position1 = vector2_mul(vec2(cast(f32)bw, cast(f32)bh), 0.5f);
+      Vector2 position1 = vector2_mul(vec2((f32)bw, (f32)bh), 0.5f);
 
       player->position = vector2_lerp(position0, position1, t);
 
@@ -2336,15 +2347,18 @@ KRUEGER_FRAME_PROC(krueger_frame) {
                   player->position, vec2(0.5f, 0.5f), vec2(0.0f, 0.0f));
 
       { // NOTE: draw win
+        Temp scratch = scratch_begin(0, 0);
+        String8 text = push_str8_lit(scratch.arena, "YOU WIN!");
         Vector2 position = make_vector2(bw/2.0f, bh/4.0f + th/2.0f);
-        draw_text_align(draw_buffer, state->font, str8_lit("YOU WIN!"),
+        draw_text_align(draw_buffer, state->font, text,
                         position, vec2(0.5f, 0.5f), CP_BLUE);
+        scratch_end(scratch);
       }
 
       if (state->time > state->lock_input_time - state->lock_input_cooldown*0.5f) {
         { // NOTE: draw record
           Temp scratch = scratch_begin(0, 0);
-          String8 text = str8_fmt(scratch.arena, "RECORD: %.2f", state->record_time);
+          String8 text = push_str8_fmt(scratch.arena, "RECORD: %.2f", state->record_time);
           Vector2 position = make_vector2(bw/2.0f, bh/3.0f + th/2.0f);
           draw_text_align(draw_buffer, state->font, text,
                           position, vec2(0.5f, 0.5f), CP_WHITE);
@@ -2353,15 +2367,13 @@ KRUEGER_FRAME_PROC(krueger_frame) {
       }
 
       if (state->time > state->lock_input_time) {
-        if (kbd[KEY_Z].pressed) {
-          state->lock_input_time = state->lock_input_cooldown + state->time;
-          state->screen_state = SCREEN_MENU;
-        }
+        if (kbd[KEY_Z].pressed) change_screen(state, SCREEN_MENU);
+        Temp scratch = scratch_begin(0, 0);
 
-        String8 text0 = str8_lit("press [z] to go");
-        String8 text1 = str8_lit("back to menu");
+        String8 text0 = push_str8_lit(scratch.arena, "press [z] to go");
+        String8 text1 = push_str8_lit(scratch.arena, "back to menu");
 
-        Vector2 position = make_vector2(bw/2.0f, bh + bh/3.0f);
+        Vector2 position = make_vector2(bw/2.0f, bh - bh/3.0f);
 
         if (sin_f32(state->time*state->blink_frequency) > -0.5f) {
           draw_text_align(draw_buffer, state->font, text0,
@@ -2376,6 +2388,7 @@ KRUEGER_FRAME_PROC(krueger_frame) {
           draw_text_align(draw_buffer, state->font, text1,
                           position, vec2(0.5f, 0.5f), CP_GRAY);
         }
+        scratch_end(scratch);
       }
     } break;
   }
@@ -2402,11 +2415,11 @@ KRUEGER_FRAME_PROC(krueger_frame) {
     Vector2 position = make_vector2(bw - 2.0f, bh - list->count*th - 2.0f);
     
     for (String8_Node *node = list->first; node != 0; node = node->next) {
-      String8 str = node->str;
-      Vector2 min = vector2_sub(position, vec2((f32)str.len*tw, 0.0f));
+      String8 string = node->string;
+      Vector2 min = vector2_sub(position, vec2((f32)string.len*tw, 0.0f));
       Vector2 max = make_vector2(position.x + 1, min.y + th + 1.0f);
       draw_rect_fill2(draw_buffer, min, max, CP_BLACK);
-      draw_text_align(draw_buffer, state->font, str,
+      draw_text_align(draw_buffer, state->font, string,
                       position, vec2(1.0f, 0.0f), CP_DARK_GRAY);
       position.y += th;
     }
@@ -2440,11 +2453,11 @@ KRUEGER_FRAME_PROC(krueger_frame) {
     Vector2 position = make_vector2(1.0f, bh - list->count*th - 2.0f);
 
     for (String8_Node *node = list->first; node != 0; node = node->next) {
-      String8 str = node->str;
+      String8 string = node->string;
       Vector2 min = position;
-      Vector2 max = vector2_add(min, vec2(str.len*tw + 1.0f, th + 1.0f));
+      Vector2 max = vector2_add(min, vec2(string.len*tw + 1.0f, th + 1.0f));
       draw_rect_fill2(draw_buffer, min, max, CP_BLACK);
-      draw_text_align(draw_buffer, state->font, str,
+      draw_text_align(draw_buffer, state->font, string,
                       position, vec2(0.0f, 0.0f), CP_DARK_GRAY);
       position.y += th;
     }

@@ -16,12 +16,8 @@ internal f32 lerp_f32(f32 a, f32 b, f32 t);
 // NOTE: Vector2
 
 typedef union {
-  struct {
-    f32 x, y;
-  };
-  struct {
-    f32 u, v;
-  };
+  struct { f32 x, y; };
+  struct { f32 u, v; };
   f32 buf[2];
 } Vector2;
 
@@ -42,24 +38,14 @@ internal Vector2 vector2_lerp(Vector2 a, Vector2 b, f32 t);
 // NOTE: Vector3
 
 typedef union {
-  struct {
-    f32 x, y, z;
-  };
-  struct {
-    f32 r, g, b;
-  };
-  struct {
-    Vector2 xy;
-    f32 _z0;
-  };
-  struct {
-    Vector2 rg;
-    f32 _b0;
-  };
+  struct { f32 x, y, z; };
+  struct { f32 r, g, b; };
+  struct { Vector2 xy; f32 _z0; };
+  struct { Vector2 rg; f32 _b0; };
   f32 buf[3];
 } Vector3;
 
-#define vec3(x, y, z) ((Vector2){{(x), (y), (z)}})
+#define vec3(x, y, z) ((Vector3){{(x), (y), (z)}})
 internal Vector3 make_vector3(f32 x, f32 y, f32 z);
 internal Vector3 vector3_add(Vector3 a, Vector3 b);
 internal Vector3 vector3_sub(Vector3 a, Vector3 b);
@@ -77,32 +63,16 @@ internal Vector3 vector3_lerp(Vector3 a, Vector3 b, f32 t);
 // NOTE: Vector4
 
 typedef union {
-  struct {
-    f32 x, y, z, w;
-  };
-  struct {
-    f32 r, g, b, a;
-  };
-  struct {
-    Vector3 xyz;
-    f32 _w0;
-  };
-  struct {
-    Vector3 rgb;
-    f32 _a0;
-  };
-  struct {
-    Vector2 xy;
-    Vector2 zw;
-  };
-  struct {
-    Vector2 rg;
-    Vector2 ba;
-  };
+  struct { f32 x, y, z, w; };
+  struct { f32 r, g, b, a; };
+  struct { Vector2 xy; Vector2 zw; };
+  struct { Vector2 rg; Vector2 ba; };
+  struct { Vector3 xyz; f32 _w0; };
+  struct { Vector3 rgb; f32 _a0; };
   f32 buf[4];
 } Vector4;
 
-#define vec4(x, y, z, w) ((Vector2){{(x), (y), (z), (w)}})
+#define vec4(x, y, z, w) ((Vector4){{(x), (y), (z), (w)}})
 internal Vector4 make_vector4(f32 x, f32 y, f32 z, f32 w);
 internal Vector4 vector4_from_vector3(Vector3 v, f32 w);
 internal Vector4 vector4_add(Vector4 a, Vector4 b);
