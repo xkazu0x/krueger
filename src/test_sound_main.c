@@ -1,4 +1,4 @@
-#define KRUEGER_PLATFORM_GRAPHICS 1
+#define PLATFORM_FEATURE_GRAPHICS 1
 
 #include "krueger_base.h"
 #include "krueger_platform.h"
@@ -282,14 +282,9 @@ output_sound(s16 *samples, u32 sample_count, u32 sample_rate) {
   }
 }
 
-int
-main(void) {
-  platform_core_init();
-  platform_graphics_init();
+internal void
+entry_point(int argc, char **argv) {
   platform_audio_init();
-
-  Thread_Context *context = thread_context_alloc();
-  thread_context_select(context);
 
   Arena *arena = arena_alloc();
   load_wav(arena, str8_lit("../res/test.wav"));
@@ -553,7 +548,4 @@ main(void) {
 
   platform_audio_device_close(audio_device);
   platform_window_close(window);
-
-  platform_core_shutdown();
-  return(0);
 }

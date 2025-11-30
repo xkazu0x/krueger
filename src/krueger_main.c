@@ -1,4 +1,3 @@
-#define BUILD_ENTRY_POINT 1
 #define PLATFORM_FEATURE_GRAPHICS 1
 
 #include "krueger_base.h"
