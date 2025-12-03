@@ -3,13 +3,11 @@
 #include "krueger_base.h"
 #include "krueger_platform.h"
 #include "krueger_keycode.h"
-
 #include "krueger_random.h"
 #include "krueger_shared.h"
 
 #include "krueger_base.c"
 #include "krueger_platform.c"
-
 #include "krueger_random.c"
 
 // TODO:
@@ -471,7 +469,8 @@ typedef struct {
   u32 wave_enemy_count;
   u32 wave_remaining_enemy_count;
 
-  // NOTE: Info
+  // NOTE: Misc
+  b32 is_cheating;
   b32 draw_debug_info;
   b32 draw_time_info;
   String8_List debug_string_list;
@@ -1156,7 +1155,9 @@ hit_player(Game_State *state, Entity *entity, u32 damage) {
     if (entity->hp > 0) {
       emit_flash(state, CP_WHITE);
       state->shake_oscillation += 4.0f;
-      entity->hp -= damage;
+      if (!state->is_cheating) {
+        entity->hp -= damage;
+      }
     }
     if (entity->hp <= 0) {
       mem_zero_struct(entity);
@@ -1183,13 +1184,12 @@ add_enemy(Game_State *state, Enemy_Type type) {
 
   switch (enemy->type) {
     case ENEMY_BOMBER: {
-      enemy->hp = 15;
+      enemy->hp = 13;
       enemy->speed = 100.0f;
       enemy->size = make_vector2(TILE_SIZE, TILE_SIZE);
       enemy->velocity = make_vector2(0.0f, 1.0f);
 
-      // enemy->shoot_time = 0.1f;
-      enemy->shoot_time = 0.15f;
+      enemy->shoot_time = 0.2f;
       enemy->shoot_cooldown = 0.0f;
 
       enemy->charge_time = 0.8f;
@@ -1201,7 +1201,7 @@ add_enemy(Game_State *state, Enemy_Type type) {
       
     } break;
     case ENEMY_ASSASSIN: {
-      enemy->hp = 13;
+      enemy->hp = 9;
       enemy->speed = 40.0f;
       enemy->size = make_vector2(TILE_SIZE, TILE_SIZE);
       enemy->velocity = make_vector2(0.0f, 0.0f);
@@ -1600,7 +1600,7 @@ update_entity_flame(Clock *time, Entity *entity) {
 internal void
 reset_enemy_attack_time(Game_State *state) {
   state->enemy_attack_time = 0.0f;
-  state->enemy_attack_cooldown = random_range(&state->entropy, 0.2f, 0.4f);
+  state->enemy_attack_cooldown = random_range(&state->entropy, 0.3f, 0.5f);
 }
 
 internal void
@@ -1658,107 +1658,105 @@ change_screen(Game_State *state, Screen_State screen) {
 }
 
 shared_function
-KRUEGER_CONFIG_PROC(krueger_config) {
-  u32 window_scale = 5;
-  config->render_w = 128;
-  config->render_h = 128;
-  config->window_w = window_scale*config->render_w;
-  config->window_h = window_scale*config->render_h;
-  config->window_title = str8_lit("STARFIGHTER");
-}
-
-shared_function
-KRUEGER_INIT_PROC(krueger_init) {
+KRUEGER_FRAME_PROC(krueger_frame) {
   thread_context_select(thread_context);
 
   assert(sizeof(Game_State) <= memory->size);
   Game_State *state = (Game_State *)memory->ptr;
+  if (!memory->is_initialized) {
+    Date_Time date_time = platform_get_date_time();
+    Dense_Time dense_time = dense_time_from_date_time(date_time);
+    state->entropy = random_seed((u32)dense_time);
 
-  Date_Time date_time = platform_get_date_time();
-  Dense_Time dense_time = dense_time_from_date_time(date_time);
-  state->entropy = random_seed((u32)dense_time);
+    uxx half_memory_size = memory->size/2;
+    uxx perm_memory_size = half_memory_size - sizeof(Game_State);
+    uxx temp_memory_size = half_memory_size;
 
-  uxx half_memory_size = memory->size/2;
-  uxx perm_memory_size = half_memory_size - sizeof(Game_State);
-  uxx temp_memory_size = half_memory_size;
+    u8 *perm_memory_ptr = (u8 *)memory->ptr + sizeof(Game_State);
+    u8 *temp_memory_ptr = memory->ptr + half_memory_size;
 
-  u8 *perm_memory_ptr = (u8 *)memory->ptr + sizeof(Game_State);
-  u8 *temp_memory_ptr = memory->ptr + half_memory_size;
+    state->main_arena = arena_alloc(.base = perm_memory_ptr, .res_size = perm_memory_size);
+    state->temp_arena = arena_alloc(.base = temp_memory_ptr, .res_size = temp_memory_size);
 
-  state->main_arena = arena_alloc(.base = perm_memory_ptr, .res_size = perm_memory_size);
-  state->temp_arena = arena_alloc(.base = temp_memory_ptr, .res_size = temp_memory_size);
-  
-  state->font_image = load_bmp(state->main_arena, str8_lit("../res/pico8_font.bmp"));
-  state->sprites_image = load_bmp(state->main_arena, str8_lit("../res/sprites.bmp"));
+    state->font_image = load_bmp(state->main_arena, str8_lit("../res/pico8_font.bmp"));
+    state->sprites_image = load_bmp(state->main_arena, str8_lit("../res/sprites.bmp"));
 
-  state->font_tilemap = make_tilemap(state->font_image, 4, 6, 16, 6);
-  state->sprites_tilemap = make_tilemap(state->sprites_image, 8, 8, 16, 16);
+    state->font_tilemap = make_tilemap(state->font_image, 4, 6, 16, 6);
+    state->sprites_tilemap = make_tilemap(state->sprites_image, 8, 8, 16, 16);
 
-  String8 chars = str8_lit(
-    " !\"#$%&'()*+,-./"
-    "0123456789:;<=>?"
-    "@ABCDEFGHIJKLMNO"
-    "PQRSTUVWXYZ[\\]^_"
-    "`abcdefghijklmno"
-    "pqrstuvwxyz{|}~ "
-  );
+    String8 chars = str8_lit(
+      " !\"#$%&'()*+,-./"
+      "0123456789:;<=>?"
+      "@ABCDEFGHIJKLMNO"
+      "PQRSTUVWXYZ[\\]^_"
+      "`abcdefghijklmno"
+      "pqrstuvwxyz{|}~ "
+    );
 
-  chars = str8_copy(state->main_arena, chars);
-  state->font = make_font(chars, state->font_tilemap);
-  state->draw_buffer = image_alloc(config.render_w, config.render_h);
+    chars = str8_copy(state->main_arena, chars);
+    state->font = make_font(chars, state->font_tilemap);
+    state->draw_buffer = image_alloc(back_buffer->width, back_buffer->height);
 
-  state->screen_state = SCREEN_MENU;
-  state->pause = false;
-  state->time = 0.0f;
-  state->shake_oscillation = 0.0f;
-  state->blink_frequency = 12.0f;
-  state->lock_input_cooldown = 1.0f;
-  state->lock_input_time = state->lock_input_cooldown;
+    state->screen_state = SCREEN_MENU;
+    state->pause = false;
+    state->time = 0.0f;
+    state->shake_oscillation = 0.0f;
+    state->blink_frequency = 12.0f;
+    state->lock_input_cooldown = 1.0f;
+    state->lock_input_time = state->lock_input_cooldown;
 
-  state->player = push_array(state->main_arena, Entity, 1);
-  state->enemy_manager = entity_manager_alloc(state->main_arena, 256);
-  state->bullet_manager = entity_manager_alloc(state->main_arena, 1024);
+    state->player = push_array(state->main_arena, Entity, 1);
+    state->enemy_manager = entity_manager_alloc(state->main_arena, 256);
+    state->bullet_manager = entity_manager_alloc(state->main_arena, 1024);
 
-  f32 min_star_speed = 32.0f;
-  f32 max_star_speed = 64.0f;
+    f32 min_star_speed = 32.0f;
+    f32 max_star_speed = 64.0f;
 
-  for (u32 particle_index = 0;
-       particle_index < array_count(state->star_particles);
-       ++particle_index) {
-    Particle *particle = state->star_particles + particle_index;
-    particle->radius = (f32)random_choice(&state->entropy, 3);
-    particle->speed = random_range(&state->entropy, min_star_speed, max_star_speed);
+    for (u32 particle_index = 0;
+         particle_index < array_count(state->star_particles);
+         ++particle_index) {
+      Particle *particle = state->star_particles + particle_index;
+      particle->radius = (f32)random_choice(&state->entropy, 3);
+      particle->speed = random_range(&state->entropy, min_star_speed, max_star_speed);
 
-    if (particle->speed >= 0.5f*(min_star_speed + max_star_speed)) {
-      particle->color = CP_DARK_GRAY;
-    } else {
-      particle->color = CP_DARK_BLUE;
+      if (particle->speed >= 0.5f*(min_star_speed + max_star_speed)) {
+        particle->color = CP_DARK_GRAY;
+      } else {
+        particle->color = CP_DARK_BLUE;
+      }
+
+      particle->position.x = random_unilateral(&state->entropy)*back_buffer->width;
+      particle->position.y = random_unilateral(&state->entropy)*back_buffer->height;
+      particle->velocity = make_vector2(0.0f, -1.0f);
     }
 
-    particle->position.x = random_unilateral(&state->entropy)*config.render_w;
-    particle->position.y = random_unilateral(&state->entropy)*config.render_h;
-    particle->velocity = make_vector2(0.0f, -1.0f);
+    state->draw_time_info = false;
+    state->draw_debug_info = false;
+
+    memory->is_initialized = true;
   }
 
-  state->draw_time_info = false;
-  state->draw_debug_info = false;
-}
-
-shared_function
-KRUEGER_FRAME_PROC(krueger_frame) {
-  thread_context_select(thread_context);
-
-  Game_State *state = (Game_State *)memory->ptr;
   state->time += time->dt_sec;
 
-  Digital_Button *kbd = input->kbd;
-  if (kbd[KEY_F1].pressed) state->draw_debug_info = !state->draw_debug_info;
-  if (kbd[KEY_F2].pressed) state->draw_time_info = !state->draw_time_info;
+#if BUILD_DEBUG
+  Digital_Button *keys = input->keys;
+  if (keys[KEY_F1].pressed) state->draw_debug_info = !state->draw_debug_info;
+  if (keys[KEY_F2].pressed) state->draw_time_info = !state->draw_time_info;
+  if (keys[KEY_F5].pressed) state->is_cheating = !state->is_cheating;
+#endif
   
   b32 quit = false;
-  if (kbd[KEY_P].pressed) state->pause = !state->pause;
-  if (state->pause) return(quit);
 
+  if (input->pause.pressed) state->pause = !state->pause;
+  if (state->pause) {
+    String8 text = str8_lit("PAUSED");
+    Vector2 size = make_vector2((f32)back_buffer->width, (f32)back_buffer->height);
+    Vector2 position = vector2_mul(size, 0.5f);
+    Vector2 alignment = make_vector2(0.5f, 0.5f);
+    draw_text_align(*back_buffer, state->font, text, position, alignment, CP_WHITE);
+    return(quit);
+  }
+ 
   Image draw_buffer = state->draw_buffer;
   image_fill(draw_buffer, CP_BLACK);
  
@@ -1852,34 +1850,35 @@ KRUEGER_FRAME_PROC(krueger_frame) {
   // NOTE: state
   switch (state->screen_state) {
     case SCREEN_MENU: {
-      if (kbd[KEY_Q].pressed) quit = true;
+      if (input->quit.pressed) quit = true;
 
       s32 bw = draw_buffer.width;
       s32 bh = draw_buffer.height;
 
       { // NOTE: draw title
-        draw_text_align(draw_buffer, state->font, str8_lit("STARFIGHTER"),
-                        vec2(bw/2.0f, bh/3.0f), vec2(0.5f, 0.5f), CP_RED);
+        String8 text = str8_lit("STARFIGHTER");
+        Vector2 position = make_vector2(bw/2.0f, bh/3.0f);
+        Vector2 alignment = make_vector2(0.5f, 1.0f);
+        draw_text_align(draw_buffer, state->font, text, position, alignment, CP_RED);
       }
       
       if (state->time > state->lock_input_time) {
-        if (kbd[KEY_Z].pressed) change_screen(state, SCREEN_GAME);
+        if (input->confirm.pressed) change_screen(state, SCREEN_GAME);
 
         String8 text = str8_lit("press [z] to start");
         Vector2 position = make_vector2(bw/2.0f, bh - bh/3.0f);
+        Vector2 alignment = make_vector2(0.5f, 0.0f);
 
         if (sin_f32(state->time*state->blink_frequency) > -0.5f) {
-          draw_text_align(draw_buffer, state->font, text,
-                          position, vec2(0.5f, 0.5f), CP_DARK_BROWN);
+          draw_text_align(draw_buffer, state->font, text, position, alignment, CP_DARK_BROWN);
         } else {
-          draw_text_align(draw_buffer, state->font, text,
-                          position, vec2(0.5f, 0.5f), CP_GRAY);
+          draw_text_align(draw_buffer, state->font, text, position, alignment, CP_GRAY);
         }
       }
     } break;
 
     case SCREEN_GAME: {
-      if (kbd[KEY_Q].pressed) change_screen(state, SCREEN_MENU);
+      if (input->quit.pressed) change_screen(state, SCREEN_MENU);
       state->record_time += time->dt_sec;
 
       { // NOTE: update player
@@ -1895,24 +1894,27 @@ KRUEGER_FRAME_PROC(krueger_frame) {
 
           player->velocity = make_vector2(0.0f, 0.0f);
           player->sprite_index = 1;
+          
+          if (input->direction.x || input->direction.y) {
+            input->direction.axis.y *= -1.0f;
+            player->velocity = input->direction.axis;
 
-          if (kbd[KEY_UP].is_down) {
-            player->velocity.y = -1.0f;
+            if (player->velocity.x == player->velocity.y) {
+              player->velocity = vector2_mul(player->velocity, 0.707106781187f);
+            }
+          } else {
+            if (input->up.is_down)    player->velocity.y = -1.0f;
+            if (input->down.is_down)  player->velocity.y = 1.0f;
+            if (input->left.is_down)  player->velocity.x = -1.0f;
+            if (input->right.is_down) player->velocity.x = 1.0f;
+
+            if (player->velocity.x != 0.0f && player->velocity.y != 0.0f) {
+              player->velocity = vector2_mul(player->velocity, 0.707106781187f);
+            }
           }
-          if (kbd[KEY_LEFT].is_down) {
-            player->velocity.x = -1.0f;
-            player->sprite_index = 0;
-          }
-          if (kbd[KEY_DOWN].is_down) {
-            player->velocity.y = 1.0f;
-          }
-          if (kbd[KEY_RIGHT].is_down) {
-            player->velocity.x = 1.0f;
-            player->sprite_index = 2;
-          }
-          if (player->velocity.x != 0.0f && player->velocity.y != 0.0f) {
-            player->velocity = vector2_mul(player->velocity, 0.707106781187f);
-          }
+
+          if (player->velocity.x < 0.0f) player->sprite_index = 0;
+          if (player->velocity.x > 0.0f) player->sprite_index = 2;
 
           linear_move(player, time);
 
@@ -1931,7 +1933,7 @@ KRUEGER_FRAME_PROC(krueger_frame) {
 
           // NOTE: player fire bullets
           countdown(&player->shoot_cooldown, time);
-          if (kbd[KEY_Z].is_down) {
+          if (input->shoot.is_down) {
             if (player->shoot_cooldown <= 0.0f) {
               Entity *bullet = entity_alloc(state->bullet_manager);
               bullet->is_alive = true;
@@ -1951,10 +1953,10 @@ KRUEGER_FRAME_PROC(krueger_frame) {
         }
 
         // NOTE: player fire bomb
-        if (kbd[KEY_X].is_down &&
+        if (input->bomb.is_down &&
             state->bomb_count > 0 &&
             player->invencible_countdown <= 0.0f) {
-          state->bomb_count -= 1;
+          if (!state->is_cheating) state->bomb_count -= 1;
           player->invencible_countdown = player->invencible_time*0.7f;
           state->shake_oscillation += 8.0f;
           emit_flash(state, CP_ORANGE);
@@ -1973,7 +1975,7 @@ KRUEGER_FRAME_PROC(krueger_frame) {
 #if BUILD_DEBUG
       // NOTE: kill all enemies [debug code only]
       if (state->enemies_spawned) {
-        if (kbd[KEY_K].pressed) {
+        if (keys[KEY_K].pressed) {
           remove_all_entities(state->bullet_manager);
           for (Entity *enemy = state->enemy_manager->list.first;
                enemy != 0;
@@ -2260,61 +2262,54 @@ KRUEGER_FRAME_PROC(krueger_frame) {
     } break;
 
     case SCREEN_OVER: {
-      if (kbd[KEY_Q].pressed) quit = true;
+      Temp scratch = scratch_begin(0, 0);
+      if (input->quit.pressed) quit = true;
 
       s32 bw = draw_buffer.width;
       s32 bh = draw_buffer.height;
 
+      s32 th = state->font.tilemap.tile_h;
+
       { // NOTE: draw game over
-        Temp scratch = scratch_begin(0, 0);
-        String8 text = push_str8_lit(scratch.arena, "GAME OVER");
+        String8 text = str8_lit("GAME OVER");
         Vector2 position = make_vector2(bw/2.0f, bh/3.0f);
-        draw_text_align(draw_buffer, state->font, text,
-                        position, vec2(0.5f, 0.5f), CP_RED);
-        scratch_end(scratch);
+        Vector2 alignment = make_vector2(0.5f, 1.0f);
+        draw_text_align(draw_buffer, state->font, text, position, alignment, CP_RED);
       }
       
       if (state->time > state->lock_input_time - state->lock_input_cooldown*0.5f) {
-        { // NOTE: draw record
-          Temp scratch = scratch_begin(0, 0);
-          String8 text = push_str8_fmt(scratch.arena, "RECORD: %.2f", state->record_time);
-          Vector2 position = make_vector2(bw/2.0f, bh/2.0f);
-          draw_text_align(draw_buffer, state->font, text,
-                          position, vec2(0.5f, 0.5f), CP_WHITE);
-          scratch_end(scratch);
-        }
+        String8 text = push_str8_fmt(scratch.arena, "record: %.2f", state->record_time);
+        Vector2 position = make_vector2(bw/2.0f, bh/2.0f);
+        Vector2 alignment = make_vector2(0.5f, 0.5f);
+        draw_text_align(draw_buffer, state->font, text, position, alignment, CP_WHITE);
       }
 
       if (state->time > state->lock_input_time) {
-        if (kbd[KEY_Z].pressed) change_screen(state, SCREEN_MENU);
-        Temp scratch = scratch_begin(0, 0);
+        if (input->confirm.pressed) change_screen(state, SCREEN_MENU);
 
         String8 text0 = push_str8_lit(scratch.arena, "press [z] to go");
         String8 text1 = push_str8_lit(scratch.arena, "back to menu");
 
-        s32 th = state->font.tilemap.tile_h;
-
-        Vector2 position = make_vector2(bw/2.0f, bh + bh/3.0f);
+        Vector2 position = make_vector2(bw/2.0f, bh - bh/3.0f);
+        Vector2 alignment = make_vector2(0.5f, 0.0f);
 
         if (sin_f32(state->time*state->blink_frequency) > -0.5f) {
-          draw_text_align(draw_buffer, state->font, text0,
-                          position, vec2(0.5f, 0.5f), CP_DARK_BROWN);
+          draw_text_align(draw_buffer, state->font, text0, position, alignment, CP_DARK_BROWN);
           position.y += th;
-          draw_text_align(draw_buffer, state->font, text1,
-                          position, vec2(0.5f, 0.5f), CP_DARK_BROWN);
+          draw_text_align(draw_buffer, state->font, text1, position, alignment, CP_DARK_BROWN);
         } else {
-          draw_text_align(draw_buffer, state->font, text0,
-                          position, vec2(0.5f, 0.5f), CP_GRAY);
+          draw_text_align(draw_buffer, state->font, text0, position, alignment, CP_GRAY);
           position.y += th;
-          draw_text_align(draw_buffer, state->font, text1,
-                          position, vec2(0.5f, 0.5f), CP_GRAY);
+          draw_text_align(draw_buffer, state->font, text1, position, alignment, CP_GRAY);
         }
-        scratch_end(scratch);
       }
+
+      scratch_end(scratch);
     } break;
 
     case SCREEN_WIN: {
-      if (kbd[KEY_Q].pressed) quit = true;
+      Temp scratch = scratch_begin(0, 0);
+      if (input->quit.pressed) quit = true;
 
       s32 bw = draw_buffer.width;
       s32 bh = draw_buffer.height;
@@ -2347,49 +2342,40 @@ KRUEGER_FRAME_PROC(krueger_frame) {
                   player->position, vec2(0.5f, 0.5f), vec2(0.0f, 0.0f));
 
       { // NOTE: draw win
-        Temp scratch = scratch_begin(0, 0);
         String8 text = push_str8_lit(scratch.arena, "YOU WIN!");
-        Vector2 position = make_vector2(bw/2.0f, bh/4.0f + th/2.0f);
-        draw_text_align(draw_buffer, state->font, text,
-                        position, vec2(0.5f, 0.5f), CP_BLUE);
-        scratch_end(scratch);
+        Vector2 position = make_vector2(bw/2.0f, bh/3.0f);
+        Vector2 alignment = make_vector2(0.5f, 1.5f);
+        draw_text_align(draw_buffer, state->font, text, position, alignment, CP_BLUE);
       }
 
       if (state->time > state->lock_input_time - state->lock_input_cooldown*0.5f) {
-        { // NOTE: draw record
-          Temp scratch = scratch_begin(0, 0);
-          String8 text = push_str8_fmt(scratch.arena, "RECORD: %.2f", state->record_time);
-          Vector2 position = make_vector2(bw/2.0f, bh/3.0f + th/2.0f);
-          draw_text_align(draw_buffer, state->font, text,
-                          position, vec2(0.5f, 0.5f), CP_WHITE);
-          scratch_end(scratch);
-        }
+        String8 text = push_str8_fmt(scratch.arena, "record: %.2f", state->record_time);
+        Vector2 position = make_vector2(bw/2.0f, bh/3.0f + th);
+        Vector2 alignment = make_vector2(0.5f, 1.5f);
+        draw_text_align(draw_buffer, state->font, text, position, alignment, CP_WHITE);
       }
 
       if (state->time > state->lock_input_time) {
-        if (kbd[KEY_Z].pressed) change_screen(state, SCREEN_MENU);
-        Temp scratch = scratch_begin(0, 0);
+        if (input->confirm.pressed) change_screen(state, SCREEN_MENU);
 
         String8 text0 = push_str8_lit(scratch.arena, "press [z] to go");
         String8 text1 = push_str8_lit(scratch.arena, "back to menu");
 
         Vector2 position = make_vector2(bw/2.0f, bh - bh/3.0f);
+        Vector2 alignment = make_vector2(0.5f, 0.0f);
 
         if (sin_f32(state->time*state->blink_frequency) > -0.5f) {
-          draw_text_align(draw_buffer, state->font, text0,
-                          position, vec2(0.5f, 0.5f), CP_DARK_BROWN);
+          draw_text_align(draw_buffer, state->font, text0, position, alignment, CP_DARK_BROWN);
           position.y += th;
-          draw_text_align(draw_buffer, state->font, text1,
-                          position, vec2(0.5f, 0.5f), CP_DARK_BROWN);
+          draw_text_align(draw_buffer, state->font, text1, position, alignment, CP_DARK_BROWN);
         } else {
-          draw_text_align(draw_buffer, state->font, text0,
-                          position, vec2(0.5f, 0.5f), CP_GRAY);
+          draw_text_align(draw_buffer, state->font, text0, position, alignment, CP_GRAY);
           position.y += th;
-          draw_text_align(draw_buffer, state->font, text1,
-                          position, vec2(0.5f, 0.5f), CP_GRAY);
+          draw_text_align(draw_buffer, state->font, text1, position, alignment, CP_GRAY);
         }
-        scratch_end(scratch);
       }
+
+      scratch_end(scratch);
     } break;
   }
 
@@ -2433,16 +2419,26 @@ KRUEGER_FRAME_PROC(krueger_frame) {
 
     String8_List *list = &state->debug_string_list;
     mem_zero_struct(list);
+  
+    if (state->is_cheating) {
+      str8_list_push_copy(scratch.arena, list, str8_lit("cheating: true"));
+    } else {
+      str8_list_push_copy(scratch.arena, list, str8_lit("cheating: false"));
+    }
 
-    Entity_Manager *manager = state->enemy_manager;
-    u32 count = manager->list.count;
-    u32 total_count = manager->list.total_count;
-    str8_list_push_fmt(scratch.arena, list, "enemies:%d/%d", count, total_count);
-    
-    manager = state->bullet_manager;
-    count = manager->list.count;
-    total_count = manager->list.total_count;
-    str8_list_push_fmt(scratch.arena, list, "bullets:%d/%d", count, total_count);
+    {
+      Entity_Manager *manager = state->enemy_manager;
+      u32 count = manager->list.count;
+      u32 total_count = manager->list.total_count;
+      str8_list_push_fmt(scratch.arena, list, "enemies:%d/%d", count, total_count);
+    }
+   
+    {
+      Entity_Manager *manager = state->bullet_manager;
+      u32 count = manager->list.count;
+      u32 total_count = manager->list.total_count;
+      str8_list_push_fmt(scratch.arena, list, "bullets:%d/%d", count, total_count);
+    }
 
     // s32 bw = draw_buffer.width;
     s32 bh = draw_buffer.height;
@@ -2464,7 +2460,7 @@ KRUEGER_FRAME_PROC(krueger_frame) {
 
     scratch_end(scratch);
   }
- 
+
   // NOTE: shake screen
   f32 x = random_bilateral(&state->entropy)*state->shake_oscillation;
   f32 y = random_bilateral(&state->entropy)*state->shake_oscillation;

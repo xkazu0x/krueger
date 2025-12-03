@@ -86,12 +86,8 @@
 // NOTE: Foor-Loop Construct Macros
 
 #define each_index(type, it, count)   (type it = 0; it < (count); ++it)
-#define each_element(type, it, array) (type it = 0; it < array_count(array); ++it)
+#define each_item(type, it, array) (type it = 0; it < array_count(array); ++it)
 #define each_node(type, it, first)    (type *it = first; it != 0; it = it->next)
-
-#define for_each_index(type, it, count)   for (type it = 0; it < (count); ++it)
-#define for_each_element(type, it, array) for (type it = 0; it < array_count(array); ++it)
-#define for_each_node(type, it, first)    for (type *it = first; it != 0; it = it->next)
 
 ////////////////////////////////
 // NOTE: Memory Operation Macros

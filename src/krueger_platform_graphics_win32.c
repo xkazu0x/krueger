@@ -76,14 +76,14 @@ win32_window_proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam) {
       case WM_CLOSE: {
         win32_push_event(PLATFORM_EVENT_WINDOW_CLOSE, window);
       } break;
-      case WM_SYSKEYUP:
-      case WM_SYSKEYDOWN: {
+      case WM_SYSKEYDOWN:
+      case WM_SYSKEYUP: {
         if (wparam == VK_F4) {
           result = DefWindowProcA(hwnd, message, wparam, lparam);
         }
       } // NOTE: fallthrough
-      case WM_KEYUP:
-      case WM_KEYDOWN: {
+      case WM_KEYDOWN:
+      case WM_KEYUP: {
         // b32 was_down = lparam&bit31);
         b32 is_down = !(lparam&bit32);
         Platform_Event_Type type = (is_down) ?
@@ -91,6 +91,9 @@ win32_window_proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam) {
           PLATFORM_EVENT_KEY_RELEASE;
         Platform_Event *event = win32_push_event(type, window);
         event->keycode = win32_graphics_state->key_table[wparam&bitmask8];
+        // event->pressed = !was_down && is_down;
+        // event->released = was_down && !is_down;
+        // event->is_down = is_down;
       } break;
       default: {
         result = DefWindowProcA(hwnd, message, wparam, lparam);
@@ -214,7 +217,7 @@ platform_window_show(Platform_Handle handle) {
 }
 
 internal void
-platform_window_display_buffer(Platform_Handle handle, u32 *buffer, s32 buffer_w, s32 buffer_h) {
+platform_window_blit(Platform_Handle handle, u32 *buffer, s32 buffer_w, s32 buffer_h) {
   Win32_Window *window = win32_window_from_handle(handle);
   if (window != 0) {
     BITMAPINFO bitmap_info = {0};

@@ -36,7 +36,7 @@ internal Platform_Graphics_Info platform_get_graphics_info(void);
 internal Platform_Handle        platform_window_open(String8 title, s32 width, s32 height);
 internal void                   platform_window_close(Platform_Handle handle);
 internal void                   platform_window_show(Platform_Handle handle);
-internal void                   platform_window_display_buffer(Platform_Handle handle, u32 *buffer, s32 buffer_w, s32 buffer_h);
+internal void                   platform_window_blit(Platform_Handle handle, u32 *buffer, s32 buffer_w, s32 buffer_h);
 internal b32                    platform_window_is_fullscreen(Platform_Handle handle);
 internal void                   platform_window_toggle_fullscreen(Platform_Handle handle);
 

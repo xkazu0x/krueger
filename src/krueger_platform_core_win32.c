@@ -72,7 +72,7 @@ platform_release(void *ptr, uxx size) {
 }
 
 internal Platform_Handle
-platform_file_open(String8 file_path, Platform_File_Flags flags) {
+platform_file_open(String8 path, Platform_File_Flags flags) {
   Platform_Handle result = {0};
   DWORD desired_access = 0;
   DWORD share_mode = 0;
@@ -83,7 +83,7 @@ platform_file_open(String8 file_path, Platform_File_Flags flags) {
   if (flags & PLATFORM_FILE_SHARE_READ)  share_mode |= FILE_SHARE_READ;
   if (flags & PLATFORM_FILE_SHARE_WRITE) share_mode |= FILE_SHARE_WRITE | FILE_SHARE_DELETE;
   if (flags & PLATFORM_FILE_WRITE)       creation_disposition = CREATE_ALWAYS;
-  HANDLE handle = CreateFileA((LPCSTR)file_path.str, desired_access, share_mode, 0, creation_disposition, FILE_ATTRIBUTE_NORMAL, 0);
+  HANDLE handle = CreateFileA((LPCSTR)path.str, desired_access, share_mode, 0, creation_disposition, FILE_ATTRIBUTE_NORMAL, 0);
   if (handle != INVALID_HANDLE_VALUE) {
     result.ptr[0] = (uxx)handle; 
   }
@@ -127,9 +127,9 @@ platform_copy_file_path(String8 dst, String8 src) {
 }
 
 internal Platform_Handle
-platform_library_open(String8 file_path) {
+platform_library_open(String8 path) {
   Platform_Handle result = {0};
-  result.ptr[0] = (uxx)LoadLibraryA((LPCSTR)file_path.str);
+  result.ptr[0] = (uxx)LoadLibraryA((LPCSTR)path.str);
   return(result);
 }
 

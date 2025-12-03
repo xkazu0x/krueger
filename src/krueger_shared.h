@@ -65,7 +65,35 @@ typedef struct {
 } Digital_Button;
 
 typedef struct {
-  Digital_Button kbd[KEY_MAX];
+  f32 value;
+  b32 is_down;
+  b32 pressed;
+  b32 released;
+} Analog_Button;
+
+typedef union {
+  struct { f32 x, y; };
+  Vector2 axis;
+} Stick;
+
+typedef struct {
+#if BUILD_DEBUG
+  Digital_Button *keys;
+#endif
+
+  Digital_Button confirm;
+  Digital_Button pause;
+  Digital_Button quit;
+
+  Digital_Button up;
+  Digital_Button down;
+  Digital_Button left;
+  Digital_Button right;
+
+  Digital_Button shoot;
+  Digital_Button bomb;
+
+  Stick direction;
 } Input;
 
 typedef struct {
@@ -79,29 +107,16 @@ typedef struct {
 } Clock;
 
 typedef struct {
+  b32 is_initialized;
   uxx size;
   u8 *ptr; // NOTE: REQUIRED to be cleared at startup
 } Memory;
 
-typedef struct {
-  u32 render_w;
-  u32 render_h;
-  u32 window_w;
-  u32 window_h;
-  String8 window_title;
-} Krueger_Config;
-
-#define KRUEGER_CONFIG_PROC(x) void x(Krueger_Config *config)
-#define KRUEGER_INIT_PROC(x) void x(Thread_Context *thread_context, Memory *memory, Krueger_Config config)
 #define KRUEGER_FRAME_PROC(x) b32 x(Thread_Context *thread_context, Memory *memory, Image *back_buffer, Input *input, Clock *time)
 
-typedef KRUEGER_CONFIG_PROC(krueger_config_proc);
-typedef KRUEGER_INIT_PROC(krueger_init_proc);
 typedef KRUEGER_FRAME_PROC(krueger_frame_proc);
 
 #define KRUEGER_PROC_LIST \
-  PROC(krueger_config) \
-  PROC(krueger_init) \
   PROC(krueger_frame)
 
 #endif // KRUEGER_SHARED_H

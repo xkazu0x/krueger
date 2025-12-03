@@ -41,11 +41,11 @@ global Arena *win32_event_arena;
 // NOTE: Windows Functions
 
 internal Platform_Handle  win32_handle_from_window(Win32_Window *window);
-internal Win32_Window *   win32_window_from_handle(Platform_Handle handle);
-internal Win32_Window *   win32_window_from_hwnd(HWND hwnd);
-internal Win32_Window *   win32_window_alloc(void);
+internal Win32_Window     *win32_window_from_handle(Platform_Handle handle);
+internal Win32_Window     *win32_window_from_hwnd(HWND hwnd);
+internal Win32_Window     *win32_window_alloc(void);
 internal void             win32_window_release(Win32_Window *window);
-internal Platform_Event * win32_push_event(Platform_Event_Type type, Win32_Window *window);
+internal Platform_Event   *win32_push_event(Platform_Event_Type type, Win32_Window *window);
 internal LRESULT CALLBACK win32_window_proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam);
 
 #endif // KRUEGER_PLATFORM_GRAPHICS_WIN32_H

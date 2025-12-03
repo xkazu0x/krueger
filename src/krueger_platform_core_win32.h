@@ -6,6 +6,7 @@
 
 #define NO_MIN_MAX
 #include <windows.h>
+
 #pragma comment(lib, "winmm")
 
 //////////////
