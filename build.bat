@@ -44,7 +44,8 @@ if not exist build mkdir build
 
 pushd build
 REM %compile% ..\src\test_audio_main.c %link% %out% krueger.exe || exit /b 1
-%compile% %shared% ..\src\krueger.c      %link% %out% libkrueger.dll || exit /b 1
-%compile%          ..\src\krueger_main.c %link% %out% krueger.exe || exit /b 1
-if "%run%"=="1" call krueger.exe
+REM %compile% ..\src\test_sound_main.c %link% %out% krueger.exe || exit /b 1
+%compile% %shared% ..\src\starfighter.c      %link% %out% libstarfighter.dll || exit /b 1
+%compile%          ..\src\starfighter_main.c %link% %out% starfighter.exe || exit /b 1
+if "%run%"=="1" call starfighter.exe
 popd

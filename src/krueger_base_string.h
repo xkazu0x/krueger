@@ -21,7 +21,7 @@ struct String8_List {
   String8_Node *first;
   String8_Node *last;
   u32 count;
-  uxx total_size;
+  uxx size;
 };
 
 //////////////////////////
@@ -45,8 +45,8 @@ internal uxx cstr_encode(char *cstr);
 ////////////////////////////
 // NOTE: String Constructors
 
-#define str8_lit(str) make_str8((u8 *)(str), sizeof(str) - 1)
-internal String8 make_str8(u8 *str, uxx len);
+#define str8_lit(str) str8_make((u8 *)(str), sizeof(str) - 1)
+internal String8 str8_make(u8 *str, uxx len);
 internal String8 str8_range(u8 *first, u8 *last);
 internal String8 str8_cstr(char *cstr);
 
@@ -65,6 +65,8 @@ internal uxx str8_find_last(String8 string, u8 c);
 internal String8 str8_substr(String8 string, uxx min, uxx max);
 internal String8 str8_skip(String8 string, uxx amt);
 internal String8 str8_chop(String8 string, uxx amt);
+internal String8 str8_prefix(String8 string, uxx size);
+internal String8 str8_postfix(String8 string, uxx size);
 
 ////////////////////////////////////
 // NOTE: String Formatting & Copying
@@ -81,8 +83,9 @@ internal String8 str8_fmt(Arena *arena, char *fmt, ...);
 ////////////////////
 // NOTE: String List
 
-internal String8_Node *str8_list_push_node(Arena *arena, String8_List *list);
-internal String8_Node *str8_list_push_node_and_set_string(Arena *arena, String8_List *list, String8 string);
+internal String8_Node *str8_list_push_node(String8_List *list, String8_Node *node);
+internal String8_Node *str8_list_push_node_and_set_string(String8_List *list, String8_Node *node, String8 string);
+internal String8_Node *str8_list_push(Arena *arena, String8_List *list, String8 string);
 internal String8_Node *str8_list_push_copy(Arena *arena, String8_List *list, String8 string);
 internal String8_Node *str8_list_push_fmt(Arena *arena, String8_List *list, char *fmt, ...);
 internal String8 str8_list_join(Arena *arena, String8_List *list);

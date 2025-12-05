@@ -1,5 +1,5 @@
-#ifndef KRUEGER_SHARED_H
-#define KRUEGER_SHARED_H
+#ifndef STARFIGHTER_H
+#define STARFIGHTER_H
 
 typedef struct {
   u32 width;
@@ -108,15 +108,15 @@ typedef struct {
 
 typedef struct {
   b32 is_initialized;
+  String8 res_path;
   uxx size;
   u8 *ptr; // NOTE: REQUIRED to be cleared at startup
 } Memory;
 
-#define KRUEGER_FRAME_PROC(x) b32 x(Thread_Context *thread_context, Memory *memory, Image *back_buffer, Input *input, Clock *time)
+#define GAME_FRAME_PROC(x) b32 x(Thread_Context *thread_context, Memory *memory, Image *back_buffer, Input *input, Clock *time)
+typedef GAME_FRAME_PROC(frame_proc);
 
-typedef KRUEGER_FRAME_PROC(krueger_frame_proc);
-
-#define KRUEGER_PROC_LIST \
-  PROC(krueger_frame)
+#define GAME_PROC_LIST \
+  GAME_PROC(frame)
 
 #endif // KRUEGER_SHARED_H

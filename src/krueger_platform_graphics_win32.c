@@ -39,11 +39,9 @@ win32_window_alloc(void) {
     result = push_array(win32_graphics_state->arena, Win32_Window, 1);
   }
   mem_zero_struct(result);
-  if (result) {
-    dll_push_back(win32_graphics_state->first_window,
-                  win32_graphics_state->last_window,
-                  result);
-  }
+  dll_push_back(win32_graphics_state->first_window,
+                win32_graphics_state->last_window,
+                result);
   result->last_placement.length = sizeof(WINDOWPLACEMENT);
   return(result);
 }

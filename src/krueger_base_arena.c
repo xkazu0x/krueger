@@ -3,11 +3,7 @@
 
 internal Arena *
 _arena_alloc(Arena_Params *params) {
-  assert(params->res_size >= arena_default_cmt_size);
-  assert(params->cmt_size >= arena_default_cmt_size);
-
   uxx res_size = params->res_size;
-  uxx cmt_size = params->cmt_size;
 
   void *base = params->base;
   if (!base) {
@@ -17,8 +13,8 @@ _arena_alloc(Arena_Params *params) {
 
   Arena *result = (Arena *)base;
   result->res_size = res_size;
-  result->cmt_size = cmt_size;
-  result->base = base;
+  result->cmt_size = 0;
+  result->base = (u8 *)(result + 1);
 
   return(result);
 }

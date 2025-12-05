@@ -3,7 +3,6 @@
 
 typedef struct {
   uxx res_size;
-  uxx cmt_size;
   void *base;
 } Arena_Params;
 
@@ -19,11 +18,9 @@ typedef struct {
 } Temp;
 
 global uxx arena_default_res_size = MB(64);
-global uxx arena_default_cmt_size = sizeof(Arena);
 
 #define arena_alloc(...) _arena_alloc(&(Arena_Params){ \
   .res_size = arena_default_res_size, \
-  .cmt_size = arena_default_cmt_size, \
   __VA_ARGS__ \
 })
 internal Arena *_arena_alloc(Arena_Params *params);

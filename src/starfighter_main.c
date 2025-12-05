@@ -3,7 +3,7 @@
 
 #include "krueger_base.h"
 #include "krueger_platform.h"
-#include "krueger_shared.h"
+#include "starfighter.h"
 
 #include "krueger_base.c"
 #include "krueger_platform.c"
@@ -29,22 +29,21 @@ global xinput_set_state_proc *xinput_set_state = xinput_set_state_stub;
 
 typedef struct {
   Platform_Handle h;
-  #define PROC(x) x##_proc *x;
-  KRUEGER_PROC_LIST
-  #undef PROC
-} Library;
+  #define GAME_PROC(x) x##_proc *x;
+  GAME_PROC_LIST
+  #undef GAME_PROC
+} Game_Library;
 
-internal Library
-libkrueger_load(String8 dst_path, String8 src_path) {
-  Library lib = {0};
+internal Game_Library
+game_library_open(String8 dst_path, String8 src_path) {
+  Game_Library lib = {0};
   if (platform_copy_file_path(dst_path, src_path)) {
     lib.h = platform_library_open(dst_path);
     if (!platform_handle_is_null(lib.h)) {
-      #define PROC(x) \
-        lib.x = (x##_proc *)platform_library_load_proc(lib.h, #x); \
-        if (!(lib.x)) log_error("%s: failed to load proc: [%s]", __func__, #x);
-      KRUEGER_PROC_LIST
-      #undef PROC
+      #define GAME_PROC(x) \
+        lib.x = (x##_proc *)platform_library_load_proc(lib.h, #x);
+      GAME_PROC_LIST
+      #undef GAME_PROC
     } else {
       log_error("%s: failed to open library: [%s]", __func__, dst_path.str);
     }
@@ -55,18 +54,34 @@ libkrueger_load(String8 dst_path, String8 src_path) {
 }
 
 internal void
-libkrueger_unload(Library lib) {
+game_library_close(Game_Library lib) {
   if (!platform_handle_is_null(lib.h)) {
     platform_library_close(lib.h);
   }
 }
 
 internal void
-process_digital_button(Digital_Button *b, b32 is_down) {
-  b32 was_down = b->is_down;
-  b->pressed = !was_down && is_down; 
-  b->released = was_down && !is_down;
-  b->is_down = is_down;
+process_digital_button(Digital_Button *button, b32 is_down) {
+  b32 was_down = button->is_down;
+  button->pressed = !was_down && is_down; 
+  button->released = was_down && !is_down;
+  button->is_down = is_down;
+}
+
+internal void
+process_analog_button(Analog_Button *button, f32 threshold, f32 value) {
+  b32 was_down = button->is_down;
+  button->is_down = (value >= threshold);
+  button->pressed = !was_down && button->is_down;
+  button->released = was_down && !button->is_down;
+}
+
+internal void
+process_stick(Stick *stick, f32 threshold, f32 x, f32 y) {
+  if (abs_t(f32, x) <= threshold) x = 0.0f;
+  if (abs_t(f32, y) <= threshold) y = 0.0f;
+  stick->x = x;
+  stick->y = y;
 }
 
 internal f32
@@ -132,16 +147,15 @@ global Gamepad gamepads[GAMEPAD_MAX];
 
 internal void
 platform_gamepad_init(void) {
-  String8 xinput_versions[3];
-  xinput_versions[0] = str8_lit("xinput1_4.dll");
-  xinput_versions[1] = str8_lit("xinput1_3.dll");
-  xinput_versions[2] = str8_lit("xinput9_1_0.dll");
-
-  for (u32 string_index = 0;
-       string_index < array_count(xinput_versions);
-       ++string_index) {
-    String8 string = xinput_versions[string_index];
-    Platform_Handle h = platform_library_open(string);
+  String8 libs[3];
+  libs[0] = str8_lit("xinput1_4.dll");
+  libs[1] = str8_lit("xinput1_3.dll");
+  libs[2] = str8_lit("xinput9_1_0.dll");
+  for (u32 lib_index = 0;
+       lib_index < array_count(libs);
+       ++lib_index) {
+    String8 lib_name = libs[lib_index];
+    Platform_Handle h = platform_library_open(lib_name);
     if (!platform_handle_is_null(h)) {
       xinput_get_state = (xinput_get_state_proc *)
         platform_library_load_proc(h, "XInputGetState");
@@ -181,55 +195,49 @@ platform_gamepad_update(void) {
       process_digital_button(&pad->b, (xpad->wButtons & XINPUT_GAMEPAD_B) != 0);
       process_digital_button(&pad->x, (xpad->wButtons & XINPUT_GAMEPAD_X) != 0);
       process_digital_button(&pad->y, (xpad->wButtons & XINPUT_GAMEPAD_Y) != 0);
-
+     
       {
         f32 threshold = XINPUT_GAMEPAD_TRIGGER_THRESHOLD/255.0f;
-        Analog_Button *button = &pad->left_trigger;
-        f32 value = xpad->bLeftTrigger/255.0f;
-        b32 was_down = button->is_down;
-        button->is_down = (value >= threshold);
-        button->pressed = !was_down && button->is_down;
-        button->released = was_down && !button->is_down;
+        process_analog_button(&pad->left_trigger, threshold, xpad->bLeftTrigger/255.0f);
+        process_analog_button(&pad->right_trigger, threshold, xpad->bRightTrigger/255.0f);
       }
-
-      {
-        f32 threshold = XINPUT_GAMEPAD_TRIGGER_THRESHOLD/255.0f;
-        Analog_Button *button = &pad->right_trigger;
-        f32 value = xpad->bRightTrigger/255.0f;
-        b32 was_down = button->is_down;
-        button->is_down = (value >= threshold);
-        button->pressed = !was_down && button->is_down;
-        button->released = was_down && !button->is_down;
-      }
-
-      if (pad->left_trigger.pressed) log_info("[LT] pressed");
-      if (pad->right_trigger.pressed) log_info("[RT] pressed");
 
 #define NORMALIZE(x) (2.0f*((x + 32768)/65535.0f) - 1.0f)
       {
         f32 threshold = XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE/32767.0f;
         f32 x = NORMALIZE(xpad->sThumbLX);
         f32 y = NORMALIZE(xpad->sThumbLY);
-        if (abs_t(f32, x) <= threshold/2.0f) x = 0.0f;
-        if (abs_t(f32, y) <= threshold/2.0f) y = 0.0f;
-        pad->left_stick.x = x;
-        pad->left_stick.y = y;
+        process_stick(&pad->left_stick, threshold, x, y);
       }
-
       {
         f32 threshold = XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE/32767.0f;
         f32 x = NORMALIZE(xpad->sThumbRX);
         f32 y = NORMALIZE(xpad->sThumbRY);
-        if (abs_t(f32, x) <= threshold) x = 0.0f;
-        if (abs_t(f32, y) <= threshold) y = 0.0f;
-        pad->right_stick.x = x;
-        pad->right_stick.y = y;
+        process_stick(&pad->left_stick, threshold, x, y);
       }
-      #undef NORMALIZE
+#undef NORMALIZE
     } else {
       break;
     }
   }
+}
+
+internal String8
+str8_chop_last_slash(String8 string) {
+  if (string.len > 0) {
+    u8 *ptr = string.str + string.len - 1;
+    for (; ptr >= string.str; ptr -= 1) {
+      if (*ptr == '/' || *ptr == '\\') {
+        break;
+      }
+    }
+    if (ptr >= string.str) {
+      string.len = ptr - string.str;
+    } else {
+      string.len = 0;
+    }
+  }
+  return(string);
 }
 
 internal void
@@ -239,23 +247,20 @@ entry_point(int argc, char **argv) {
   Arena *arena = arena_alloc();
   String8 exec_file_path = platform_get_exec_file_path(arena);
 
-#if PLATFORM_WINDOWS
+  String8 build_path = str8_chop_last_slash(exec_file_path);
+  String8 root_path = str8_chop_last_slash(build_path);
+  String8 res_path = str8_cat(arena, root_path, str8_lit("\\res\\"));
+
   uxx last_slash_index = str8_find_last(exec_file_path, '\\');
-  String8 src_lib_name = str8_lit("libkrueger.dll");
-  String8 dst_lib_name = str8_lit("libkruegerx.dll");
-#elif PLATFORM_LINUX
-  uxx last_slash_index = str8_find_last(exec_file_path, '/');
-  String8 src_lib_name = str8_lit("libkrueger.so");
-  String8 dst_lib_name = str8_lit("libkruegerx.so");
-#endif
+  String8 src_lib_name = str8_lit("libstarfighter.dll");
+  String8 dst_lib_name = str8_lit("libstarfighterx.dll");
 
   String8 exec_path = str8_substr(exec_file_path, 0, last_slash_index + 1);
   String8 src_lib_path = str8_cat(arena, exec_path, src_lib_name);
   String8 dst_lib_path = str8_cat(arena, exec_path, dst_lib_name);
 
-  Library lib = libkrueger_load(dst_lib_path, src_lib_path);
-  if (!platform_handle_is_null(lib.h)) {
-
+  Game_Library game = game_library_open(dst_lib_path, src_lib_path);
+  if (!platform_handle_is_null(game.h)) {
     u32 scale = 5;
     u32 render_w = 128;
     u32 render_h = 128;
@@ -275,6 +280,7 @@ entry_point(int argc, char **argv) {
 
     Thread_Context *thread_context = thread_context_selected();
     Memory memory = memory_alloc(GB(1));
+    memory.res_path = res_path;
 
     platform_window_toggle_fullscreen(window);
     platform_window_show(window);
@@ -303,8 +309,8 @@ entry_point(int argc, char **argv) {
 
 #if BUILD_DEBUG
       if (keys[KEY_R].pressed) {
-        libkrueger_unload(lib);
-        lib = libkrueger_load(dst_lib_path, src_lib_path);
+        game_library_close(game);
+        game = game_library_open(dst_lib_path, src_lib_path);
       }
 #endif
 
@@ -324,8 +330,8 @@ entry_point(int argc, char **argv) {
       input.direction = pad->left_stick;
 
       if (keys[KEY_F11].pressed) platform_window_toggle_fullscreen(window);
-      if (lib.krueger_frame) {
-        if (lib.krueger_frame(thread_context, &memory, &back_buffer, &input, &time)) {
+      if (game.frame) {
+        if (game.frame(thread_context, &memory, &back_buffer, &input, &time)) {
           break;
         }
       }
@@ -335,12 +341,12 @@ entry_point(int argc, char **argv) {
       time._dt_us = time_end - time_start;
       time._dt_ms = time._dt_us/thousand(1.0f);
       time_start = time_end;
-     
+
       s32 width = back_buffer.width;
       s32 height = back_buffer.height;
       u32 *pixels = back_buffer.pixels;
       platform_window_blit(window, pixels, width, height);
-      
+
       for (u32 key = 0; key < KEY_MAX; ++key) {
         keys[key].pressed = false;
         keys[key].released = false;
@@ -350,6 +356,6 @@ entry_point(int argc, char **argv) {
     }
 
     platform_window_close(window);
-    libkrueger_unload(lib);
+    game_library_close(game);
   }
 }

@@ -7,8 +7,139 @@
 #include "krueger_base.c"
 #include "krueger_platform.c"
 
+#include <mmeapi.h>
 #include <dsound.h>
 #pragma comment(lib, "dsound")
+
+enum {
+  WAVE_CHUNK_RIFF = (((u32)('R')<<0)|((u32)('I')<<8)|((u32)('F')<<16)|((u32)('F')<<24)),
+  WAVE_CHUNK_WAVE = (((u32)('W')<<0)|((u32)('A')<<8)|((u32)('V')<<16)|((u32)('E')<<24)),
+  WAVE_CHUNK_FMT  = (((u32)('f')<<0)|((u32)('m')<<8)|((u32)('t')<<16)|((u32)(' ')<<24)),
+  WAVE_CHUNK_DATA = (((u32)('d')<<0)|((u32)('a')<<8)|((u32)('t')<<16)|((u32)('a')<<24)),
+};
+
+#pragma pack(push, 1)
+typedef struct {
+  u32 riff_id;
+  u32 size;
+  u32 wave_id;
+} Wave_Header;
+
+typedef struct {
+  u32 id;
+  u32 size;
+} Wave_Chunk;
+
+typedef struct {
+  u16 audio_format;
+  u16 num_channels;
+  u32 sample_rate;
+  u32 byte_rate;
+  u16 block_align;
+  u16 bits_per_sample;
+} Wave_Format;
+#pragma pack(pop)
+
+typedef struct {
+  u8 *at;
+  u8 *stop;
+} Riff_Iterator;
+
+internal Riff_Iterator
+riff_parse_chunk_at(void *at, void *stop) {
+  Riff_Iterator result = {
+    .at = (u8 *)at,
+    .stop = (u8 *)stop,
+  };
+  return(result);
+}
+
+internal Riff_Iterator
+riff_next_chunk(Riff_Iterator iter) {
+  Wave_Chunk *chunk = (Wave_Chunk *)iter.at;
+  u32 size = (chunk->size + 1) & ~1;
+  iter.at += sizeof(Wave_Chunk) + size;
+  return(iter);
+}
+
+internal b32
+riff_is_valid(Riff_Iterator iter) {
+  b32 result = (iter.at < iter.stop);
+  return(result);
+}
+
+internal u32
+riff_get_chunk_type(Riff_Iterator iter) {
+  Wave_Chunk *chunk = (Wave_Chunk *)iter.at;
+  u32 result = chunk->id;
+  return(result);
+}
+
+internal u32
+riff_get_chunk_data_size(Riff_Iterator iter) {
+  Wave_Chunk *chunk = (Wave_Chunk *)iter.at;
+  u32 result = chunk->size;
+  return(result);
+}
+
+internal void *
+riff_get_chunk_data(Riff_Iterator iter) {
+  void *result = iter.at + sizeof(Wave_Chunk);
+  return(result);
+}
+
+typedef struct {
+  u32 size;
+  void *data;
+} Audio;
+
+internal Audio
+load_wav(Arena *arena, String8 file_path) {
+  Audio result = {0};
+  Temp scratch = scratch_begin(&arena, 1);
+  void *file_data = platform_read_entire_file(scratch.arena, file_path);
+  if (file_data) {
+    Wave_Header *header = (Wave_Header *)file_data;
+    assert(header->riff_id == WAVE_CHUNK_RIFF);
+    assert(header->wave_id == WAVE_CHUNK_WAVE);
+
+    u8 *at = (u8 *)(header + 1);
+    u8 *stop = (u8 *)(at + header->size - 4);
+  
+    u32 audio_size = 0;
+    void *audio_data = 0;
+
+    for (Riff_Iterator iter = riff_parse_chunk_at(at, stop);
+         riff_is_valid(iter);
+         iter = riff_next_chunk(iter)) {
+      switch (riff_get_chunk_type(iter)) {
+        case WAVE_CHUNK_FMT: {
+          Wave_Format *format = riff_get_chunk_data(iter);
+          assert(format->audio_format == 1); // NOTE: PCM
+          assert(format->num_channels == 2);
+          assert(format->sample_rate == 48000);
+          assert(format->block_align == (format->num_channels*2));
+          assert(format->bits_per_sample == 16);
+        } break;
+        case WAVE_CHUNK_DATA: {
+          audio_size = riff_get_chunk_data_size(iter);
+          audio_data = riff_get_chunk_data(iter);
+        } break;
+      }
+    }
+
+    assert(audio_size);
+    assert(audio_data);
+    
+    result.size = audio_size;
+    result.data = arena_push(arena, result.size);
+    mem_copy(result.data, audio_data, audio_size);
+  } else {
+    log_error("%s: failed to read file: %s", __func__, file_path);
+  }
+  scratch_end(scratch);
+  return(result);
+}
 
 typedef struct {
   u32 sample_rate;
@@ -222,47 +353,6 @@ platform_audio_device_close(Platform_Handle handle) {
   stack_push(win32_audio_state->free_device, device);
 }
 
-#pragma pack(push, 1)
-typedef struct {
-  u32 chunk_id;
-  u32 chunk_size;
-  u32 format;
-
-  u32 subchunk1_id;
-  u32 subchunk1_size;
-  u16 audio_format;
-  u16 num_channels;
-  u32 sample_rate;
-  u32 byte_rate;
-  u16 block_align;
-  u16 bits_per_sample;
-
-  u32 subchunk2_id;
-  u32 subchunk2_size;
-  s16 *data;
-} Wave_Header;
-#pragma pack(pop)
-
-internal void
-load_wav(Arena *arena, String8 file_path) {
-  Temp scratch = scratch_begin(&arena, 1);
-  void *file_data = platform_read_entire_file(scratch.arena, file_path);
-  if (file_data) {
-    Wave_Header *header = (Wave_Header *)file_data;
-    if (header->chunk_id == cstr_encode("RIFF")) {
-      if (header->format == cstr_encode("WAVE")) {
-        if (header->subchunk1_id == cstr_encode("fmt ")) {
-          if (header->subchunk2_id == cstr_encode("data")) {
-          }
-        }
-      }
-    }
-  } else {
-    log_error("%s: failed to read file: %s", __func__, file_path);
-  }
-  scratch_end(scratch);
-}
-
 internal void
 output_sound(s16 *samples, u32 sample_count, u32 sample_rate) {
   local f32 t_sine = 0.0f;
@@ -283,11 +373,27 @@ output_sound(s16 *samples, u32 sample_count, u32 sample_rate) {
 }
 
 internal void
+output_music(s16 *samples, u32 sample_count, Audio *music) {
+  local u32 music_index = 0;
+
+  u32 music_sample_count = music->size/2;
+  s16 *src = (s16 *)music->data;
+
+  s16 *dst = samples;
+  for (u32 sample_index = 0;
+       sample_index < sample_count;
+       ++sample_index) {
+    *dst++ = src[music_index++ % music_sample_count];
+    *dst++ = src[music_index++ % music_sample_count];
+  }
+}
+
+internal void
 entry_point(int argc, char **argv) {
   platform_audio_init();
 
   Arena *arena = arena_alloc();
-  load_wav(arena, str8_lit("../res/test.wav"));
+  Audio audio = load_wav(arena, str8_lit("../res/fireflies.wav"));
   
   u32 window_w = 800;
   u32 window_h = 600;
@@ -321,7 +427,7 @@ entry_point(int argc, char **argv) {
   u32 bytes_per_sample = audio_format.block_align;
   u32 secondary_buffer_size = size_from_audio_format(audio_format);
 
-  u32 safety_bytes = (samples_per_second*bytes_per_sample/(u32)refresh_rate)/2;
+  u32 safety_bytes = (samples_per_second*bytes_per_sample/(u32)refresh_rate);
 
   s16 *samples = platform_reserve(secondary_buffer_size);
   platform_commit(samples, secondary_buffer_size);
@@ -435,7 +541,8 @@ entry_point(int argc, char **argv) {
       }
 
       u32 sample_count = bytes_to_write/bytes_per_sample;
-      output_sound(samples, sample_count, samples_per_second);
+      // output_sound(samples, sample_count, samples_per_second);
+      output_music(samples, sample_count, &audio);
 
 #if 0
       DWORD play_cursor = 0;
@@ -541,7 +648,7 @@ entry_point(int argc, char **argv) {
     time_start = time_end;
     cycles_start = cycles_end;
 
-    platform_window_display_buffer(window, image.pixels, image.width, image.height);
+    platform_window_blit(window, image.pixels, image.width, image.height);
 
     flip_time = platform_get_time_us();
   }

@@ -13,8 +13,8 @@
 
 #if PLATFORM_WINDOWS
 #include "krueger_platform_core_win32.h"
-#elif PLATFORM_LINUX
-#include "krueger_platform_core_linux.h"
+// #elif PLATFORM_LINUX
+// #include "krueger_platform_core_linux.h"
 #else
 #error platform core not implemented for the current platform.
 #endif
