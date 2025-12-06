@@ -39,10 +39,10 @@ image_release(Image *image) {
 }
 
 internal Image
-image_scissor(Image image, u32 x, u32 y, u32 width, u32 height) {
+image_scissor(Image image, u32 x, u32 y, u32 w, u32 h) {
   Image result = {
-    .width = width,
-    .height = height,
+    .width = w,
+    .height = h,
     .pitch = image.pitch,
     .pixels = image.pixels + (y*image.pitch + x),
   };
