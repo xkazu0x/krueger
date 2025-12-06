@@ -11,8 +11,6 @@
 #include "krueger_random.c"
 
 // TODO:
-// better machine state
-// particle emitter
 // pickups
 // more enemies/levels
 // asset manager:
@@ -220,8 +218,8 @@ load_bmp(Arena *arena, String8 file_path) {
   return(result);
 }
 
-////////////////
-// NOTE: Structs
+/////////////////////
+// NOTE: Game Structs
 
 typedef struct {
   u32 tile_w;
@@ -237,12 +235,7 @@ typedef struct {
   Tilemap tilemap;
 } Font;
 
-typedef enum {
-  PARTICLE_STAR,
-} Particle_Type;
-
 typedef struct {
-  Particle_Type type;
   u32 color;
   f32 life;
   f32 dlife;
@@ -258,6 +251,26 @@ typedef struct {
   f32 fric;
   f32 time;
 } Particle;
+
+typedef struct {
+  u32 color;
+  f32 life;
+  f32 dlife;
+  f32 radius;
+  f32 dradius;
+  f32 speed;
+  Vector2 position;
+  Vector2 dposition;
+  Vector2 ddposition;
+} Particle0;
+
+typedef struct {
+  f32 emission_time;
+  f32 emission_countdown;
+  u32 particles_per_emission;
+  u32 next_particle;
+  Particle0 particles[256];
+} Particle_Emitter;
 
 typedef enum {
   ENEMY_NULL,
@@ -342,14 +355,8 @@ struct Entity {
   Vector2 flame_sprite_offset;
   f32 flame_sprite_frame_time;
 
-  f32 particle_emission_cooldown;
-  f32 particle_emission_time;
-  u32 next_particle;
-  Particle particles[256];
+  Particle_Emitter emitter;
 };
-
-///////////////////////
-// NOTE: Entity Manager
 
 typedef struct {
   Entity *first;
@@ -412,33 +419,12 @@ remove_all_entities(Entity_Manager *manager) {
   }
 }
 
-///////////////////
-// NOTE: Game State
-
 typedef enum {
   SCREEN_MENU,
   SCREEN_GAME,
   SCREEN_OVER,
   SCREEN_WIN,
 } Screen_State;
-
-typedef struct {
-  Vector2 position;
-  Vector2 dposition;
-  Vector2 ddposition;
-  f32 speed;
-  f32 radius;
-  f32 dradius;
-  u32 color;
-} Particle0;
-
-typedef struct {
-  f32 emission_time;
-  f32 emission_countdown;
-  u32 particles_per_emission;
-  u32 next_particle;
-  Particle0 particles[256];
-} Particle_Emitter;
 
 typedef struct {
   Random_Series general_entropy;
@@ -476,7 +462,6 @@ typedef struct {
   Entity *player;
   Entity_Manager *enemy_manager;
   Entity_Manager *bullet_manager;
-  // Entity_Manager *pickup_manager;
 
   // NOTE: Particle Manager
   Particle star_particles[32];
@@ -486,8 +471,6 @@ typedef struct {
 
   u32 next_flash_particle;
   Particle flash_particles[4];
-
-  Particle_Emitter emitter;
 
   // NOTE: Wave System
   // TODO: clean this up
@@ -502,8 +485,8 @@ typedef struct {
   u32 wave_enemy_count;
   u32 wave_remaining_enemy_count;
 
-  // NOTE: Misc
-  b32 is_cheating;
+  // NOTE: Misc.
+  b32 godmode;
   b32 draw_debug_info;
   b32 draw_time_info;
   String8_List debug_string_list;
@@ -766,10 +749,10 @@ draw_texture2(Image dst, Image src, Vector2 position) {
   draw_texture_f32(dst, src, position.x, position.y);
 }
 
-#define PIXEL_SHADER_PROC(x) u32 x(u32 dst_color, u32 src_color, void *user_data)
-typedef PIXEL_SHADER_PROC(pixel_shader_proc);
+#define DRAW_CALLBACK(x) u32 x(u32 dst_color, u32 src_color, void *user_data)
+typedef DRAW_CALLBACK(Draw_Callback);
 
-PIXEL_SHADER_PROC(shader_color_blend) {
+DRAW_CALLBACK(color_blend_callback) {
   u32 user_color = *(u32 *)user_data;
   f32 rt = mask_red(user_color)/255.0f;
   f32 gt = mask_green(user_color)/255.0f;
@@ -781,14 +764,14 @@ PIXEL_SHADER_PROC(shader_color_blend) {
   return(result);
 }
 
-PIXEL_SHADER_PROC(shader_replace_color) {
+DRAW_CALLBACK(replace_color_callback) {
   u32 result = *(u32 *)user_data;
   return(result);
 }
 
 internal void
-draw_texture_shader_f32(Image dst, Image src, f32 x, f32 y,
-                        pixel_shader_proc *callback, void *user_data) {
+draw_texturex_f32(Image dst, Image src, f32 x, f32 y,
+                  Draw_Callback *callback, void *user_data) {
   s32 src_x = 0;
   s32 src_y = 0;
   s32 min_x = round_t(s32, x);
@@ -823,9 +806,9 @@ draw_texture_shader_f32(Image dst, Image src, f32 x, f32 y,
 }
 
 internal void
-draw_texture_shader2(Image dst, Image src, Vector2 position,
-                     pixel_shader_proc *callback, void *user_data) {
-  draw_texture_shader_f32(dst, src, position.x, position.y, callback, user_data);
+draw_texturex2(Image dst, Image src, Vector2 position,
+               Draw_Callback *callback, void *user_data) {
+  draw_texturex_f32(dst, src, position.x, position.y, callback, user_data);
 }
 
 internal Vector2
@@ -850,11 +833,11 @@ internal void
 draw_sprite_shader(Image draw_buffer, Tilemap sprites_tilemap,
                    u32 sprite_index, u32 sprite_w, u32 sprite_h,
                    Vector2 position, Vector2 align, Vector2 offset,
-                   pixel_shader_proc *shader, void *user_data) {
+                   Draw_Callback *shader, void *user_data) {
   Image sprite = tilemap_get_wide_tile(sprites_tilemap, sprite_index, sprite_w, sprite_h);
   position = align_position(sprite, position, align);
   position = vector2_add(position, offset);
-  draw_texture_shader2(draw_buffer, sprite, position, shader, user_data);
+  draw_texturex2(draw_buffer, sprite, position, shader, user_data);
 }
 
 internal void
@@ -879,7 +862,7 @@ draw_text(Image dst, Font font, String8 text,
     assert(font.chars.str[char_index] == c);
     Image sprite = tilemap_get_tile(font.tilemap, char_index);
     Vector2 position = make_vector2((f32)glyph_x, (f32)glyph_y);
-    draw_texture_shader2(dst, sprite, position, shader_color_blend, &color);
+    draw_texturex2(dst, sprite, position, color_blend_callback, &color);
     glyph_x += glyph_w;
   }
 }
@@ -907,7 +890,7 @@ draw_text2(Image dst, Font font, String8 text,
 // TODO: CLEAN UP
 
 internal void enemy_behave(Entity *entity, Game_State *state);
-internal void update_entity_flame(Entity *entity);
+internal void update_flame_animation(Entity *entity);
 internal void change_screen(Game_State *state, Screen_State screen);
 
 internal void
@@ -957,86 +940,261 @@ emit_flash(Game_State *state, u32 color) {
   particle->dlife = -1.0f;
 }
 
+//////////////////////
+// NOTE: Misc. Helpers
+
 internal void
-player_emit_flame_particles(Entity *entity, Game_State *state) {
-  entity->particle_emission_time += dt;
-  if (entity->particle_emission_time >= entity->particle_emission_cooldown) {
-    Particle *particle = entity->particles + entity->next_particle++;
-    if (entity->next_particle >= array_count(entity->particles)) {
-      entity->next_particle = 0;
+linear_move(Entity *entity) {
+  Vector2 velocity = vector2_mul(entity->velocity, entity->speed*dt);
+  entity->position = vector2_add(entity->position, velocity);
+}
+
+internal f32
+countdown(f32 *countdown) {
+  if (*countdown > 0.0f) *countdown -= dt;
+  if (*countdown < 0.0f) *countdown = 0.0f;
+  return(*countdown);
+}
+
+//////////////////////
+
+internal void
+simulate_flame_particles(Particle_Emitter *emitter) {
+  for (u32 particle_index = 0;
+       particle_index < array_count(emitter->particles);
+       ++particle_index) {
+    Particle0 *particle = emitter->particles + particle_index;
+    particle->life += particle->dlife*dt;
+    particle->radius += particle->dradius*dt;
+
+    Vector2 velocity = vector2_mul(particle->dposition, particle->speed*dt);
+    particle->position = vector2_add(particle->position, velocity);
+  }
+}
+
+internal void
+draw_flame_particles(Image draw_buffer, Particle_Emitter *emitter) {
+  for (u32 particle_index = 0;
+       particle_index < array_count(emitter->particles);
+       ++particle_index) {
+    Particle0 *particle = emitter->particles + particle_index;
+    draw_circle_fill2(draw_buffer, particle->position, particle->radius, particle->color);
+  }
+}
+
+internal void
+player_emit_flame_particles(Entity *player, Game_State *state) {
+  Particle_Emitter *emitter = &player->emitter;
+  if (countdown(&emitter->emission_countdown) <= 0.0f) {
+    Particle0 *particle = emitter->particles + emitter->next_particle++;
+    mem_zero_struct(particle);
+    if (emitter->next_particle >= array_count(emitter->particles)) {
+      emitter->next_particle = 0;
     }
 
     particle->color = CP_BLUE;
-
     particle->radius = 2.5f;
     particle->dradius = -9.0f;
-
     particle->speed = 50.0f;
-    particle->position = entity->position;
+
+    particle->position = player->position;
     particle->position.y += TILE_SIZE*0.7f;
-    particle->velocity = make_vector2(random_range(&state->general_entropy, -0.2f, 0.2f), 1.0f);
 
-    entity->particle_emission_time = 0.0f;
+    particle->dposition.x = random_range(&state->effects_entropy, -0.2f, 0.2f);
+    particle->dposition.y = 1.0f;
+
+    emitter->emission_countdown = emitter->emission_time;
   }
 }
 
 internal void
-player_update_and_draw_particles(Entity *entity, Image draw_buffer) {
-  for (u32 particle_index = 0;
-       particle_index < array_count(entity->particles);
-       ++particle_index) {
-    Particle *particle = entity->particles + particle_index;
-    particle->radius += particle->dradius*dt;
-
-    Vector2 velocity = vector2_mul(particle->velocity, particle->speed*dt);
-    particle->position = vector2_add(particle->position, velocity);
-
-    draw_circle_fill2(draw_buffer, particle->position,
-                      particle->radius, particle->color);
-  }
-}
-
-internal void
-enemy_emit_flame_particles(Entity *entity, Game_State *state) {
-  entity->particle_emission_time += dt;
-  if (entity->particle_emission_time >= entity->particle_emission_cooldown) {
-    Particle *particle = entity->particles + entity->next_particle++;
-    if (entity->next_particle >= array_count(entity->particles)) {
-      entity->next_particle = 0;
+enemy_emit_flame_particles(Entity *enemy, Game_State *state) {
+  Particle_Emitter *emitter = &enemy->emitter;
+  if (countdown(&emitter->emission_countdown) <= 0.0f) {
+    Particle0 *particle = emitter->particles + emitter->next_particle++;
+    mem_zero_struct(particle);
+    if (emitter->next_particle >= array_count(emitter->particles)) {
+      emitter->next_particle = 0;
     }
 
     particle->color = CP_RED;
-
-    particle->life = 10.0f;
-    particle->dlife = -30.0f;
-
     particle->radius = 2.5f;
     particle->dradius = -9.0f;
-
     particle->speed = 25.0f;
-    particle->dspeed = -150.0f;
 
-    particle->position = entity->position;
-    particle->position.y -= entity->sprite_h*TILE_SIZE*0.5f + 1.0f;
-    particle->velocity = make_vector2(random_range(&state->general_entropy, -0.2f, 0.2f), -1.0f);
+    particle->position = enemy->position;
+    particle->position.y -= enemy->sprite_h*TILE_SIZE*0.5f + 1.0f;
 
-    entity->particle_emission_time = 0.0f;
+    particle->dposition.x = random_range(&state->effects_entropy, -0.2f, 0.2f);
+    particle->dposition.y = -1.0f;
+
+    emitter->emission_countdown = emitter->emission_time;
   }
 }
 
 internal void
-enemy_update_and_draw_particles(Entity *entity, Image draw_buffer) {
-  for (u32 particle_index = 0;
-       particle_index < array_count(entity->particles);
-       ++particle_index) {
-    Particle *particle = entity->particles + particle_index;
-    particle->radius += particle->dradius*dt;
+simulate_player(Game_State *state, Input *input) {
+  Entity *player = state->player;
+  if (player->is_alive) {
+    player->velocity = make_vector2(0.0f, 0.0f);
+    if (input->direction.x || input->direction.y) {
+      input->direction.axis.y *= -1.0f;
+      player->velocity = input->direction.axis;
+    } else {
+      if (input->up.is_down)    player->velocity.y = -1.0f;
+      if (input->down.is_down)  player->velocity.y = 1.0f;
+      if (input->left.is_down)  player->velocity.x = -1.0f;
+      if (input->right.is_down) player->velocity.x = 1.0f;
+    }
 
-    Vector2 velocity = vector2_mul(particle->velocity, particle->speed*dt);
-    particle->position = vector2_add(particle->position, velocity);
+    if (abs_t(f32, player->velocity.x) == abs_t(f32, player->velocity.y)) {
+      player->velocity = vector2_mul(player->velocity, 0.707106781187f);
+    }
 
-    draw_circle_fill2(draw_buffer, particle->position,
-                      particle->radius, particle->color);
+    player->sprite_index = 1;
+    if (player->velocity.x < 0.0f) player->sprite_index = 0;
+    if (player->velocity.x > 0.0f) player->sprite_index = 2;
+
+    linear_move(player);
+
+    if (player->position.x < 0.0f) {
+      player->position.x = 0;
+    }
+    if (player->position.y < 0.0f) {
+      player->position.y = 0;
+    }
+    if (player->position.x > (f32)state->draw_buffer.width) {
+      player->position.x = (f32)state->draw_buffer.width;
+    }
+    if (player->position.y > (f32)state->draw_buffer.height) {
+      player->position.y = (f32)state->draw_buffer.height;
+    }
+
+    // NOTE: player fire bullets
+    countdown(&player->shoot_cooldown);
+    if (input->shoot.is_down) {
+      if (player->shoot_cooldown <= 0.0f) {
+        Entity *bullet = entity_alloc(state->bullet_manager);
+        bullet->is_alive = true;
+        bullet->is_player_friendly = true;
+        bullet->speed = 390.0f;
+        bullet->velocity = make_vector2(0.0f, -1.0f);
+        bullet->position = player->position;
+        bullet->position.x += (state->player_shoot_side++ % 2 == 0) ? 1.0f : -1.0f;
+        bullet->size = make_vector2(4.0f, 4.0f);
+        bullet->sprite_index = 4;
+        bullet->sprite_w = 1;
+        bullet->sprite_h = 1;
+        player->shoot_cooldown = player->shoot_time;
+        state->player_shoot_r = state->player_max_shoot_r;
+      }
+    }
+
+    // NOTE: player emit particles
+    countdown(&player->invencible_countdown);
+    if (player->invencible_countdown <= 0.0f) {
+      player_emit_flame_particles(player, state);
+    }
+
+    simulate_flame_particles(&state->player->emitter);
+    update_flame_animation(player);
+  }
+
+  // NOTE: player fire bomb
+  if (input->bomb.is_down &&
+      state->bomb_count > 0 &&
+      player->invencible_countdown <= 0.0f) {
+    if (!state->godmode) state->bomb_count -= 1;
+    player->invencible_countdown = player->invencible_time*0.7f;
+    state->shake_oscillation += 8.0f;
+    emit_flash(state, CP_ORANGE);
+    for (Entity *bullet = state->bullet_manager->list.first;
+         bullet != 0;
+         bullet = bullet->next) {
+      if (bullet->is_alive &&
+        !bullet->is_player_friendly) {
+        bullet->is_alive = false;
+        emit_explosion(state, bullet->position);
+      }
+    }
+  }
+}
+
+internal void
+simulate_enemies(Game_State *state) {
+  for (Entity *enemy = state->enemy_manager->list.first;
+       enemy != 0;
+       enemy = enemy->next) {
+    if (enemy->is_alive) {
+      countdown(&enemy->flash_countdown);
+      enemy_behave(enemy, state);
+
+      enemy_emit_flame_particles(enemy, state);
+      simulate_flame_particles(&enemy->emitter);
+      update_flame_animation(enemy);
+    }
+  }
+}
+
+internal void
+simulate_bullets(Game_State *state) {
+  for (Entity *bullet = state->bullet_manager->list.first;
+       bullet != 0;
+      bullet = bullet->next) {
+    if (bullet->is_alive) {
+      linear_move(bullet);
+
+      f32 half_size = TILE_SIZE*0.5f;
+
+      f32 x = bullet->position.x;
+      f32 y = bullet->position.y;
+
+      Vector2 min = make_vector2(0.0f, 0.0f);
+      Vector2 max = make_vector2((f32)state->draw_buffer.width,
+                                 (f32)state->draw_buffer.height);
+
+      if (((x + half_size) < min.x) || ((x - half_size) > max.x) ||
+        ((y + half_size) < min.y) || ((y - half_size) > max.y)) {
+        bullet->is_alive = false;
+      }
+    }
+  }
+}
+
+internal void
+draw_player(Image draw_buffer, Game_State *state) {
+  Entity *player = state->player;
+  if (player->is_alive) {
+    { // NOTE: draw player shoot effect
+      if (state->player_shoot_r > 0.0f) {
+        state->player_shoot_r += state->player_dshoot_r*dt;
+      }
+
+      Vector2 position = player->position;
+      f32 gap = 1.0f;
+      position.x += (state->player_shoot_side%2 == 0) ? -gap : gap;
+      position.y -= 3.0f;
+      draw_circle_fill2(draw_buffer, position, state->player_shoot_r, CP_WHITE);
+    }
+
+    draw_flame_particles(draw_buffer, &state->player->emitter);
+
+    Vector2 alignment = make_vector2(0.5f, 0.5f);
+
+    if (player->invencible_countdown <= 0.0f) {
+      draw_sprite(draw_buffer, state->sprites_tilemap,
+                  player->next_flame_sprite_frame, 1, 1,
+                  player->position, alignment, vec2(0.0f, 8.0f));
+      draw_sprite(draw_buffer, state->sprites_tilemap, 
+                  player->sprite_index, player->sprite_w, player->sprite_h,
+                  player->position, alignment, vec2(0.0f, 0.0f));
+    } else {
+      if (sin_f32(thousand(1.0f)*state->time) <= 0.0f) {
+        draw_sprite(draw_buffer, state->sprites_tilemap,
+                    player->sprite_index, player->sprite_w, player->sprite_h,
+                    player->position, alignment, vec2(0.0f, 0.0f));
+      }
+    }
   }
 }
 
@@ -1046,16 +1204,15 @@ draw_enemies(Image draw_buffer, Entity_Manager *manager, Tilemap tilemap) {
        enemy != 0;
        enemy = enemy->next) {
     if (enemy->is_alive) {
-      enemy_update_and_draw_particles(enemy, draw_buffer);
-
-      pixel_shader_proc *shader = 0;
+      Draw_Callback *callback = 0;
       u32 user_data = 0;
       
       if (enemy->flash_countdown > 0.0f) {
-        shader = shader_replace_color;
+        callback = replace_color_callback;
         user_data = CP_WHITE;
       }
 
+      draw_flame_particles(draw_buffer, &enemy->emitter);
       draw_sprite(draw_buffer, tilemap,
                   enemy->next_flame_sprite_frame, 1, 1,
                   enemy->position,
@@ -1064,7 +1221,7 @@ draw_enemies(Image draw_buffer, Entity_Manager *manager, Tilemap tilemap) {
       draw_sprite_shader(draw_buffer, tilemap,
                          enemy->sprite_index, enemy->sprite_w, enemy->sprite_h,
                          enemy->position, vec2(0.5f, 0.5f), vec2(0.0f, 0.0f),
-                         shader, &user_data);
+                         callback, &user_data);
     }
   }
 }
@@ -1078,8 +1235,39 @@ draw_bullets(Image draw_buffer, Entity_Manager *manager, Tilemap tilemap) {
   }
 }
 
-////////////////////////////
-// NOTE: Entity Manipulation
+internal b32
+hit_player(Game_State *state, Entity *entity, u32 damage) {
+  b32 result = false;
+  if (entity->is_alive &&
+      entity->invencible_countdown <= 0.0f) {
+    if (entity->hp > 0) {
+      emit_flash(state, CP_WHITE);
+      state->shake_oscillation += 4.0f;
+      if (!state->godmode) {
+        entity->hp -= damage;
+      }
+    }
+    if (entity->hp <= 0) {
+      mem_zero_struct(entity);
+      change_screen(state, SCREEN_OVER);
+    }
+    entity->invencible_countdown = entity->invencible_time;
+    result = true;
+  }
+  return(result);
+}
+
+internal void
+hit_enemy(Game_State *state, Entity *entity, u32 damage) {
+  entity->flash_countdown = entity->flash_time;
+  if (entity->hp > 0) entity->hp -= damage;
+  if (entity->hp <= 0) {
+    emit_explosion(state, entity->position);
+    state->shake_oscillation += 1.0f;
+    entity->is_alive = false;
+    state->wave_remaining_enemy_count -= 1;
+  }
+}
 
 internal b32
 entity_collide(Entity a, Entity b) {
@@ -1106,16 +1294,56 @@ entity_collide(Entity a, Entity b) {
 }
 
 internal void
-linear_move(Entity *entity) {
-  Vector2 velocity = vector2_mul(entity->velocity, entity->speed*dt);
-  entity->position = vector2_add(entity->position, velocity);
-}
+handle_collisions(Game_State *state) {
+  { // NOTE: player x enemy collision
+    Entity *player = state->player;
+    if (player->is_alive) {
+      for (Entity *enemy = state->enemy_manager->list.first;
+           enemy != 0;
+           enemy = enemy->next) {
+        if (enemy->is_alive) {
+          if (entity_collide(*enemy, *player)) {
+            if (hit_player(state, player, 1)) {
+              if (enemy->type != ENEMY_BOSS) {
+                hit_enemy(state, enemy, enemy->hp);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
 
-internal f32
-countdown(f32 *countdown) {
-  if (*countdown > 0.0f) *countdown -= dt;
-  if (*countdown < 0.0f) *countdown = 0.0f;
-  return(*countdown);
+  // NOTE: bullet x entity collision
+  for (Entity *bullet = state->bullet_manager->list.first;
+       bullet != 0;
+       bullet = bullet->next) {
+    if (bullet->is_alive) {
+      if (!bullet->is_player_friendly) {
+        // NOTE: enemy's bullet hits player
+        Entity *player = state->player;
+        if (player->is_alive) {
+          if (entity_collide(*bullet, *player)) {
+            if (hit_player(state, player, 1)) {
+              bullet->is_alive = false;
+            }
+          }
+        }
+      } else {
+        // NOTE: player's bullet hits enemy
+        for (Entity *enemy = state->enemy_manager->list.first;
+             enemy != 0;
+             enemy = enemy->next) {
+          if (enemy->is_alive) {
+            if (entity_collide(*bullet, *enemy)) {
+              hit_enemy(state, enemy, 1);
+              bullet->is_alive = false;
+            }
+          }
+        }
+      }
+    }
+  }
 }
 
 internal b32
@@ -1141,7 +1369,7 @@ keep_point_between_range(Vector2 *point, Vector2 min, Vector2 max) {
 }
 
 internal Entity *
-player_init(Game_State *state) {
+init_player(Game_State *state) {
   state->player_max_shoot_r = 5.0f;
   state->player_shoot_r = 0.0f;
   state->player_dshoot_r = -80.0f;
@@ -1175,32 +1403,12 @@ player_init(Game_State *state) {
   player->flame_sprite_offset = make_vector2(0.0f, 8.0f);
   player->flame_sprite_frame_time = 0.0f;
 
-  player->particle_emission_cooldown = 0.15f;
-  player->particle_emission_time = 0.0f;
+  player->emitter.emission_time = 0.15f;
+  player->emitter.emission_countdown = 0.0f;
+  player->emitter.particles_per_emission = 1;
+  mem_zero_array(player->emitter.particles);
 
   return(player);
-}
-
-internal b32
-hit_player(Game_State *state, Entity *entity, u32 damage) {
-  b32 result = false;
-  if (entity->is_alive &&
-      entity->invencible_countdown <= 0.0f) {
-    if (entity->hp > 0) {
-      emit_flash(state, CP_WHITE);
-      state->shake_oscillation += 4.0f;
-      if (!state->is_cheating) {
-        entity->hp -= damage;
-      }
-    }
-    if (entity->hp <= 0) {
-      mem_zero_struct(entity);
-      change_screen(state, SCREEN_OVER);
-    }
-    entity->invencible_countdown = entity->invencible_time;
-    result = true;
-  }
-  return(result);
 }
 
 internal Entity *
@@ -1290,25 +1498,15 @@ add_enemy(Game_State *state, Enemy_Type type) {
   enemy->flame_sprite_offset = make_vector2(0.0f, -8.0f);
   enemy->flame_sprite_frame_time = 0.0f;
 
-  enemy->particle_emission_cooldown = 0.15f;
-  enemy->particle_emission_time = 0.0f;
+  enemy->emitter.emission_time = 0.15f;
+  enemy->emitter.emission_countdown = 0.0f;
+  enemy->emitter.particles_per_emission = 1;
+  mem_zero_array(enemy->emitter.particles);
 
   state->wave_enemy_count += 1;
   state->wave_remaining_enemy_count += 1;
 
   return(enemy);
-}
-
-internal void
-hit_enemy(Game_State *state, Entity *entity, u32 damage) {
-  entity->flash_countdown = entity->flash_time;
-  if (entity->hp > 0) entity->hp -= damage;
-  if (entity->hp <= 0) {
-    emit_explosion(state, entity->position);
-    state->shake_oscillation += 1.0f;
-    entity->is_alive = false;
-    state->wave_remaining_enemy_count -= 1;
-  }
 }
 
 internal void
@@ -1614,9 +1812,8 @@ enemy_behave(Entity *entity, Game_State *state) {
   }
 }
 
-// TODO: TEMP
 internal void
-update_entity_flame(Entity *entity) {
+update_flame_animation(Entity *entity) {
   entity->flame_sprite_frame_time += dt;
   if (entity->flame_sprite_frame_time >= entity->flame_sprite_frame_frequency) {
     entity->next_flame_sprite_frame += 1;
@@ -1625,6 +1822,95 @@ update_entity_flame(Entity *entity) {
       entity->next_flame_sprite_frame = entity->flame_sprite_index;
     }
     entity->flame_sprite_frame_time = 0.0f;
+  }
+}
+
+internal void
+draw_game_ui(Image draw_buffer, Game_State *state) {
+  // NOTE: draw ui
+  s32 bw = draw_buffer.width;
+  s32 bh = draw_buffer.height;
+
+  if (state->wave_index != LAST_WAVE) {
+    { // NOTE: draw enemy count
+      Temp scratch = scratch_begin(0, 0);
+      String8 text = push_str8_fmt(scratch.arena, "%d/%d",
+                                   state->wave_remaining_enemy_count,
+                                   state->wave_enemy_count);
+      Vector2 position = make_vector2(bw/2.0f, 1.0f);
+      draw_text2(draw_buffer, state->font, text, position, vec2(0.5f, 0.0f), CP_RED);
+      scratch_end(scratch);
+    }
+  }
+
+  // NOTE: draw player hp
+  for (u32 hp_index = 0;
+       hp_index < state->player->hp;
+       ++hp_index) {
+    u32 sprite_index = 32;
+    Image sprite = tilemap_get_tile(state->sprites_tilemap, sprite_index);
+    Vector2 position = make_vector2(0.0f, 0.0f);
+    Vector2 offset = make_vector2((f32)hp_index*sprite.width, 0.0f);
+    draw_sprite(draw_buffer, state->sprites_tilemap,
+                sprite_index, 1, 1,
+                position, vec2(0.0f, 0.0f), offset);
+  }
+
+  // NOTE: draw bomb
+  for (u32 bomb_index = 0;
+       bomb_index < state->bomb_count;
+       ++bomb_index) {
+    u32 sprite_index = 34;
+    Image sprite = tilemap_get_tile(state->sprites_tilemap, sprite_index);
+    Vector2 position = make_vector2((f32)(bw - bomb_index*sprite.width), 0.0f);
+    draw_sprite(draw_buffer, state->sprites_tilemap,
+                sprite_index, 1, 1,
+                position, vec2(1.0f, 0.0f), vec2(0.0f, 0.0f));
+  }
+
+  // NOTE: draw wave warn
+  if (state->time < state->wave_warn_time) {
+    Temp scratch = scratch_begin(0, 0);
+    String8 text = push_str8_fmt(scratch.arena, "WAVE %d", state->wave_index + 1);
+    Vector2 position = make_vector2(bw/2.0f, bh/5.0f);
+    if (sin_f32(state->time*state->blink_frequency) > -0.5f) {
+      draw_text2(draw_buffer, state->font, text, position, vec2(0.5f, 0.5f), CP_DARK_RED);
+    } else {
+      draw_text2(draw_buffer, state->font, text, position, vec2(0.5f, 0.5f), CP_RED);
+    }
+    scratch_end(scratch);
+  }
+
+  if (state->wave_index == LAST_WAVE) {
+    Entity *boss = state->enemy_manager->list.first;
+    if (boss) {
+      f32 margin = TILE_SIZE;
+      f32 top_margin = TILE_SIZE*1.25f;
+
+      f32 bar_w = draw_buffer.width - 2.0f*margin;
+      f32 bar_h = TILE_SIZE*0.5f;
+
+      s32 x0 = (s32)margin;
+      s32 y0 = (s32)top_margin;
+      s32 x1 = (s32)(x0 + bar_w);
+      s32 y1 = (s32)(y0 + bar_h);
+
+      draw_rect_fill(draw_buffer, x0, y0, x1, y1, CP_BLACK);
+
+      x0 += 1;
+      y0 += 1;
+      x1 -= 1;
+      y1 -= 1;
+      bar_w -= 2;
+      bar_h -= 2;
+
+      draw_rect_fill(draw_buffer, x0, y0, x1, y1, CP_DARK_BLUE);
+
+      f32 t = (f32)boss->hp/(f32)boss->max_hp;
+      x1 = (s32)(x0 + bar_w*t);
+
+      draw_rect_fill(draw_buffer, x0, y0, x1, y1, CP_RED);
+    }
   }
 }
 
@@ -1665,8 +1951,8 @@ wave_next(Game_State *state) {
   }
 }
 
-//////////////////////
-// NOTE: Machine State
+///////////////////////////////
+// NOTE: Screen State Functions
 
 internal void
 change_screen(Game_State *state, Screen_State screen) {
@@ -1678,7 +1964,7 @@ change_screen(Game_State *state, Screen_State screen) {
       state->next_flash_particle = 0;
       mem_zero_array(state->explosion_particles);
       mem_zero_array(state->flash_particles);
-      player_init(state);
+      init_player(state);
       wave_init(state);
     } break;
     case SCREEN_MENU:
@@ -1693,7 +1979,7 @@ change_screen(Game_State *state, Screen_State screen) {
 }
 
 internal void
-update_and_draw_screen_menu(Game_State *state, Image draw_buffer, Input *input) {
+screen_menu(Image draw_buffer, Input *input, Game_State *state) {
   if (input->quit.pressed) state->quit = true;
 
   s32 bw = draw_buffer.width;
@@ -1719,59 +2005,10 @@ update_and_draw_screen_menu(Game_State *state, Image draw_buffer, Input *input) 
       draw_text2(draw_buffer, state->font, text, position, alignment, CP_GRAY);
     }
   }
-
-#if 1
-  if (countdown(&state->emitter.emission_countdown) <= 0.0f) {
-    for (u32 particle_index = 0;
-         particle_index < state->emitter.particles_per_emission;
-         ++particle_index) {
-      Particle0 *particle = state->emitter.particles + state->emitter.next_particle++;
-      if (state->emitter.next_particle == array_count(state->emitter.particles)) {
-        state->emitter.next_particle = 0;
-      }
-      particle->position.x = draw_buffer.width*0.5f + random_range(&state->effects_entropy, -4.0f, 4.0f);
-      particle->position.y = draw_buffer.height*0.5f + random_range(&state->effects_entropy, -4.0f, 4.0f);
-
-      particle->dposition.x = random_range(&state->effects_entropy, -0.25f, 0.25f);
-      particle->dposition.y = -1.0f;
-
-      particle->ddposition.x = 0.0f;
-      particle->ddposition.y = 4.0f;
-
-      particle->speed = 48.0f;
-      particle->radius = random_range(&state->effects_entropy, 4.0f, 6.0f);
-      particle->dradius = -2.0f;
-      particle->color = random_choice(&state->effects_entropy, 2) ? CP_RED : CP_DARK_RED;
-    }
-    state->emitter.emission_countdown = state->emitter.emission_time;
-  }
-
-  for (u32 particle_index = 0;
-       particle_index < array_count(state->emitter.particles);
-       ++particle_index) {
-    Particle0 *particle = state->emitter.particles + particle_index;
-
-    Vector2 acceleration = vector2_mul(particle->ddposition, 0.5f*square(dt)*dt);
-    Vector2 velocity = vector2_mul(particle->dposition, particle->speed*dt);
-
-    particle->position = vector2_add(particle->position,
-                                     vector2_add(acceleration, velocity));
-    particle->dposition = vector2_add(particle->dposition,
-                                     vector2_mul(particle->ddposition, dt));
-
-    if (particle->position.y > 80.0f) {
-      particle->position.y = 79.0f;
-      particle->dposition.y = -particle->dposition.y*0.5f;
-    }
-
-    particle->radius += particle->dradius*dt;
-    draw_circle_fill2(draw_buffer, particle->position, particle->radius, particle->color);
-  }
-#endif
 }
 
 internal void
-update_and_draw_screen_over(Game_State *state, Image draw_buffer, Input *input) {
+screen_over(Image draw_buffer, Input *input, Game_State *state) {
   Temp scratch = scratch_begin(0, 0);
   if (input->quit.pressed) state->quit = true;
 
@@ -1818,7 +2055,7 @@ update_and_draw_screen_over(Game_State *state, Image draw_buffer, Input *input) 
 }
 
 internal void
-update_and_draw_screen_win(Game_State *state, Image draw_buffer, Input *input) {
+screen_win(Image draw_buffer, Input *input, Game_State *state) {
   Temp scratch = scratch_begin(0, 0);
   if (input->quit.pressed) state->quit = true;
 
@@ -1841,14 +2078,19 @@ update_and_draw_screen_win(Game_State *state, Image draw_buffer, Input *input) {
   player->position = vector2_lerp(position0, position1, t);
 
   player_emit_flame_particles(player, state);
-  player_update_and_draw_particles(player, draw_buffer);
-  update_entity_flame(player);
+  simulate_flame_particles(&player->emitter);
+  update_flame_animation(player);
 
-  draw_sprite(draw_buffer, state->sprites_tilemap,
-              player->next_flame_sprite_frame, 1, 1,
-              player->position, vec2(0.5f, 0.5f), vec2(0.0f, 8.0f));
-  draw_sprite(draw_buffer, state->sprites_tilemap, 1, 1, 1,
-              player->position, vec2(0.5f, 0.5f), vec2(0.0f, 0.0f));
+  { // NOTE: draw player
+    draw_flame_particles(draw_buffer, &player->emitter);
+    Vector2 alignment = make_vector2(0.5f, 0.5f);
+    draw_sprite(draw_buffer, state->sprites_tilemap,
+                player->next_flame_sprite_frame, 1, 1,
+                player->position, alignment, vec2(0.0f, 8.0f));
+    draw_sprite(draw_buffer, state->sprites_tilemap, 
+                player->sprite_index, player->sprite_w, player->sprite_h,
+                player->position, alignment, vec2(0.0f, 0.0f));
+  }
 
   { // NOTE: draw win
     String8 text = push_str8_lit(scratch.arena, "YOU WIN!");
@@ -1887,10 +2129,98 @@ update_and_draw_screen_win(Game_State *state, Image draw_buffer, Input *input) {
   scratch_end(scratch);
 }
 
+internal void
+draw_debug_info(Image draw_buffer, Clock *time, Game_State *state) {
+  // NOTE: draw time info
+  if (state->draw_time_info) {
+    Temp scratch = scratch_begin(0, 0);
+
+    f32 fps = million(1.0f)/time->_dt_us;
+    f32 ms = time->_dt_us/thousand(1.0f);
+
+    String8_List *list = &state->time_string_list;
+    mem_zero_struct(list);
+
+    str8_list_push_fmt(scratch.arena, list, "%.2f fps", fps);
+    str8_list_push_fmt(scratch.arena, list, "%.2f ms ", ms);
+
+    s32 bw = draw_buffer.width;
+    s32 bh = draw_buffer.height;
+
+    s32 tw = state->font.tilemap.tile_w;
+    s32 th = state->font.tilemap.tile_h;
+
+    Vector2 position = make_vector2(bw - 2.0f, bh - list->count*th - 2.0f);
+
+    for (String8_Node *node = list->first; node != 0; node = node->next) {
+      String8 string = node->string;
+      Vector2 min = vector2_sub(position, vec2((f32)string.len*tw, 0.0f));
+      Vector2 max = make_vector2(position.x + 1, min.y + th + 1.0f);
+      draw_rect_fill2(draw_buffer, min, max, CP_BLACK);
+      draw_text2(draw_buffer, state->font, string, position, vec2(1.0f, 0.0f), CP_DARK_GRAY);
+      position.y += th;
+    }
+
+    scratch_end(scratch);
+  }
+
+  // NOTE: draw debug info
+  if (state->draw_debug_info) {
+    Temp scratch = scratch_begin(0, 0);
+
+    String8_List *list = &state->debug_string_list;
+    mem_zero_struct(list);
+
+    if (state->godmode) {
+      str8_list_push_copy(scratch.arena, list, str8_lit("godmode: true"));
+    } else {
+      str8_list_push_copy(scratch.arena, list, str8_lit("godmode: false"));
+    }
+
+    {
+      Entity_Manager *manager = state->enemy_manager;
+      u32 count = manager->list.count;
+      u32 total_count = manager->list.total_count;
+      str8_list_push_fmt(scratch.arena, list, "ent. list:%d/%d", count, total_count);
+      str8_list_push_fmt(scratch.arena, list, "ent. manager: %zu/%zu",
+                         manager->arena->cmt_size/sizeof(Entity),
+                         manager->arena->res_size/sizeof(Entity));
+    }
+
+    {
+      Entity_Manager *manager = state->bullet_manager;
+      u32 count = manager->list.count;
+      u32 total_count = manager->list.total_count;
+      str8_list_push_fmt(scratch.arena, list, "bul. list:%d/%d", count, total_count);
+      str8_list_push_fmt(scratch.arena, list, "bul. manager: %zu/%zu",
+                         manager->arena->cmt_size/sizeof(Entity),
+                         manager->arena->res_size/sizeof(Entity));
+    }
+
+    // s32 bw = draw_buffer.width;
+    s32 bh = draw_buffer.height;
+
+    s32 tw = state->font.tilemap.tile_w;
+    s32 th = state->font.tilemap.tile_h;
+
+    Vector2 position = make_vector2(1.0f, bh - list->count*th - 2.0f);
+
+    for (String8_Node *node = list->first; node != 0; node = node->next) {
+      String8 string = node->string;
+      Vector2 min = position;
+      Vector2 max = vector2_add(min, vec2(string.len*tw + 1.0f, th + 1.0f));
+      draw_rect_fill2(draw_buffer, min, max, CP_BLACK);
+      draw_text2(draw_buffer, state->font, string, position, vec2(0.0f, 0.0f), CP_DARK_GRAY);
+      position.y += th;
+    }
+
+    scratch_end(scratch);
+  }
+}
+
 shared_function
 GAME_FRAME_PROC(frame) {
   thread_context_select(thread_context);
-  dt = time->dt_sec;
 
   assert(sizeof(Game_State) <= memory->size);
   Game_State *state = (Game_State *)memory->ptr;
@@ -1947,8 +2277,10 @@ GAME_FRAME_PROC(frame) {
     state->bullet_manager = entity_manager_alloc(state->main_arena, 512);
     // state->pickup_manager = entity_manager_alloc(state->main_arena, 256);
 
-    state->emitter.emission_time = 0.2f;
-    state->emitter.particles_per_emission = 3;
+    // state->emitter.emission_time = 0.2f;
+    // state->emitter.particles_per_emission = 3;
+    // state->emitter.particle_count = 256;
+    // state->emitter.particles = push_array(state->main_arena, Particle0, state->emitter.particle_count);
 
     f32 min_star_speed = 32.0f;
     f32 max_star_speed = 64.0f;
@@ -1977,15 +2309,16 @@ GAME_FRAME_PROC(frame) {
     memory->is_initialized = true;
   }
 
+  dt = time->dt_sec;
   state->time += dt;
 
 #if BUILD_DEBUG
   Digital_Button *keys = input->keys;
   if (keys[KEY_F1].pressed) state->draw_debug_info = !state->draw_debug_info;
   if (keys[KEY_F2].pressed) state->draw_time_info = !state->draw_time_info;
-  if (keys[KEY_F5].pressed) state->is_cheating = !state->is_cheating;
+  if (keys[KEY_F4].pressed) state->godmode = !state->godmode;
 #endif
-  
+
   if (input->pause.pressed) state->pause = !state->pause;
   if (state->pause) {
     String8 text = str8_lit("PAUSED");
@@ -1995,28 +2328,9 @@ GAME_FRAME_PROC(frame) {
     draw_text2(*back_buffer, state->font, text, position, alignment, CP_WHITE);
     return(state->quit);
   }
- 
+
   Image draw_buffer = state->draw_buffer;
   image_fill(draw_buffer, CP_BLACK);
- 
-#if 0
-  s32 tile_count_x = (s32)(draw_buffer.width/state->tile_size);
-  s32 tile_count_y = (s32)(draw_buffer.height/state->tile_size);
-
-  for (s32 y = 0; y < tile_count_y; ++y) {
-    for (s32 x = 0; x < tile_count_x; ++x) {
-      s32 x0 = (s32)(x*state->tile_size);
-      s32 y0 = (s32)(y*state->tile_size);
-      s32 x1 = (s32)(x0 + state->tile_size);
-      s32 y1 = (s32)(y0 + state->tile_size);
-      u32 color = CP_DARK_GRAY;
-      if ((x + y) % 2 == 0) {
-        color = CP_DARK_BLUE;
-      }
-      draw_rect_fill(draw_buffer, x0, y0, x1, y1, color);
-    }
-  }
-#endif
 
   // NOTE: star particles
   for (u32 particle_index = 0;
@@ -2081,106 +2395,13 @@ GAME_FRAME_PROC(frame) {
     }
   }
 
-  // NOTE: state
   switch (state->screen_state) {
     case SCREEN_MENU: {
-      update_and_draw_screen_menu(state, draw_buffer, input);
+      screen_menu(draw_buffer, input, state);
     } break;
 
     case SCREEN_GAME: {
       if (input->quit.pressed) change_screen(state, SCREEN_MENU);
-      state->record_time += dt;
-
-      { // NOTE: update player
-        Entity *player = state->player;
-        if (player->is_alive) {
-          countdown(&player->invencible_countdown);
-          if (player->invencible_countdown <= 0.0f) {
-            player_emit_flame_particles(player, state);
-          }
-
-          player_update_and_draw_particles(player, draw_buffer);
-          update_entity_flame(player);
-
-          player->velocity = make_vector2(0.0f, 0.0f);
-          player->sprite_index = 1;
-          
-          if (input->direction.x || input->direction.y) {
-            input->direction.axis.y *= -1.0f;
-            player->velocity = input->direction.axis;
-
-            if (player->velocity.x == player->velocity.y) {
-              player->velocity = vector2_mul(player->velocity, 0.707106781187f);
-            }
-          } else {
-            if (input->up.is_down)    player->velocity.y = -1.0f;
-            if (input->down.is_down)  player->velocity.y = 1.0f;
-            if (input->left.is_down)  player->velocity.x = -1.0f;
-            if (input->right.is_down) player->velocity.x = 1.0f;
-
-            if (player->velocity.x != 0.0f && player->velocity.y != 0.0f) {
-              player->velocity = vector2_mul(player->velocity, 0.707106781187f);
-            }
-          }
-
-          if (player->velocity.x < 0.0f) player->sprite_index = 0;
-          if (player->velocity.x > 0.0f) player->sprite_index = 2;
-
-          linear_move(player);
-
-          if (player->position.x < 0.0f) {
-            player->position.x = 0;
-          }
-          if (player->position.y < 0.0f) {
-            player->position.y = 0;
-          }
-          if (player->position.x > (f32)draw_buffer.width) {
-            player->position.x = (f32)draw_buffer.width;
-          }
-          if (player->position.y > (f32)draw_buffer.height) {
-            player->position.y = (f32)draw_buffer.height;
-          }
-
-          // NOTE: player fire bullets
-          countdown(&player->shoot_cooldown);
-          if (input->shoot.is_down) {
-            if (player->shoot_cooldown <= 0.0f) {
-              Entity *bullet = entity_alloc(state->bullet_manager);
-              bullet->is_alive = true;
-              bullet->is_player_friendly = true;
-              bullet->speed = 390.0f;
-              bullet->velocity = make_vector2(0.0f, -1.0f);
-              bullet->position = player->position;
-              bullet->position.x += (state->player_shoot_side++ % 2 == 0) ? 1.0f : -1.0f;
-              bullet->size = make_vector2(4.0f, 4.0f);
-              bullet->sprite_index = 4;
-              bullet->sprite_w = 1;
-              bullet->sprite_h = 1;
-              player->shoot_cooldown = player->shoot_time;
-              state->player_shoot_r = state->player_max_shoot_r;
-            }
-          }
-        }
-
-        // NOTE: player fire bomb
-        if (input->bomb.is_down &&
-            state->bomb_count > 0 &&
-            player->invencible_countdown <= 0.0f) {
-          if (!state->is_cheating) state->bomb_count -= 1;
-          player->invencible_countdown = player->invencible_time*0.7f;
-          state->shake_oscillation += 8.0f;
-          emit_flash(state, CP_ORANGE);
-          for (Entity *bullet = state->bullet_manager->list.first;
-               bullet != 0;
-               bullet = bullet->next) {
-            if (bullet->is_alive &&
-                !bullet->is_player_friendly) {
-              bullet->is_alive = false;
-              emit_explosion(state, bullet->position);
-            }
-          }
-        }
-      }
 
 #if BUILD_DEBUG
       // NOTE: kill all enemies [debug code only]
@@ -2195,6 +2416,8 @@ GAME_FRAME_PROC(frame) {
         }
       }
 #endif
+
+      state->record_time += dt;
 
       // NOTE: go to next wave when all enemies died
       if (state->enemies_spawned &&
@@ -2256,325 +2479,43 @@ GAME_FRAME_PROC(frame) {
           }
         }
       }
+     
+      simulate_player(state, input);
+      simulate_enemies(state);
+      simulate_bullets(state);
 
-      // NOTE: simulate enemies
-      for (Entity *enemy = state->enemy_manager->list.first;
-           enemy != 0;
-           enemy = enemy->next) {
-        if (enemy->is_alive) {
-          countdown(&enemy->flash_countdown);
-          enemy_behave(enemy, state);
-          enemy_emit_flame_particles(enemy, state);
-          update_entity_flame(enemy);
-        }
-      }
-
-      // NOTE: simulate bullets
-      for (Entity *bullet = state->bullet_manager->list.first;
-           bullet != 0;
-           bullet = bullet->next) {
-        if (bullet->is_alive) {
-          linear_move(bullet);
-
-          f32 half_size = TILE_SIZE*0.5f;
-
-          f32 x = bullet->position.x;
-          f32 y = bullet->position.y;
-
-          Vector2 min = make_vector2(0.0f, 0.0f);
-          Vector2 max = make_vector2((f32)state->draw_buffer.width,
-                                     (f32)state->draw_buffer.height);
-
-          if (((x + half_size) < min.x) || ((x - half_size) > max.x) ||
-              ((y + half_size) < min.y) || ((y - half_size) > max.y)) {
-            bullet->is_alive = false;
-          }
-        }
-      }
-
-      { // NOTE: player x enemy collision
-        Entity *player = state->player;
-        if (player->is_alive) {
-          for (Entity *enemy = state->enemy_manager->list.first;
-               enemy != 0;
-               enemy = enemy->next) {
-            if (enemy->is_alive) {
-              if (entity_collide(*enemy, *player)) {
-                if (hit_player(state, player, 1)) {
-                  if (enemy->type != ENEMY_BOSS) {
-                    hit_enemy(state, enemy, enemy->hp);
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-
-      // NOTE: bullet collision
-      for (Entity *bullet = state->bullet_manager->list.first;
-           bullet != 0;
-           bullet = bullet->next) {
-        if (bullet->is_alive) {
-          if (!bullet->is_player_friendly) {
-            Entity *player = state->player;
-            if (player->is_alive) {
-              if (entity_collide(*bullet, *player)) {
-                if (hit_player(state, player, 1)) {
-                  bullet->is_alive = false;
-                }
-              }
-            }
-          } else {
-            for (Entity *enemy = state->enemy_manager->list.first;
-                 enemy != 0;
-                 enemy = enemy->next) {
-              if (enemy->is_alive) {
-                if (entity_collide(*bullet, *enemy)) {
-                  hit_enemy(state, enemy, 1);
-                  bullet->is_alive = false;
-                }
-              }
-            }
-          }
-        }
-      }
+      handle_collisions(state);
 
       remove_dead_entities(state->bullet_manager);
       remove_dead_entities(state->enemy_manager);
 
-      // TODO: get rid off enemy_update_draw_particles;
       draw_bullets(draw_buffer, state->bullet_manager, state->sprites_tilemap);
       draw_enemies(draw_buffer, state->enemy_manager, state->sprites_tilemap);
-
-      { // NOTE: draw player
-        Entity *player = state->player;
-        if (player->is_alive) {
-          { // NOTE: draw player shoot effect
-            if (state->player_shoot_r > 0.0f) {
-              state->player_shoot_r += state->player_dshoot_r*dt;
-            }
-
-            Vector2 position = player->position;
-            f32 gap = 1.0f;
-            position.x += (state->player_shoot_side%2 == 0) ? -gap : gap;
-            position.y -= 3.0f;
-            draw_circle_fill2(draw_buffer, position, state->player_shoot_r, CP_WHITE);
-          }
-
-          if (player->invencible_countdown <= 0.0f) {
-            draw_sprite(draw_buffer, state->sprites_tilemap,
-                        player->next_flame_sprite_frame, 1, 1,
-                        player->position, vec2(0.5f, 0.5f), vec2(0.0f, 8.0f));
-            draw_sprite(draw_buffer, state->sprites_tilemap, 
-                        player->sprite_index, player->sprite_w, player->sprite_h,
-                        player->position, vec2(0.5f, 0.5f), vec2(0.0f, 0.0f));
-          } else {
-            if (sin_f32(thousand(1.0f)*state->time) <= 0.0f) {
-              draw_sprite(draw_buffer, state->sprites_tilemap,
-                          player->sprite_index, player->sprite_w, player->sprite_h,
-                          player->position, vec2(0.5f, 0.5f), vec2(0.0f, 0.0f));
-            }
-          }
-        }
-      }
-
-      // NOTE: draw ui
-      s32 bw = draw_buffer.width;
-      s32 bh = draw_buffer.height;
-      
-      if (state->wave_index != LAST_WAVE) {
-        { // NOTE: draw enemy count
-          Temp scratch = scratch_begin(0, 0);
-          String8 text = push_str8_fmt(scratch.arena, "%d/%d",
-                                       state->wave_remaining_enemy_count,
-                                       state->wave_enemy_count);
-          Vector2 position = make_vector2(bw/2.0f, 1.0f);
-          draw_text2(draw_buffer, state->font, text, position, vec2(0.5f, 0.0f), CP_RED);
-          scratch_end(scratch);
-        }
-      }
-
-      // NOTE: draw player hp
-      for (u32 hp_index = 0;
-           hp_index < state->player->hp;
-           ++hp_index) {
-        u32 sprite_index = 32;
-        Image sprite = tilemap_get_tile(state->sprites_tilemap, sprite_index);
-        Vector2 position = make_vector2(0.0f, 0.0f);
-        Vector2 offset = make_vector2((f32)hp_index*sprite.width, 0.0f);
-        draw_sprite(draw_buffer, state->sprites_tilemap,
-                    sprite_index, 1, 1,
-                    position, vec2(0.0f, 0.0f), offset);
-      }
-
-      // NOTE: draw bomb
-      for (u32 bomb_index = 0;
-          bomb_index < state->bomb_count;
-          ++bomb_index) {
-        u32 sprite_index = 34;
-        Image sprite = tilemap_get_tile(state->sprites_tilemap, sprite_index);
-        Vector2 position = make_vector2((f32)(bw - bomb_index*sprite.width), 0.0f);
-        draw_sprite(draw_buffer, state->sprites_tilemap,
-                    sprite_index, 1, 1,
-                    position, vec2(1.0f, 0.0f), vec2(0.0f, 0.0f));
-      }
-
-      // NOTE: draw wave warn
-      if (state->time < state->wave_warn_time) {
-        Temp scratch = scratch_begin(0, 0);
-        String8 text = push_str8_fmt(scratch.arena, "WAVE %d", state->wave_index + 1);
-        Vector2 position = make_vector2(bw/2.0f, bh/5.0f);
-        if (sin_f32(state->time*state->blink_frequency) > -0.5f) {
-          draw_text2(draw_buffer, state->font, text, position, vec2(0.5f, 0.5f), CP_DARK_RED);
-        } else {
-          draw_text2(draw_buffer, state->font, text, position, vec2(0.5f, 0.5f), CP_RED);
-        }
-        scratch_end(scratch);
-      }
-
-      if (state->wave_index == LAST_WAVE) {
-        Entity *boss = state->enemy_manager->list.first;
-        if (boss) {
-          f32 margin = TILE_SIZE;
-          f32 top_margin = TILE_SIZE*1.25f;
-
-          f32 bar_w = draw_buffer.width - 2.0f*margin;
-          f32 bar_h = TILE_SIZE*0.5f;
-
-          s32 x0 = (s32)margin;
-          s32 y0 = (s32)top_margin;
-          s32 x1 = (s32)(x0 + bar_w);
-          s32 y1 = (s32)(y0 + bar_h);
-
-          draw_rect_fill(draw_buffer, x0, y0, x1, y1, CP_BLACK);
-
-          x0 += 1;
-          y0 += 1;
-          x1 -= 1;
-          y1 -= 1;
-          bar_w -= 2;
-          bar_h -= 2;
-
-          draw_rect_fill(draw_buffer, x0, y0, x1, y1, CP_DARK_BLUE);
-
-          f32 t = (f32)boss->hp/(f32)boss->max_hp;
-          x1 = (s32)(x0 + bar_w*t);
-
-          draw_rect_fill(draw_buffer, x0, y0, x1, y1, CP_RED);
-        }
-      }
-
+      draw_player(draw_buffer, state);
+      draw_game_ui(draw_buffer, state);
     } break;
 
     case SCREEN_OVER: {
-      update_and_draw_screen_over(state, draw_buffer, input);
+      screen_over(draw_buffer, input, state);
     } break;
 
     case SCREEN_WIN: {
-      update_and_draw_screen_win(state, draw_buffer, input);
+      screen_win(draw_buffer, input, state);
     } break;
   }
 
-  // NOTE: draw time info
-  if (state->draw_time_info) {
-    Temp scratch = scratch_begin(0, 0);
-
-    f32 fps = million(1.0f)/time->_dt_us;
-    f32 ms = time->_dt_us/thousand(1.0f);
-    
-    String8_List *list = &state->time_string_list;
-    mem_zero_struct(list);
-
-    str8_list_push_fmt(scratch.arena, list, "%.2f fps", fps);
-    str8_list_push_fmt(scratch.arena, list, "%.2f ms ", ms);
-    
-    s32 bw = draw_buffer.width;
-    s32 bh = draw_buffer.height;
-
-    s32 tw = state->font.tilemap.tile_w;
-    s32 th = state->font.tilemap.tile_h;
-
-    Vector2 position = make_vector2(bw - 2.0f, bh - list->count*th - 2.0f);
-    
-    for (String8_Node *node = list->first; node != 0; node = node->next) {
-      String8 string = node->string;
-      Vector2 min = vector2_sub(position, vec2((f32)string.len*tw, 0.0f));
-      Vector2 max = make_vector2(position.x + 1, min.y + th + 1.0f);
-      draw_rect_fill2(draw_buffer, min, max, CP_BLACK);
-      draw_text2(draw_buffer, state->font, string, position, vec2(1.0f, 0.0f), CP_DARK_GRAY);
-      position.y += th;
-    }
-
-    scratch_end(scratch);
-  }
-  
-  // NOTE: draw debug info
-  if (state->draw_debug_info) {
-    Temp scratch = scratch_begin(0, 0);
-
-    String8_List *list = &state->debug_string_list;
-    mem_zero_struct(list);
-  
-    if (state->is_cheating) {
-      str8_list_push_copy(scratch.arena, list, str8_lit("cheating: true"));
-    } else {
-      str8_list_push_copy(scratch.arena, list, str8_lit("cheating: false"));
-    }
-
-    {
-      Entity_Manager *manager = state->enemy_manager;
-      u32 count = manager->list.count;
-      u32 total_count = manager->list.total_count;
-      str8_list_push_fmt(scratch.arena, list, "ent. list:%d/%d", count, total_count);
-      str8_list_push_fmt(scratch.arena, list, "ent. manager: %zu/%zu",
-                         manager->arena->cmt_size/sizeof(Entity),
-                         manager->arena->res_size/sizeof(Entity));
-    }
-   
-    {
-      Entity_Manager *manager = state->bullet_manager;
-      u32 count = manager->list.count;
-      u32 total_count = manager->list.total_count;
-      str8_list_push_fmt(scratch.arena, list, "bul. list:%d/%d", count, total_count);
-      str8_list_push_fmt(scratch.arena, list, "bul. manager: %zu/%zu",
-                         manager->arena->cmt_size/sizeof(Entity),
-                         manager->arena->res_size/sizeof(Entity));
-    }
-
-    // s32 bw = draw_buffer.width;
-    s32 bh = draw_buffer.height;
-
-    s32 tw = state->font.tilemap.tile_w;
-    s32 th = state->font.tilemap.tile_h;
-
-    Vector2 position = make_vector2(1.0f, bh - list->count*th - 2.0f);
-
-    for (String8_Node *node = list->first; node != 0; node = node->next) {
-      String8 string = node->string;
-      Vector2 min = position;
-      Vector2 max = vector2_add(min, vec2(string.len*tw + 1.0f, th + 1.0f));
-      draw_rect_fill2(draw_buffer, min, max, CP_BLACK);
-      draw_text2(draw_buffer, state->font, string, position, vec2(0.0f, 0.0f), CP_DARK_GRAY);
-      position.y += th;
-    }
-
-    scratch_end(scratch);
-  }
+  draw_debug_info(draw_buffer, time, state);
 
   // NOTE: shake screen
   f32 x = random_bilateral(&state->effects_entropy)*state->shake_oscillation;
   f32 y = random_bilateral(&state->effects_entropy)*state->shake_oscillation;
-
   if (state->shake_oscillation > 10.0f) {
     state->shake_oscillation *= 0.9f;
   }
-
   state->shake_oscillation -= 2.0f*state->shake_oscillation*dt;
   if (state->shake_oscillation < 0.0f) {
     state->shake_oscillation = 0.0f;
   }
-
   image_fill(*back_buffer, CP_BLACK);
   draw_texture_f32(*back_buffer, draw_buffer, x, y);
 

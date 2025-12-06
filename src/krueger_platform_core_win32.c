@@ -45,7 +45,7 @@ platform_get_exec_file_path(Arena *arena) {
   uxx len = cstr_len(path);
   u8 *str = push_array(arena, u8, len);
   mem_copy(str, path, len);
-  String8 result = str8_make(str, len);
+  String8 result = make_str8(str, len);
   return(result);
 }
 

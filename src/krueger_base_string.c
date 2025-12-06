@@ -97,7 +97,7 @@ cstr_encode(char *cstr) {
 // NOTE: String Constructors
 
 internal String8
-str8_make(u8 *str, uxx len) {
+make_str8(u8 *str, uxx len) {
   String8 result = {
     .len = len,
     .str = str,
