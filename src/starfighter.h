@@ -113,10 +113,14 @@ typedef struct {
   u8 *ptr; // NOTE: REQUIRED to be cleared at startup
 } Memory;
 
-#define GAME_FRAME_PROC(x) b32 x(Thread_Context *thread_context, Memory *memory, Image *back_buffer, Input *input, Clock *time)
+#define GAME_FRAME_PROC(x)        b32 x(Thread_Context *thread_context, Memory *memory, Image *back_buffer, Input *input, Clock *time)
+#define GAME_OUTPUT_SOUND_PROC(x) void x(s16 *samples, u32 num_samples, u32 sample_rate, void *user_data)
+
 typedef GAME_FRAME_PROC(frame_proc);
+typedef GAME_OUTPUT_SOUND_PROC(output_sound_proc);
 
 #define GAME_PROC_LIST \
-  GAME_PROC(frame)
+  GAME_PROC(frame) \
+  GAME_PROC(output_sound)
 
 #endif // KRUEGER_SHARED_H

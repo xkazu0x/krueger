@@ -89,19 +89,19 @@ win32_window_proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam) {
           PLATFORM_EVENT_KEY_RELEASE;
         Platform_Event *event = win32_push_event(type, window);
         event->keycode = win32_graphics_state->key_table[wparam&bitmask8];
-        // event->pressed = !was_down && is_down;
-        // event->released = was_down && !is_down;
-        // event->is_down = is_down;
       } break;
       default: {
         result = DefWindowProcA(hwnd, message, wparam, lparam);
-      }
+      } break;
     }
   } else {
     result = DefWindowProcA(hwnd, message, wparam, lparam);
   }
   return(result);
 }
+
+///////////////////////////
+// NOTE: Platform Functions
 
 internal void
 platform_graphics_init(void) {
@@ -147,9 +147,6 @@ platform_graphics_init(void) {
     win32_graphics_state->key_table[i] = j;
   }
 }
-
-///////////////////////////
-// NOTE: Platform Functions
 
 internal Platform_Graphics_Info
 platform_get_graphics_info(void) {

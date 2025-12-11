@@ -50,49 +50,6 @@ cstr_len(char *cstr) {
   return(ptr - cstr);
 }
 
-internal uxx
-cstr_index_of(char *cstr, char c) {
-  uxx result = 0;
-  uxx len = cstr_len(cstr);
-  for (uxx i = 0; i < len; ++i) {
-    if (cstr[i] == c) {
-      result = i;
-      break;
-    }
-  }
-  return(result);
-}
-
-internal b32
-cstr_match(char *a, char *b) {
-  b32 result = false;
-  uxx a_len = cstr_len(a);
-  uxx b_len = cstr_len(b);
-  if (a_len == b_len) {
-    result = true;
-    uxx len = min(a_len, b_len);
-    for (uxx i = 0; i < len; ++i) {
-      char at = a[i];
-      char bt = b[i];
-      if (at != bt) {
-        result = false;
-        break;
-      }
-    }
-  }
-  return(result);
-}
-
-internal uxx
-cstr_encode(char *cstr) {
-  uxx result = 0;
-  uxx len = cstr_len(cstr);
-  for (uxx i = 0; i < len; ++i) {
-    result |= cstr[i] << i*8;
-  }
-  return(result);
-}
-
 ////////////////////////////
 // NOTE: String Constructors
 
@@ -161,10 +118,11 @@ str8_find_first(String8 string, u8 c) {
 internal uxx
 str8_find_last(String8 string, u8 c) {
   u8 *ptr = string.str;
-  for (uxx i = 0; i < string.len; ++i) {
+  for (uxx i = string.len - 1; i >= 0; --i) {
     u8 *str = string.str + i;
     if (*str == c) {
       ptr = str;
+      break;
     }
   }
   uxx result = ptr - string.str;
@@ -316,37 +274,25 @@ str8_list_join(Arena *arena, String8_List *list) {
   return(result);
 }
 
-////////////////////////
-// TODO:
+////////////////////////////
+// NOTE: String Path Helpers
 
-internal u32
-u32_from_str8(String8 str) {
-  u32 result = 0;
-  for (uxx i = 0; i < str.len; ++i) {
-    u8 c = str.str[i];
-    if (char_is_digit(c)) {
-      result *= 10;
-      result += c - '0';
+internal String8
+str8_chop_last_slash(String8 string) {
+  if (string.len > 0) {
+    u8 *ptr = string.str + string.len - 1;
+    for (; ptr >= string.str; ptr -= 1) {
+      if (*ptr == '/' || *ptr == '\\') {
+        break;
+      }
+    }
+    if (ptr >= string.str) {
+      string.len = ptr - string.str;
+    } else {
+      string.len = 0;
     }
   }
-  return(result);
-}
-
-internal f32
-f32_from_str8(String8 str) {
-  // TODO: This may cause overflow.
-  f32 result = 0.0f;
-  f32 sign = 1.0f;
-  if (str.str[0] == '-') sign = -1.0f;
-  for (uxx i = 0; i < str.len; ++i) {
-    u8 c = str.str[i];
-    if (char_is_digit(c)) {
-      result *= 10.0f;
-      result += c - '0';
-    }
-  }
-  result = sign*result/million(1.0f);
-  return(result);
+  return(string);
 }
 
 #endif // KRUEGER_BASE_STRING_C

@@ -2,7 +2,7 @@
 
 #include "krueger_base.h"
 #include "krueger_platform.h"
-#include "krueger_shared.h"
+#include "starfighter.h"
 
 #include "krueger_base.c"
 #include "krueger_platform.c"
@@ -420,6 +420,7 @@ entry_point(int argc, char **argv) {
   Platform_Handle audio_device = platform_audio_device_open(playback_device,
                                                             audio_format,
                                                             window);
+
   Win32_Audio_Device *device = (Win32_Audio_Device *)audio_device.ptr[0];
 
   u32 running_sample_index = 0;
@@ -541,8 +542,8 @@ entry_point(int argc, char **argv) {
       }
 
       u32 sample_count = bytes_to_write/bytes_per_sample;
-      // output_sound(samples, sample_count, samples_per_second);
-      output_music(samples, sample_count, &audio);
+      output_sound(samples, sample_count, samples_per_second);
+      // output_music(samples, sample_count, &audio);
 
 #if 0
       DWORD play_cursor = 0;

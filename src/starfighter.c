@@ -232,6 +232,151 @@ load_bmp(Arena *arena, String8 file_path) {
   return(result);
 }
 
+/////////////////
+// NOTE: Load Wav
+
+typedef struct {
+  u32 sample_rate;
+  u32 num_channels;
+} Audio_Format;
+
+typedef struct {
+  Audio_Format format;
+  u32 size;
+  void *data;
+} Audio;
+
+#define wave_code(a, b, c, d) (((u32)(a)<<0)|((u32)(b)<<8)|((u32)(c)<<16)|((u32)(d)<<24))
+
+enum {
+  WAVE_CHUNK_RIFF = wave_code('R', 'I', 'F', 'F'),
+  WAVE_CHUNK_WAVE = wave_code('W', 'A', 'V', 'E'),
+  WAVE_CHUNK_FMT  = wave_code('f', 'm', 't', ' '),
+  WAVE_CHUNK_DATA = wave_code('d', 'a', 't', 'a'),
+};
+
+#pragma pack(push, 1)
+typedef struct {
+  u32 riff_id;
+  u32 size;
+  u32 wave_id;
+} Wave_Header;
+
+typedef struct {
+  u32 id;
+  u32 size;
+} Wave_Chunk;
+
+typedef struct {
+  u16 audio_format;
+  u16 num_channels;
+  u32 sample_rate;
+  u32 byte_rate;
+  u16 block_align;
+  u16 bits_per_sample;
+} Wave_Format;
+#pragma pack(pop)
+
+typedef struct {
+  u8 *at;
+  u8 *stop;
+} Riff_Iterator;
+
+internal Riff_Iterator
+riff_parse_chunk_at(void *at, void *stop) {
+  Riff_Iterator result = {
+    .at = (u8 *)at,
+    .stop = (u8 *)stop,
+  };
+  return(result);
+}
+
+internal Riff_Iterator
+riff_next_chunk(Riff_Iterator iter) {
+  Wave_Chunk *chunk = (Wave_Chunk *)iter.at;
+  u32 size = (chunk->size + 1) & ~1;
+  iter.at += sizeof(Wave_Chunk) + size;
+  return(iter);
+}
+
+internal b32
+riff_is_valid(Riff_Iterator iter) {
+  b32 result = (iter.at < iter.stop);
+  return(result);
+}
+
+internal u32
+riff_get_chunk_type(Riff_Iterator iter) {
+  Wave_Chunk *chunk = (Wave_Chunk *)iter.at;
+  u32 result = chunk->id;
+  return(result);
+}
+
+internal u32
+riff_get_chunk_data_size(Riff_Iterator iter) {
+  Wave_Chunk *chunk = (Wave_Chunk *)iter.at;
+  u32 result = chunk->size;
+  return(result);
+}
+
+internal void *
+riff_get_chunk_data(Riff_Iterator iter) {
+  void *result = iter.at + sizeof(Wave_Chunk);
+  return(result);
+}
+
+internal Audio
+load_wav(Arena *arena, String8 file_path) {
+  Audio result = {0};
+  Temp scratch = scratch_begin(&arena, 1);
+  void *file_data = platform_read_entire_file(scratch.arena, file_path);
+  if (file_data) {
+    Wave_Header *header = (Wave_Header *)file_data;
+    assert(header->riff_id == WAVE_CHUNK_RIFF);
+    assert(header->wave_id == WAVE_CHUNK_WAVE);
+
+    u8 *at = (u8 *)(header + 1);
+    u8 *stop = (u8 *)(at + header->size - 4);
+    
+    Audio_Format format = {0};
+    u32 audio_size = 0;
+    void *audio_data = 0;
+
+    for (Riff_Iterator iter = riff_parse_chunk_at(at, stop);
+         riff_is_valid(iter);
+         iter = riff_next_chunk(iter)) {
+      switch (riff_get_chunk_type(iter)) {
+        case WAVE_CHUNK_FMT: {
+          Wave_Format *audio_format = riff_get_chunk_data(iter);
+          assert(audio_format->audio_format == 1); // NOTE: PCM
+          assert(audio_format->num_channels == 2);
+          assert(audio_format->sample_rate == 48000);
+          assert(audio_format->block_align == (audio_format->num_channels*2));
+          assert(audio_format->bits_per_sample == 16);
+          format.num_channels = audio_format->num_channels;
+          format.sample_rate = audio_format->sample_rate;
+        } break;
+        case WAVE_CHUNK_DATA: {
+          audio_size = riff_get_chunk_data_size(iter);
+          audio_data = riff_get_chunk_data(iter);
+        } break;
+      }
+    }
+
+    assert(audio_size);
+    assert(audio_data);
+    
+    result.format = format;
+    result.size = audio_size;
+    result.data = arena_push(arena, result.size);
+    mem_copy(result.data, audio_data, audio_size);
+  } else {
+    log_error("%s: failed to read file: %s", __func__, file_path);
+  }
+  scratch_end(scratch);
+  return(result);
+}
+
 /////////////////////
 // NOTE: Game Structs
 
@@ -513,6 +658,14 @@ typedef struct {
   b32 draw_time_info;
   String8_List debug_string_list;
   String8_List time_string_list;
+
+  // NOTE: Audio Test
+  f32 t_sine;
+  f32 tone_volume;
+  f32 wave_period;
+
+  Audio music_audio;
+  u32 music_audio_sample_index;
 } Game_State;
 
 /////////////////////////
@@ -880,7 +1033,7 @@ draw_text(Image dst, Font font, String8 text,
         glyph_x += 2*glyph_w;
       } continue;
     }
-    u32 char_index = (u32)cstr_index_of((char *)font.chars.str, c);
+    u32 char_index = (u32)str8_find_first(font.chars, c);
     assert(font.chars.str[char_index] == c);
     Image sprite = tilemap_get_tile(font.tilemap, char_index);
     Vector2 position = make_vector2((f32)glyph_x, (f32)glyph_y);
@@ -1122,7 +1275,7 @@ simulate_player(Game_State *state, Input *input) {
     countdown(&player->shoot_cooldown);
     if (input->shoot.is_down) {
       if (player->shoot_cooldown <= 0.0f) {
-        f32 gate = state->player_power_max*0.25f;
+        f32 gate = state->player_power_max/3.0f;
         if (state->player_power < gate) {
           local f32 sign = 1.0f;
           Entity *bullet = player_shoot(state);
@@ -1130,18 +1283,7 @@ simulate_player(Game_State *state, Input *input) {
           bullet->position.x += sign;
           sign *= -1.0f;
         } else if (state->player_power >= gate &&
-                   state->player_power < state->player_power_max) {
-          local f32 sign = 1.0f;
-          local f32 offset = 1.0f;
-          for (u32 i = 0; i < 2; ++i) {
-            Entity *bullet = player_shoot(state);
-            bullet->damage = 0.8f;
-            bullet->position.x += 3.0f*sign;
-            bullet->position.x += offset;
-            sign *= -1.0f;
-          }
-          offset *= -1.0f;
-        } else if (state->player_power == state->player_power_max) {
+                   state->player_power < gate*2.0f) {
           local f32 sign = 1.0f;
           local f32 offset = 1.0f;
           for (u32 i = 0; i < 2; ++i) {
@@ -1152,6 +1294,29 @@ simulate_player(Game_State *state, Input *input) {
             sign *= -1.0f;
           }
           offset *= -1.0f;
+        } else if (state->player_power >= gate*2.0f &&
+                   state->player_power < state->player_power_max) {
+          local f32 sign = 1.0f;
+          f32 offset = 5.0f;
+          for (u32 i = 0; i < 3; ++i) {
+            Entity *bullet = player_shoot(state);
+            bullet->damage = 0.8f;
+            bullet->position.x = player->position.x - offset;
+            bullet->position.x += offset*i;
+            bullet->position.x += sign;
+          }
+          sign *= -1.0f;
+        } else if (state->player_power == state->player_power_max) {
+          local f32 sign = 1.0f;
+          f32 offset = 5.0f;
+          for (u32 i = 0; i < 3; ++i) {
+            Entity *bullet = player_shoot(state);
+            bullet->damage = 0.8f;
+            bullet->position.x = player->position.x - offset;
+            bullet->position.x += offset*i;
+            bullet->position.x += sign;
+          }
+          sign *= -1.0f;
 
           for (u32 i = 0; i < 2; ++i) {
             Entity *bullet = player_shoot(state);
@@ -1159,9 +1324,10 @@ simulate_player(Game_State *state, Input *input) {
             bullet->size = make_vector2(1.0f, 1.0f);
 
             bullet->speed = 300.0f;
-            bullet->damage = 0.2f;
+            bullet->damage = 0.4f;
 
             bullet->position.x += 4.0f*sign;
+            bullet->position.y = player->position.y + 2.0f;
             sign *= -1.0f;
 
             bullet->dposition.x = -0.3f*sign;
@@ -1356,8 +1522,8 @@ hit_player(Game_State *state, Entity *entity, u32 damage) {
       state->shake_oscillation += 4.0f;
       if (!state->godmode) {
         entity->hp -= damage;
+        state->player_power -= state->player_power_max*0.6f;
       }
-      state->player_power -= state->player_power_max*0.6f;
       if (state->player_power < 0.0f) state->player_power = 0.0f;
     }
     if (entity->hp <= 0) {
@@ -2492,6 +2658,7 @@ GAME_FRAME_PROC(frame) {
     state->font_image     = load_bmp(state->main_arena, path0);
     state->sprites_image  = load_bmp(state->main_arena, path1);
     scratch_end(scratch);
+    state->music_audio = load_wav(state->main_arena, str8_lit("../res/fireflies.wav"));
 
     state->font_tilemap = make_tilemap(state->font_image, 4, 6, 16, 6);
     state->sprites_tilemap = make_tilemap(state->sprites_image, 8, 8, 16, 16);
@@ -2570,7 +2737,10 @@ GAME_FRAME_PROC(frame) {
   Digital_Button *keys = input->keys;
   if (keys[KEY_F1].pressed) state->draw_debug_info = !state->draw_debug_info;
   if (keys[KEY_F2].pressed) state->draw_time_info = !state->draw_time_info;
-  if (keys[KEY_F4].pressed) state->godmode = !state->godmode;
+  if (keys[KEY_F4].pressed) {
+    state->godmode = !state->godmode;
+    state->player_power = state->player_power_max;
+  }
 #endif
 
   if (input->pause.pressed) state->pause = !state->pause;
@@ -2714,4 +2884,42 @@ GAME_FRAME_PROC(frame) {
   draw_texture_f32(*back_buffer, state->draw_buffer, x, y);
 
   return(state->quit);
+}
+
+internal void
+output_sine_wave(Game_State *state, s16 *samples, u32 num_samples, u32 sample_rate) {
+  state->tone_volume = 4000.0f;
+  state->wave_period = sample_rate/256.0f;
+  for (u32 sample_index = 0;
+       sample_index < num_samples;
+       sample_index += 2) {
+    f32 sine_value = sin_f32(state->t_sine);
+    s16 sample_value = (s16)(sine_value*state->tone_volume);
+    samples[sample_index + 0] = sample_value;
+    samples[sample_index + 1] = sample_value;
+    state->t_sine += tau32/state->wave_period;
+    if (state->t_sine > tau32) state->t_sine -= tau32;
+  }
+}
+
+internal void
+output_test_music(Game_State *state, s16 *samples, u32 num_samples) {
+  u32 src_sample_count = state->music_audio.size/2;
+  s16 *src = (s16 *)state->music_audio.data;
+  s16 *dst = samples;
+  for (u32 sample_index = 0;
+       sample_index < num_samples;
+       ++sample_index) {
+    dst[sample_index] = src[state->music_audio_sample_index++ % src_sample_count];
+  }
+}
+
+shared_function
+GAME_OUTPUT_SOUND_PROC(output_sound) {
+  Memory *memory = (Memory *)user_data;
+  if (memory->is_initialized) {
+    Game_State *state = (Game_State *)memory->ptr;
+    // output_sine_wave(state, samples, num_samples, sample_rate);
+    output_test_music(state, samples, num_samples);
+  }
 }

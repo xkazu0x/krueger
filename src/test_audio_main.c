@@ -174,7 +174,7 @@ entry_point(int argc, char **argv) {
   IXAudio2_CreateSourceVoice(audio_handle, &source_voice, &wave_format,
                              0, XAUDIO2_DEFAULT_FREQ_RATIO, 0, 0, 0);
 
-#if 0
+#if 1
   // NOTE: Output Sine Wave
   f32 volume = 0.2f;
   u32 cycles_per_second = 256;

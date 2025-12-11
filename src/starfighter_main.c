@@ -3,10 +3,12 @@
 
 #include "krueger_base.h"
 #include "krueger_platform.h"
+#include "krueger_platform_audio.h"
 #include "starfighter.h"
 
 #include "krueger_base.c"
 #include "krueger_platform.c"
+#include "krueger_platform_audio.c"
 
 #include <xinput.h>
 
@@ -39,7 +41,7 @@ game_library_open(String8 dst_path, String8 src_path) {
   Game_Library lib = {0};
   if (platform_copy_file_path(dst_path, src_path)) {
     lib.h = platform_library_open(dst_path);
-    if (!platform_handle_is_null(lib.h)) {
+    if (platform_handle_is_valid(lib.h)) {
       #define GAME_PROC(x) \
         lib.x = (x##_proc *)platform_library_load_proc(lib.h, #x);
       GAME_PROC_LIST
@@ -55,7 +57,7 @@ game_library_open(String8 dst_path, String8 src_path) {
 
 internal void
 game_library_close(Game_Library lib) {
-  if (!platform_handle_is_null(lib.h)) {
+  if (platform_handle_is_valid(lib.h)) {
     platform_library_close(lib.h);
   }
 }
@@ -156,7 +158,7 @@ platform_gamepad_init(void) {
        ++lib_index) {
     String8 lib_name = libs[lib_index];
     Platform_Handle h = platform_library_open(lib_name);
-    if (!platform_handle_is_null(h)) {
+    if (platform_handle_is_valid(h)) {
       xinput_get_state = (xinput_get_state_proc *)
         platform_library_load_proc(h, "XInputGetState");
       xinput_set_state = (xinput_set_state_proc *)
@@ -222,24 +224,6 @@ platform_gamepad_update(void) {
   }
 }
 
-internal String8
-str8_chop_last_slash(String8 string) {
-  if (string.len > 0) {
-    u8 *ptr = string.str + string.len - 1;
-    for (; ptr >= string.str; ptr -= 1) {
-      if (*ptr == '/' || *ptr == '\\') {
-        break;
-      }
-    }
-    if (ptr >= string.str) {
-      string.len = ptr - string.str;
-    } else {
-      string.len = 0;
-    }
-  }
-  return(string);
-}
-
 internal void
 entry_point(int argc, char **argv) {
   platform_gamepad_init();
@@ -260,16 +244,15 @@ entry_point(int argc, char **argv) {
   String8 dst_lib_path = str8_cat(arena, exec_path, dst_lib_name);
 
   Game_Library game = game_library_open(dst_lib_path, src_lib_path);
-  if (!platform_handle_is_null(game.h)) {
+  if (platform_handle_is_valid(game.h)) {
     u32 scale = 5;
     u32 render_w = 128;
     u32 render_h = 128;
     u32 window_w = render_w*scale;
     u32 window_h = render_h*scale;
-
     String8 window_title = str8_lit("STARFIGHTER");
-    Platform_Handle window = platform_window_open(window_title, window_w, window_h);
 
+    Platform_Handle window = platform_window_open(window_title, window_w, window_h);
     Image back_buffer = image_alloc(render_w, render_h);
     Input input = {0};
 
@@ -282,7 +265,14 @@ entry_point(int argc, char **argv) {
     Memory memory = memory_alloc(GB(1));
     memory.res_path = res_path;
 
-    platform_window_toggle_fullscreen(window);
+    platform_audio_init(&(Platform_Audio_Desc){
+      .sample_rate = 48000,
+      .num_channels = 2,
+      .callback = game.output_sound,
+      .user_data = &memory,
+    });
+
+    // platform_window_toggle_fullscreen(window);
     platform_window_show(window);
 
     u64 time_start = platform_get_time_us();
@@ -354,7 +344,8 @@ entry_point(int argc, char **argv) {
 
       scratch_end(scratch);
     }
-
+    
+    platform_audio_shutdown();
     platform_window_close(window);
     game_library_close(game);
   }

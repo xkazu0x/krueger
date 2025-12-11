@@ -38,9 +38,6 @@ internal b32 char_is_slash(u8 c);
 // NOTE: C-String Helpers
 
 internal uxx cstr_len(char *cstr);
-internal uxx cstr_index_of(char *cstr, char c);
-internal b32 cstr_match(char *a, char *b);
-internal uxx cstr_encode(char *cstr);
 
 ////////////////////////////
 // NOTE: String Constructors
@@ -89,5 +86,10 @@ internal String8_Node *str8_list_push(Arena *arena, String8_List *list, String8 
 internal String8_Node *str8_list_push_copy(Arena *arena, String8_List *list, String8 string);
 internal String8_Node *str8_list_push_fmt(Arena *arena, String8_List *list, char *fmt, ...);
 internal String8 str8_list_join(Arena *arena, String8_List *list);
+
+////////////////////////////
+// NOTE: String Path Helpers
+
+internal String8 str8_chop_last_slash(String8 string);
 
 #endif // KRUEGER_BASE_STRING_H
