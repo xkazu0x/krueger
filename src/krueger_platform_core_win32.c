@@ -43,8 +43,9 @@ platform_get_exec_file_path(Arena *arena) {
   char path[MAX_PATH];
   GetModuleFileName(0, path, MAX_PATH);
   uxx len = cstr_len(path);
-  u8 *str = push_array(arena, u8, len);
+  u8 *str = push_array(arena, u8, len + 1);
   mem_copy(str, path, len);
+  str[len] = 0;
   String8 result = make_str8(str, len);
   return(result);
 }

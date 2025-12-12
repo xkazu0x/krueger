@@ -238,12 +238,9 @@ load_bmp(Arena *arena, String8 file_path) {
 typedef struct {
   u32 sample_rate;
   u32 num_channels;
-} Audio_Format;
-
-typedef struct {
-  Audio_Format format;
-  u32 size;
-  void *data;
+  u32 bits_per_sample;
+  u32 num_samples;
+  void *samples;
 } Audio;
 
 #define wave_code(a, b, c, d) (((u32)(a)<<0)|((u32)(b)<<8)|((u32)(c)<<16)|((u32)(d)<<24))
@@ -337,39 +334,41 @@ load_wav(Arena *arena, String8 file_path) {
 
     u8 *at = (u8 *)(header + 1);
     u8 *stop = (u8 *)(at + header->size - 4);
-    
-    Audio_Format format = {0};
-    u32 audio_size = 0;
-    void *audio_data = 0;
+
+    u32 sample_rate = 0;
+    u32 num_channels = 0;
+    u32 bits_per_sample = 0;
+    u32 num_samples = 0;
+    void *samples = 0;
 
     for (Riff_Iterator iter = riff_parse_chunk_at(at, stop);
          riff_is_valid(iter);
          iter = riff_next_chunk(iter)) {
       switch (riff_get_chunk_type(iter)) {
         case WAVE_CHUNK_FMT: {
-          Wave_Format *audio_format = riff_get_chunk_data(iter);
-          assert(audio_format->audio_format == 1); // NOTE: PCM
-          assert(audio_format->num_channels == 2);
-          assert(audio_format->sample_rate == 48000);
-          assert(audio_format->block_align == (audio_format->num_channels*2));
-          assert(audio_format->bits_per_sample == 16);
-          format.num_channels = audio_format->num_channels;
-          format.sample_rate = audio_format->sample_rate;
+          Wave_Format *format = riff_get_chunk_data(iter);
+          assert(format->audio_format == 1); // NOTE: PCM
+          assert(format->num_channels == 2);
+          assert(format->sample_rate == 48000);
+          assert(format->block_align == (format->num_channels*2));
+          assert(format->bits_per_sample == 16);
+          sample_rate = format->sample_rate;
+          num_channels = format->num_channels;
+          bits_per_sample = format->bits_per_sample;
         } break;
         case WAVE_CHUNK_DATA: {
-          audio_size = riff_get_chunk_data_size(iter);
-          audio_data = riff_get_chunk_data(iter);
+          num_samples = riff_get_chunk_data_size(iter);
+          samples = riff_get_chunk_data(iter);
         } break;
       }
     }
 
-    assert(audio_size);
-    assert(audio_data);
+    assert(num_samples);
+    assert(samples);
     
-    result.format = format;
-    result.size = audio_size;
-    result.data = arena_push(arena, result.size);
-    mem_copy(result.data, audio_data, audio_size);
+    result.num_samples = num_samples;
+    result.samples = arena_push(arena, result.num_samples);
+    mem_copy(result.samples, samples, num_samples);
   } else {
     log_error("%s: failed to read file: %s", __func__, file_path);
   }
@@ -2651,14 +2650,15 @@ GAME_FRAME_PROC(frame) {
 
     state->main_arena = arena_alloc(.base = perm_memory_ptr, .res_size = perm_memory_size);
     state->temp_arena = arena_alloc(.base = temp_memory_ptr, .res_size = temp_memory_size);
- 
+
     Temp scratch = scratch_begin(0, 0);
     String8 path0 = str8_cat(scratch.arena, memory->res_path, str8_lit("pico8_font.bmp"));
     String8 path1 = str8_cat(scratch.arena, memory->res_path, str8_lit("sprites.bmp"));
-    state->font_image     = load_bmp(state->main_arena, path0);
-    state->sprites_image  = load_bmp(state->main_arena, path1);
+    String8 path2 = str8_cat(scratch.arena, memory->res_path, str8_lit("fireflies.wav"));
+    state->font_image = load_bmp(state->main_arena, path0);
+    state->sprites_image = load_bmp(state->main_arena, path1);
+    state->music_audio = load_wav(state->main_arena, path2);
     scratch_end(scratch);
-    state->music_audio = load_wav(state->main_arena, str8_lit("../res/fireflies.wav"));
 
     state->font_tilemap = make_tilemap(state->font_image, 4, 6, 16, 6);
     state->sprites_tilemap = make_tilemap(state->sprites_image, 8, 8, 16, 16);
@@ -2904,13 +2904,14 @@ output_sine_wave(Game_State *state, s16 *samples, u32 num_samples, u32 sample_ra
 
 internal void
 output_test_music(Game_State *state, s16 *samples, u32 num_samples) {
-  u32 src_sample_count = state->music_audio.size/2;
-  s16 *src = (s16 *)state->music_audio.data;
+  u32 source_sample_count = state->music_audio.num_samples/2;
+  s16 *src = (s16 *)state->music_audio.samples;
   s16 *dst = samples;
   for (u32 sample_index = 0;
        sample_index < num_samples;
        ++sample_index) {
-    dst[sample_index] = src[state->music_audio_sample_index++ % src_sample_count];
+    u32 source_index = state->music_audio_sample_index++ % source_sample_count;
+    dst[sample_index] = src[source_index];
   }
 }
 

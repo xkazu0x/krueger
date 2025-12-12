@@ -24,6 +24,12 @@ struct String8_List {
   uxx size;
 };
 
+typedef struct {
+  String8 pre;
+  String8 sep;
+  String8 post;
+} String_Join;
+
 //////////////////////////
 // NOTE: Character Helpers
 
@@ -85,11 +91,17 @@ internal String8_Node *str8_list_push_node_and_set_string(String8_List *list, St
 internal String8_Node *str8_list_push(Arena *arena, String8_List *list, String8 string);
 internal String8_Node *str8_list_push_copy(Arena *arena, String8_List *list, String8 string);
 internal String8_Node *str8_list_push_fmt(Arena *arena, String8_List *list, char *fmt, ...);
-internal String8 str8_list_join(Arena *arena, String8_List *list);
+
+///////////////////////////////////
+// NOTE: String Splitting & Joining
+
+internal String8_List str8_split(Arena *arena, String8 string, u8 *splits, u32 num_splits);
+internal String8 str8_list_join(Arena *arena, String8_List *list, String_Join *opt_join);
 
 ////////////////////////////
 // NOTE: String Path Helpers
 
+internal String8_List str8_split_path(Arena *arena, String8 path);
 internal String8 str8_chop_last_slash(String8 string);
 
 #endif // KRUEGER_BASE_STRING_H

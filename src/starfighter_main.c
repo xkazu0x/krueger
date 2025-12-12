@@ -1,14 +1,14 @@
 #define BUILD_CONSOLE_INTERFACE 1
+
 #define PLATFORM_FEATURE_GRAPHICS 1
+#define PLATFORM_FEATURE_AUDIO 1
 
 #include "krueger_base.h"
 #include "krueger_platform.h"
-#include "krueger_platform_audio.h"
 #include "starfighter.h"
 
 #include "krueger_base.c"
 #include "krueger_platform.c"
-#include "krueger_platform_audio.c"
 
 #include <xinput.h>
 
@@ -224,33 +224,57 @@ platform_gamepad_update(void) {
   }
 }
 
+internal String8
+path_find_sub_directory(Arena *arena, String8 path, String8 sub) {
+  Temp scratch = scratch_begin(&arena, 1);
+  String8_List path_list = str8_split_path(scratch.arena, path);
+
+  String8_List sub_list = {0};
+  for (String8_Node *node = path_list.first;
+       node != 0;
+       node = node->next) {
+    str8_list_push(scratch.arena, &sub_list, node->string);
+    if (str8_match(node->string, sub)) {
+      break;
+    }
+  }
+
+  String8 result = str8_list_join(arena, &sub_list, &(String_Join){
+    .sep = str8_lit("\\"),
+    .post = str8_lit("\\"),
+  });
+
+  return(result);
+}
+
 internal void
 entry_point(int argc, char **argv) {
   platform_gamepad_init();
 
   Arena *arena = arena_alloc();
   String8 exec_file_path = platform_get_exec_file_path(arena);
+  String8 root_path = path_find_sub_directory(arena, exec_file_path, str8_lit("krueger"));
 
-  String8 build_path = str8_chop_last_slash(exec_file_path);
-  String8 root_path = str8_chop_last_slash(build_path);
-  String8 res_path = str8_cat(arena, root_path, str8_lit("\\res\\"));
+  String8 build_path   = str8_cat(arena, root_path, str8_lit("build\\"));
+  String8 res_path     = str8_cat(arena, root_path, str8_lit("res\\"));
 
-  uxx last_slash_index = str8_find_last(exec_file_path, '\\');
   String8 src_lib_name = str8_lit("libstarfighter.dll");
   String8 dst_lib_name = str8_lit("libstarfighterx.dll");
 
-  String8 exec_path = str8_substr(exec_file_path, 0, last_slash_index + 1);
-  String8 src_lib_path = str8_cat(arena, exec_path, src_lib_name);
-  String8 dst_lib_path = str8_cat(arena, exec_path, dst_lib_name);
+  String8 src_lib_path = str8_cat(arena, build_path, src_lib_name);
+  String8 dst_lib_path = str8_cat(arena, build_path, dst_lib_name);
 
   Game_Library game = game_library_open(dst_lib_path, src_lib_path);
   if (platform_handle_is_valid(game.h)) {
-    u32 scale = 5;
+    String8 window_title = str8_lit("STARFIGHTER");
+
     u32 render_w = 128;
     u32 render_h = 128;
+
+    u32 scale = 5;
+
     u32 window_w = render_w*scale;
     u32 window_h = render_h*scale;
-    String8 window_title = str8_lit("STARFIGHTER");
 
     Platform_Handle window = platform_window_open(window_title, window_w, window_h);
     Image back_buffer = image_alloc(render_w, render_h);
@@ -294,6 +318,7 @@ entry_point(int argc, char **argv) {
           } break;
         }
       }
+
       if (quit) break;
       platform_gamepad_update();
 
@@ -315,8 +340,8 @@ entry_point(int argc, char **argv) {
       input.down      = (pad->down.is_down)  ? pad->down  : keys[KEY_DOWN];
       input.left      = (pad->left.is_down)  ? pad->left  : keys[KEY_LEFT];
       input.right     = (pad->right.is_down) ? pad->right : keys[KEY_RIGHT];
-      input.shoot     = (pad->x.is_down) ? pad->x : keys[KEY_Z];
-      input.bomb      = (pad->b.is_down) ? pad->b : keys[KEY_X];
+      input.shoot     = (pad->x.is_down)     ? pad->x     : keys[KEY_Z];
+      input.bomb      = (pad->b.is_down)     ? pad->b     : keys[KEY_X];
       input.direction = pad->left_stick;
 
       if (keys[KEY_F11].pressed) platform_window_toggle_fullscreen(window);
@@ -344,9 +369,5 @@ entry_point(int argc, char **argv) {
 
       scratch_end(scratch);
     }
-    
-    platform_audio_shutdown();
-    platform_window_close(window);
-    game_library_close(game);
   }
 }

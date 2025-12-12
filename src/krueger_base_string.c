@@ -261,21 +261,79 @@ str8_list_push_fmt(Arena *arena, String8_List *list, char *fmt, ...) {
   return(result);
 }
 
+///////////////////////////////////
+// NOTE: String Splitting & Joining
+
+internal String8_List
+str8_split(Arena *arena, String8 string, u8 *splits, u32 num_splits) {
+  String8_List result = {0};
+
+  u8 *at = string.str;
+  u8 *stop = string.str + string.len;
+
+  u8 *str_start = at;
+  u8 *str_end = stop;
+
+  for (; at != stop; at += 1) {
+    for (u32 split_index = 0;
+         split_index < num_splits;
+         ++split_index) {
+      if (*at == splits[split_index]) {
+        str_end = at;
+        break;
+      }
+    }
+
+    if (str_end == at) {
+      str8_list_push(arena, &result, str8_range(str_start, str_end));
+      str_start = str_end + 1;
+    }
+  }
+
+  return(result);
+}
+
 internal String8
-str8_list_join(Arena *arena, String8_List *list) {
+str8_list_join(Arena *arena, String8_List *list, String_Join *opt_join) {
+  String_Join join = {0};
+  if (opt_join != 0) {
+    mem_copy_struct(&join, opt_join);
+  }
+
+  u32 sep_count = 0;
+  if (list->count > 0) {
+    sep_count = list->count - 1;
+  }
+
   String8 result = {0};
-  result.len = list->size;
+  result.len = list->size + join.pre.len + sep_count*join.sep.len + join.post.len;
   u8 *ptr = result.str = push_array(arena, u8, result.len + 1);
+
+  mem_copy(ptr, join.pre.str, join.pre.len);
+  ptr += join.pre.len;
   for (String8_Node *node = list->first; node != 0; node = node->next) {
     mem_copy(ptr, node->string.str, node->string.len);
     ptr += node->string.len;
+    if (node->next != 0) {
+      mem_copy(ptr, join.sep.str, join.sep.len);
+      ptr += join.sep.len;
+    }
   }
+  mem_copy(ptr, join.post.str, join.post.len);
+  ptr += join.post.len;
   *ptr = 0;
+
   return(result);
 }
 
 ////////////////////////////
 // NOTE: String Path Helpers
+
+internal String8_List
+str8_split_path(Arena *arena, String8 path) {
+  String8_List result = str8_split(arena, path, (u8 *)"/\\", 2);
+  return(result);
+}
 
 internal String8
 str8_chop_last_slash(String8 string) {

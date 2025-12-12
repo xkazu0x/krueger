@@ -17,7 +17,7 @@ typedef struct {
   uxx cmt_size;
 } Temp;
 
-global uxx arena_default_res_size = MB(64);
+global const uxx arena_default_res_size = MB(64);
 
 #define arena_alloc(...) _arena_alloc(&(Arena_Params){ \
   .res_size = arena_default_res_size, \

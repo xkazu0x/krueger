@@ -85,21 +85,25 @@
 ///////////////////////////////////
 // NOTE: Foor-Loop Construct Macros
 
-#define each_index(type, it, count)   (type it = 0; it < (count); ++it)
-#define each_item(type, it, array) (type it = 0; it < array_count(array); ++it)
-#define each_node(type, it, first)    (type *it = first; it != 0; it = it->next)
+#define each_index(type, it, count) (type it = 0; it < (count); ++it)
+#define each_item(type, it, array)  (type it = 0; it < array_count(array); ++it)
+#define each_node(type, it, first)  (type *it = first; it != 0; it = it->next)
 
 ////////////////////////////////
 // NOTE: Memory Operation Macros
 
-#define mem_copy(dst, src, size)   memmove((dst), (src), (size))
-#define mem_set(dst, byte, size)   memset((dst), (byte), (size))
-#define mem_cmp(a, b, size)        memcmp((a), (b), (size))
+#define mem_copy(dst, src, size)  memmove((dst), (src), (size))
+#define mem_set(dst, byte, size)  memset((dst), (byte), (size))
+#define mem_cmp(a, b, size)       memcmp((a), (b), (size))
 
-#define mem_zero(dst, size)        mem_set((dst), 0, (size))
-#define mem_zero_struct(dst)       mem_zero((dst), sizeof(*(dst)))
-#define mem_zero_array(dst)        mem_zero((dst), sizeof(dst));
-#define mem_zero_typed(dst, count) mem_zero((dst), sizeof(*(dst))*(count))
+#define mem_copy_struct(dst, src)       mem_copy((dst), (src), sizeof(*(dst)))
+#define mem_copy_array(dst, src)        mem_copy((dst), (src), sizeof(dst))
+#define mem_copy_typed(dst, src, count) mem_copy((dst), (src), sizeof(*(dst))*(count))
+
+#define mem_zero(dst, size)         mem_set((dst), 0, (size))
+#define mem_zero_struct(dst)        mem_zero((dst), sizeof(*(dst)))
+#define mem_zero_array(dst)         mem_zero((dst), sizeof(dst))
+#define mem_zero_typed(dst, count)  mem_zero((dst), sizeof(*(dst))*(count))
 
 ///////////////////////////
 // NOTE: Linked List Macros
@@ -140,6 +144,7 @@
 ////////////////////////////
 // NOTE: Misc. Helper Macros
 
+#define null_def(val, def) (((val) == 0) ? (def) : (val))
 #define array_count(x) (sizeof(x)/sizeof(*(x)))
 #define square(x) ((x)*(x))
 
