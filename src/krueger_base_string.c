@@ -1,4 +1,4 @@
-#ifndef KRUEGER_BASE_STRING_Cstring
+#ifndef KRUEGER_BASE_STRING_C
 #define KRUEGER_BASE_STRING_C
 
 //////////////////////////
