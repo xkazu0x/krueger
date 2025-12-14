@@ -33,7 +33,7 @@ typedef struct {
 internal void                   platform_graphics_init(void);
 internal Platform_Graphics_Info platform_get_graphics_info(void);
 
-internal Platform_Handle        platform_window_open(String8 title, s32 width, s32 height);
+internal Platform_Handle        platform_window_open(String8 name, s32 width, s32 height);
 internal void                   platform_window_close(Platform_Handle handle);
 internal void                   platform_window_show(Platform_Handle handle);
 internal void                   platform_window_blit(Platform_Handle handle, u32 *buffer, s32 buffer_w, s32 buffer_h);

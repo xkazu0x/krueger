@@ -33,9 +33,9 @@ typedef struct {
 ////////////////////////
 // NOTE: Windows Globals
 
-global Win32_Graphics_State *win32_graphics_state;
-global Platform_Event_List win32_event_list;
-global Arena *win32_event_arena;
+global Win32_Graphics_State *_win32_graphics_state;
+global Platform_Event_List _win32_event_list;
+global Arena *_win32_event_arena;
 
 //////////////////////////
 // NOTE: Windows Functions
@@ -49,3 +49,4 @@ internal Platform_Event   *win32_push_event(Platform_Event_Type type, Win32_Wind
 internal LRESULT CALLBACK win32_window_proc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam);
 
 #endif // KRUEGER_PLATFORM_GRAPHICS_WIN32_H
+

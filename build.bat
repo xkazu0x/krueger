@@ -46,10 +46,10 @@ pushd build
 REM %compile% ..\src\test_dsound_main.c %link% %out% krueger.exe || exit /b 1
 REM %compile% ..\src\test_xaudio_main.c %link% %out% krueger.exe || exit /b 1
 REM %compile% ..\src\test_wasapi_main.c %link% %out% krueger.exe || exit /b 1
-%compile% ..\src\unicode_main.c %link% %out% krueger.exe || exit /b 1
-if "%run%"=="1" call krueger.exe
+REM %compile% ..\src\unicode_main.c %link% %out% krueger.exe || exit /b 1
+REM if "%run%"=="1" call krueger.exe
 
-REM %compile% %shared% ..\src\starfighter.c      %link% %out% libstarfighter.dll || exit /b 1
-REM %compile%          ..\src\starfighter_main.c %link% %out% starfighter.exe || exit /b 1
-REM if "%run%"=="1" call starfighter.exe
+%compile% %shared% ..\src\starfighter.c      %link% %out% libstarfighter.dll || exit /b 1
+%compile%          ..\src\starfighter_main.c %link% %out% starfighter.exe || exit /b 1
+if "%run%"=="1" call starfighter.exe
 popd

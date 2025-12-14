@@ -10,6 +10,9 @@
 #ifndef NO_MIN_MAX
 #define NO_MIN_MAX
 #endif
+#ifndef UNICODE
+#define UNICODE
+#endif
 #include <windows.h>
 #include <timeapi.h>
 #pragma comment(lib, "winmm")
@@ -19,11 +22,11 @@
 
 typedef struct {
   u64 us_res;
-} Win32_Core_State;
+} _Win32_Core_State;
 
 ////////////////////////
 // NOTE: Windows Globals
 
-global Win32_Core_State win32_core_state;
+global _Win32_Core_State _win32_core_state;
 
 #endif // KRUEGER_PLATFORM_CORE_WIN32_H

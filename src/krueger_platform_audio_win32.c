@@ -18,10 +18,10 @@ _win32_wasapi_thread_proc(LPVOID param) {
 
     s16 *samples = 0;
     IAudioRenderClient_GetBuffer(_win32_audio_state.render_client, fill_frame_count, (BYTE **)&samples);
-    u32 num_samples = fill_frame_count*_platform_audio_desc.num_channels;
+    u32 num_samples = fill_frame_count*_audio_desc.num_channels;
 
-    if (_platform_audio_desc.callback) {
-      _platform_audio_desc.callback(samples, num_samples, _platform_audio_desc.sample_rate, _platform_audio_desc.user_data);
+    if (_audio_desc.callback) {
+      _audio_desc.callback(samples, num_samples, _audio_desc.sample_rate, _audio_desc.user_data);
     }
 
     IAudioRenderClient_ReleaseBuffer(_win32_audio_state.render_client, fill_frame_count, 0);
@@ -40,8 +40,8 @@ _win32_wasapi_backend_init(void) {
 
   WAVEFORMATEX audio_format = {0};
   audio_format.wFormatTag = WAVE_FORMAT_PCM;
-  audio_format.nChannels = (WORD)_platform_audio_desc.num_channels;
-  audio_format.nSamplesPerSec = _platform_audio_desc.sample_rate;
+  audio_format.nChannels = (WORD)_audio_desc.num_channels;
+  audio_format.nSamplesPerSec = _audio_desc.sample_rate;
   audio_format.wBitsPerSample = BITS_PER_SAMPLE;
   audio_format.nBlockAlign = (audio_format.nChannels*audio_format.wBitsPerSample)/8;
   audio_format.nAvgBytesPerSec = audio_format.nSamplesPerSec*audio_format.nBlockAlign;

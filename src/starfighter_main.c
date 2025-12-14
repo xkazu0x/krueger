@@ -43,7 +43,7 @@ game_library_open(String8 dst_path, String8 src_path) {
     lib.h = platform_library_open(dst_path);
     if (platform_handle_is_valid(lib.h)) {
       #define GAME_PROC(x) \
-        lib.x = (x##_proc *)platform_library_load_proc(lib.h, #x);
+        lib.x = (x##_proc *)platform_library_load_proc(lib.h, str8_lit(#x));
       GAME_PROC_LIST
       #undef GAME_PROC
     } else {
@@ -160,9 +160,9 @@ platform_gamepad_init(void) {
     Platform_Handle h = platform_library_open(lib_name);
     if (platform_handle_is_valid(h)) {
       xinput_get_state = (xinput_get_state_proc *)
-        platform_library_load_proc(h, "XInputGetState");
+        platform_library_load_proc(h, str8_lit("XInputGetState"));
       xinput_set_state = (xinput_set_state_proc *)
-        platform_library_load_proc(h, "XInputSetState");
+        platform_library_load_proc(h, str8_lit("XInputSetState"));
       break;
     }
   }
@@ -266,19 +266,16 @@ entry_point(int argc, char **argv) {
 
   Game_Library game = game_library_open(dst_lib_path, src_lib_path);
   if (platform_handle_is_valid(game.h)) {
-    String8 window_title = str8_lit("STARFIGHTER");
-
+    u32 window_scale = 5;
     u32 render_w = 128;
     u32 render_h = 128;
 
-    u32 scale = 5;
+    String8 window_name = str8_lit("STARFIGHTER");
+    u32 window_w = window_scale*render_w;
+    u32 window_h = window_scale*render_h;
 
-    u32 window_w = render_w*scale;
-    u32 window_h = render_h*scale;
-
-    Platform_Handle window = platform_window_open(window_title, window_w, window_h);
+    Platform_Handle window = platform_window_open(window_name, window_w, window_h);
     Image back_buffer = image_alloc(render_w, render_h);
-    Input input = {0};
 
     Platform_Graphics_Info graphics_info = platform_get_graphics_info();
     Clock time = { .dt_sec = 1.0f/graphics_info.refresh_rate };
@@ -288,6 +285,7 @@ entry_point(int argc, char **argv) {
     Thread_Context *thread_context = thread_context_selected();
     Memory memory = memory_alloc(GB(1));
     memory.res_path = res_path;
+    Input input = {0};
 
     platform_audio_init(&(Platform_Audio_Desc){
       .sample_rate = 48000,

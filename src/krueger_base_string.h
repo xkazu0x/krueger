@@ -9,6 +9,17 @@ struct String8 {
   uxx len;
   u8 *str;
 };
+typedef struct String16 String16;
+struct String16 {
+  uxx len;
+  u16 *str;
+};
+
+typedef struct String32 String32;
+struct String32 {
+  uxx len;
+  u32 *str;
+};
 
 typedef struct String8_Node String8_Node;
 struct String8_Node {
@@ -29,6 +40,11 @@ typedef struct {
   String8 sep;
   String8 post;
 } String_Join;
+
+typedef struct {
+  u32 inc;
+  u32 codepoint;
+} Unicode_Decode;
 
 //////////////////////////
 // NOTE: Character Helpers
@@ -52,6 +68,9 @@ internal uxx cstr_len(char *cstr);
 internal String8 str8(u8 *str, uxx len);
 internal String8 str8_range(u8 *first, u8 *last);
 internal String8 str8_cstr(char *cstr);
+
+internal String16 str16(u16 *str, uxx len);
+internal String32 str32(u32 *str, uxx len);
 
 ////////////////////////
 // NOTE: String Matching
@@ -103,5 +122,21 @@ internal String8 str8_list_join(Arena *arena, String8_List *list, String_Join *o
 
 internal String8_List str8_split_path(Arena *arena, String8 path);
 internal String8 str8_chop_last_slash(String8 string);
+
+/////////////////////////////////////////
+// NOTE: UTF-8 & UTF-16 Decoding/Encoding
+
+internal Unicode_Decode utf8_decode(u8 *str, uxx max);
+internal Unicode_Decode utf16_decode(u16 *str, uxx max);
+internal u32 utf8_encode(u8 *str, u32 codepoint);
+internal u32 utf16_encode(u16 *str, u32 codepoint);
+
+///////////////////////////////////
+// NOTE: Unicode String Conversions
+
+internal String8 str8_from_str16(Arena *arena, String16 in);
+internal String8 str8_from_str32(Arena *arena, String32 in);
+internal String16 str16_from_str8(Arena *arena, String8 in);
+internal String32 str32_from_str8(Arena *arena, String8 in);
 
 #endif // KRUEGER_BASE_STRING_H

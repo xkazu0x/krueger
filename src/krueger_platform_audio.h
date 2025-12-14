@@ -13,7 +13,7 @@ typedef struct {
   void *user_data;
 } Platform_Audio_Desc;
 
-global Platform_Audio_Desc _platform_audio_desc;
+global Platform_Audio_Desc _audio_desc;
 global const u32 audio_default_sample_rate = 44100;
 global const u16 audio_default_num_channels = 1;
 

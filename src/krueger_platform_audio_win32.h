@@ -43,12 +43,12 @@ typedef struct {
   IMMDevice *device;
   IAudioClient *audio_client;
   IAudioRenderClient *render_client;
-} Win32_Audio_State;
+} _Win32_Audio_State;
 
 ////////////////////////
 // NOTE: Windows Globals
 
-global Win32_Audio_State _win32_audio_state;
+global _Win32_Audio_State _win32_audio_state;
 
 //////////////////////////
 // NOTE: Windows Functions

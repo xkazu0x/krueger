@@ -8,7 +8,7 @@ internal void
 platform_core_init(void) {
   LARGE_INTEGER large_integer;
   QueryPerformanceFrequency(&large_integer);
-  win32_core_state.us_res = large_integer.QuadPart;
+  _win32_core_state.us_res = large_integer.QuadPart;
   timeBeginPeriod(1);
 }
 
@@ -40,13 +40,13 @@ platform_get_date_time(void) {
 
 internal String8
 platform_get_exec_file_path(Arena *arena) {
-  char path[MAX_PATH];
-  GetModuleFileName(0, path, MAX_PATH);
-  uxx len = cstr_len(path);
-  u8 *str = push_array(arena, u8, len + 1);
-  mem_copy(str, path, len);
-  str[len] = 0;
-  String8 result = make_str8(str, len);
+  Temp scratch = scratch_begin(&arena, 1);
+  u16 *tmp = push_array(scratch.arena, u16, MAX_PATH);
+  DWORD len = GetModuleFileNameW(0, tmp, MAX_PATH);
+  u16 *str = push_array(scratch.arena, u16, len + 1);
+  len = GetModuleFileNameW(0, str, len + 1);
+  String8 result = str8_from_str16(arena, str16(str, len));
+  scratch_end(scratch);
   return(result);
 }
 
@@ -75,6 +75,8 @@ platform_release(void *ptr, uxx size) {
 internal Platform_Handle
 platform_file_open(String8 path, Platform_File_Flags flags) {
   Platform_Handle result = {0};
+  Temp scratch = scratch_begin(0, 0);
+  String16 path16 = str16_from_str8(scratch.arena, path);
   DWORD desired_access = 0;
   DWORD share_mode = 0;
   DWORD creation_disposition = OPEN_EXISTING;
@@ -84,10 +86,11 @@ platform_file_open(String8 path, Platform_File_Flags flags) {
   if (flags & PLATFORM_FILE_SHARE_READ)  share_mode |= FILE_SHARE_READ;
   if (flags & PLATFORM_FILE_SHARE_WRITE) share_mode |= FILE_SHARE_WRITE | FILE_SHARE_DELETE;
   if (flags & PLATFORM_FILE_WRITE)       creation_disposition = CREATE_ALWAYS;
-  HANDLE handle = CreateFileA((LPCSTR)path.str, desired_access, share_mode, 0, creation_disposition, FILE_ATTRIBUTE_NORMAL, 0);
+  HANDLE handle = CreateFileW(path16.str, desired_access, share_mode, 0, creation_disposition, FILE_ATTRIBUTE_NORMAL, 0);
   if (handle != INVALID_HANDLE_VALUE) {
     result.ptr[0] = (uxx)handle; 
   }
+  scratch_end(scratch);
   return(result);
 }
 
@@ -123,21 +126,32 @@ platform_get_file_size(Platform_Handle file) {
 
 internal b32
 platform_copy_file_path(String8 dst, String8 src) {
-  b32 result = CopyFileA((LPCSTR)src.str, (LPCSTR)dst.str, 0);
+  Temp scratch = scratch_begin(0, 0);
+  String16 dst16 = str16_from_str8(scratch.arena, dst);
+  String16 src16 = str16_from_str8(scratch.arena, src);
+  b32 result = CopyFileW(src16.str, dst16.str, 0);
+  scratch_end(scratch);
   return(result);
 }
 
 internal Platform_Handle
 platform_library_open(String8 path) {
   Platform_Handle result = {0};
-  result.ptr[0] = (uxx)LoadLibraryA((LPCSTR)path.str);
+  Temp scratch = scratch_begin(0, 0);
+  String16 path16 = str16_from_str8(scratch.arena, path);
+  HMODULE module = LoadLibraryW(path16.str);
+  result.ptr[0] = (uxx)module;
+  scratch_end(scratch);
   return(result);
 }
 
 internal void *
-platform_library_load_proc(Platform_Handle lib, char *name) {
+platform_library_load_proc(Platform_Handle lib, String8 name) {
+  Temp scratch = scratch_begin(0, 0);
   HMODULE module = (HMODULE)lib.ptr[0];
-  void *result = (void *)GetProcAddress(module, name);
+  name = str8_copy(scratch.arena, name);
+  void *result = (void *)GetProcAddress(module, (LPCSTR)name.str);
+  scratch_end(scratch);
   return(result);
 }
 
@@ -151,7 +165,7 @@ internal u64
 platform_get_time_us(void) {
   LARGE_INTEGER large_integer;
   QueryPerformanceCounter(&large_integer);
-  u64 result = large_integer.QuadPart*million(1)/win32_core_state.us_res;
+  u64 result = large_integer.QuadPart*million(1)/_win32_core_state.us_res;
   return(result);
 }
 
@@ -163,13 +177,13 @@ platform_sleep_ms(u32 ms) {
 #if BUILD_ENTRY_POINT
 #if BUILD_CONSOLE_INTERFACE
 int
-main(int argc, char **argv) {
+wmain(int argc, char **argv) {
   base_entry_point(argc, argv);
   return(0);
 }
 #else
 int
-WinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line, int cmd_show) {
+wWinMain(HINSTANCE instance, HINSTANCE prev_instance, PSTR cmd_line, int cmd_show) {
   base_entry_point(__argc, __argv);
   return(0);
 }

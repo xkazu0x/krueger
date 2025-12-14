@@ -49,7 +49,7 @@ internal u64 platform_get_file_size(Platform_Handle file);
 internal b32 platform_copy_file_path(String8 dst, String8 src);
 
 internal Platform_Handle platform_library_open(String8 file_path);
-internal void *platform_library_load_proc(Platform_Handle lib, char *name);
+internal void *platform_library_load_proc(Platform_Handle lib, String8 name);
 internal void platform_library_close(Platform_Handle lib);
 
 internal u64 platform_get_time_us(void);
