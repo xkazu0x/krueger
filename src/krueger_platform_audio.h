@@ -9,7 +9,7 @@
 typedef struct {
   u32 sample_rate;
   u32 num_channels;
-  void (*callback)(s16 *samples, u32 num_samples, u32 sample_rate, void *user_data);
+  void (*callback)(s16 *buffer, u32 num_frames, u32 num_samples, u32 num_channels, void *user_data);
   void *user_data;
 } Platform_Audio_Desc;
 

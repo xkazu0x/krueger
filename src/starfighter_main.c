@@ -5,10 +5,12 @@
 
 #include "krueger_base.h"
 #include "krueger_platform.h"
+#include "krueger_image.h"
 #include "starfighter.h"
 
 #include "krueger_base.c"
 #include "krueger_platform.c"
+#include "krueger_image.c"
 
 #include <xinput.h>
 
@@ -284,6 +286,9 @@ entry_point(int argc, char **argv) {
 
     Thread_Context *thread_context = thread_context_selected();
     Memory memory = memory_alloc(GB(1));
+#define PLATFORM_API(name, ret, ...) memory.name = name;
+  PLATFORM_API_LIST
+#undef PLATFORM_API
     memory.res_path = res_path;
     Input input = {0};
 

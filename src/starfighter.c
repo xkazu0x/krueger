@@ -1,13 +1,17 @@
 #define BUILD_ENTRY_POINT 0
 
 #include "krueger_base.h"
-#include "krueger_platform.h"
-#include "krueger_keycode.h"
+#include "krueger_image.h"
 #include "krueger_random.h"
+#include "krueger_keycode.h"
 #include "starfighter.h"
 
+#define PLATFORM_API(name, ret, ...) global ret (*name)(__VA_ARGS__);
+  PLATFORM_API_LIST
+#undef PLATFORM_API
+
 #include "krueger_base.c"
-#include "krueger_platform.c"
+#include "krueger_image.c"
 #include "krueger_random.c"
 
 // TODO:
@@ -2631,6 +2635,9 @@ draw_debug_info(Image draw_buffer, Clock *time, Game_State *state) {
 shared_function
 GAME_FRAME_PROC(frame) {
   thread_context_select(thread_context);
+#define PLATFORM_API(name, ret, ...) name = memory->name;
+  PLATFORM_API_LIST
+#undef PLATFORM_API
 
   assert(sizeof(Game_State) <= memory->size);
   Game_State *state = (Game_State *)memory->ptr;
@@ -2920,7 +2927,8 @@ GAME_OUTPUT_SOUND_PROC(output_sound) {
   Memory *memory = (Memory *)user_data;
   if (memory->is_initialized) {
     Game_State *state = (Game_State *)memory->ptr;
-    // output_sine_wave(state, samples, num_samples, sample_rate);
-    output_test_music(state, samples, num_samples);
+    u32 num_samples = num_frames*num_channels;
+    // output_sine_wave(state, buffer, num_samples, sample_rate);
+    output_test_music(state, buffer, num_samples);
   }
 }

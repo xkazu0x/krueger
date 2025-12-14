@@ -8,23 +8,21 @@ internal DWORD WINAPI
 _win32_wasapi_thread_proc(LPVOID param) {
   u32 buffer_frame_count;
   IAudioClient_GetBufferSize(_win32_audio_state.audio_client, &buffer_frame_count);
-
   IAudioClient_Start(_win32_audio_state.audio_client);
   for (;;) {
     WaitForSingleObject(_win32_audio_state.buffer_end_event, INFINITE);
     u32 padding_frame_count;
     IAudioClient_GetCurrentPadding(_win32_audio_state.audio_client, &padding_frame_count);
-    u32 fill_frame_count = buffer_frame_count - padding_frame_count;
-
-    s16 *samples = 0;
-    IAudioRenderClient_GetBuffer(_win32_audio_state.render_client, fill_frame_count, (BYTE **)&samples);
-    u32 num_samples = fill_frame_count*_audio_desc.num_channels;
-
+    u32 num_frames = buffer_frame_count - padding_frame_count;
+    s16 *buffer;
+    IAudioRenderClient_GetBuffer(_win32_audio_state.render_client, num_frames, (BYTE **)&buffer);
     if (_audio_desc.callback) {
-      _audio_desc.callback(samples, num_samples, _audio_desc.sample_rate, _audio_desc.user_data);
+      _audio_desc.callback(buffer, num_frames,
+                           _audio_desc.sample_rate,
+                           _audio_desc.num_channels,
+                           _audio_desc.user_data);
     }
-
-    IAudioRenderClient_ReleaseBuffer(_win32_audio_state.render_client, fill_frame_count, 0);
+    IAudioRenderClient_ReleaseBuffer(_win32_audio_state.render_client, num_frames, 0);
   }
   return(0);
 }

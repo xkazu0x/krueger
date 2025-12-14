@@ -2,63 +2,6 @@
 #define STARFIGHTER_H
 
 typedef struct {
-  u32 width;
-  u32 height;
-  u32 pitch;
-  u32 *pixels;
-} Image;
-
-internal Image
-make_image(u32 *pixels, u32 width, u32 height) {
-  Image result = {
-    .width = width,
-    .height = height,
-    .pitch = width,
-    .pixels = pixels,
-  };
-  return(result);
-}
-
-internal Image
-image_alloc(u32 width, u32 height) {
-  uxx size = width*height*sizeof(u32);
-  u32 *pixels = platform_reserve(size);
-  platform_commit(pixels, size);
-  Image result = make_image(pixels, width, height);
-  return(result);
-}
-
-internal void
-image_release(Image *image) {
-  uxx size = image->width*image->height*sizeof(u32);
-  platform_release(image->pixels, size);
-  image->width = 0;
-  image->height = 0;
-  image->pitch = 0;
-  image->pixels = 0;
-}
-
-internal Image
-image_scissor(Image image, u32 x, u32 y, u32 w, u32 h) {
-  Image result = {
-    .width = w,
-    .height = h,
-    .pitch = image.pitch,
-    .pixels = image.pixels + (y*image.pitch + x),
-  };
-  return(result);
-}
-
-internal void
-image_fill(Image dst, u32 color) {
-  for (u32 y = 0; y < dst.height; ++y) {
-    for (u32 x = 0; x < dst.width; ++x) {
-      dst.pixels[y*dst.pitch + x] = color;
-    }
-  }
-}
-
-typedef struct {
   b32 is_down;
   b32 pressed;
   b32 released;
@@ -106,15 +49,28 @@ typedef struct {
   u64 _dt_us;
 } Clock;
 
+#define PLATFORM_API_LIST \
+  PLATFORM_API(platform_reserve, void *, uxx) \
+  PLATFORM_API(platform_commit, b32, void *, uxx) \
+  PLATFORM_API(platform_decommit, void, void *, uxx) \
+  PLATFORM_API(platform_release, void, void *, uxx) \
+  PLATFORM_API(platform_read_entire_file, void *, Arena *, String8) \
+  PLATFORM_API(platform_get_date_time, Date_Time, void)
+
 typedef struct {
   b32 is_initialized;
+
+#define PLATFORM_API(name, ret, ...) ret (*name)(__VA_ARGS__);
+  PLATFORM_API_LIST
+#undef PLATFORM_API
+
   String8 res_path;
   uxx size;
   u8 *ptr; // NOTE: REQUIRED to be cleared at startup
 } Memory;
 
-#define GAME_FRAME_PROC(x)        b32 x(Thread_Context *thread_context, Memory *memory, Image *back_buffer, Input *input, Clock *time)
-#define GAME_OUTPUT_SOUND_PROC(x) void x(s16 *samples, u32 num_samples, u32 sample_rate, void *user_data)
+#define GAME_FRAME_PROC(x) b32 x(Thread_Context *thread_context, Memory *memory, Image *back_buffer, Input *input, Clock *time)
+#define GAME_OUTPUT_SOUND_PROC(x) void x(s16 *buffer, u32 num_frames, u32 sample_rate, u32 num_channels, void *user_data)
 
 typedef GAME_FRAME_PROC(frame_proc);
 typedef GAME_OUTPUT_SOUND_PROC(output_sound_proc);
