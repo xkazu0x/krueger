@@ -48,8 +48,8 @@ internal uxx cstr_len(char *cstr);
 ////////////////////////////
 // NOTE: String Constructors
 
-#define str8_lit(str) make_str8((u8 *)(str), sizeof(str) - 1)
-internal String8 make_str8(u8 *str, uxx len);
+#define str8_lit(str) str8((u8 *)(str), sizeof(str) - 1)
+internal String8 str8(u8 *str, uxx len);
 internal String8 str8_range(u8 *first, u8 *last);
 internal String8 str8_cstr(char *cstr);
 

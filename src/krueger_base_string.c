@@ -54,7 +54,7 @@ cstr_len(char *cstr) {
 // NOTE: String Constructors
 
 internal String8
-make_str8(u8 *str, uxx len) {
+str8(u8 *str, uxx len) {
   String8 result = {
     .len = len,
     .str = str,
