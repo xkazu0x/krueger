@@ -174,6 +174,9 @@ platform_sleep_ms(u32 ms) {
   Sleep(ms);
 }
 
+/////////////////////////////
+// NOTE: Platform Entry Point
+
 #if BUILD_ENTRY_POINT
 #if BUILD_CONSOLE_INTERFACE
 int

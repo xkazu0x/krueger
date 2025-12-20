@@ -230,7 +230,6 @@ internal String8
 path_find_sub_directory(Arena *arena, String8 path, String8 sub) {
   Temp scratch = scratch_begin(&arena, 1);
   String8_List path_list = str8_split_path(scratch.arena, path);
-
   String8_List sub_list = {0};
   for (String8_Node *node = path_list.first;
        node != 0;
@@ -240,12 +239,10 @@ path_find_sub_directory(Arena *arena, String8 path, String8 sub) {
       break;
     }
   }
-
   String8 result = str8_list_join(arena, &sub_list, &(String_Join){
     .sep = str8_lit("\\"),
     .post = str8_lit("\\"),
   });
-
   return(result);
 }
 
@@ -283,14 +280,14 @@ entry_point(int argc, char **argv) {
     Clock time = { .dt_sec = 1.0f/graphics_info.refresh_rate };
     // Clock time = { .dt_sec = 1.0f/60.0f };
     // Clock time = { .dt_sec = 1.0f/30.0f };
+    Input input = {0};
 
     Thread_Context *thread_context = thread_context_selected();
     Memory memory = memory_alloc(GB(1));
-#define PLATFORM_API(name, ret, ...) memory.name = name;
-  PLATFORM_API_LIST
-#undef PLATFORM_API
     memory.res_path = res_path;
-    Input input = {0};
+#define PLATFORM_API(name, ret, ...) memory.name = name;
+    PLATFORM_API_LIST
+#undef PLATFORM_API
 
     platform_audio_init(&(Platform_Audio_Desc){
       .sample_rate = 48000,
@@ -299,7 +296,7 @@ entry_point(int argc, char **argv) {
       .user_data = &memory,
     });
 
-    // platform_window_toggle_fullscreen(window);
+    platform_window_set_fullscreen(window, false);
     platform_window_show(window);
 
     u64 time_start = platform_get_time_us();
@@ -347,7 +344,11 @@ entry_point(int argc, char **argv) {
       input.bomb      = (pad->b.is_down)     ? pad->b     : keys[KEY_X];
       input.direction = pad->left_stick;
 
-      if (keys[KEY_F11].pressed) platform_window_toggle_fullscreen(window);
+      if (keys[KEY_F11].pressed) {
+        b32 fullscreen = platform_window_is_fullscreen(window);
+        platform_window_set_fullscreen(window, !fullscreen);
+      }
+
       if (game.frame) {
         if (game.frame(thread_context, &memory, &back_buffer, &input, &time)) {
           break;

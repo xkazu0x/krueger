@@ -59,12 +59,12 @@ typedef struct {
 
 typedef struct {
   b32 is_initialized;
+  String8 res_path;
 
 #define PLATFORM_API(name, ret, ...) ret (*name)(__VA_ARGS__);
   PLATFORM_API_LIST
 #undef PLATFORM_API
 
-  String8 res_path;
   uxx size;
   u8 *ptr; // NOTE: REQUIRED to be cleared at startup
 } Memory;

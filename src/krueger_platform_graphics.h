@@ -38,7 +38,7 @@ internal void                   platform_window_close(Platform_Handle handle);
 internal void                   platform_window_show(Platform_Handle handle);
 internal void                   platform_window_blit(Platform_Handle handle, u32 *buffer, s32 buffer_w, s32 buffer_h);
 internal b32                    platform_window_is_fullscreen(Platform_Handle handle);
-internal void                   platform_window_toggle_fullscreen(Platform_Handle handle);
+internal void                   platform_window_set_fullscreen(Platform_Handle handle, b32 fullscreen);
 
 internal Platform_Event_List    platform_get_event_list(Arena *arena);
 

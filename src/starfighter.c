@@ -22,6 +22,16 @@
 // - sprite animation system
 // audio
 
+///////////////////
+// NOTE: Asset List
+
+#define ASSET_IMAGE_LIST \
+  ASSET_IMAGE(font_image, "pico8_font.bmp") \
+  ASSET_IMAGE(sprites_image, "sprites.bmp")
+
+#define ASSET_SOUND_LIST \
+  ASSET_SOUND(music_audio, "fireflies.wav")
+
 ////////////////
 // NOTE: Globals
 
@@ -595,11 +605,12 @@ typedef struct {
   Random_Series general_entropy;
   Random_Series effects_entropy;
 
-  Arena *main_arena;
-  Arena *temp_arena;
+  Arena *perm_arena;
+  Arena *tran_arena;
 
-  Image font_image;
-  Image sprites_image;
+#define ASSET_IMAGE(var, file) Image var;
+  ASSET_IMAGE_LIST
+#undef ASSET_IMAGE
 
   Tilemap font_tilemap;
   Tilemap sprites_tilemap;
@@ -608,7 +619,7 @@ typedef struct {
   Image draw_buffer;
   Image ui_draw_buffer;
   Image play_draw_buffer;
-  
+
   Screen_State screen_state;
   b32 quit;
   b32 pause;
@@ -667,8 +678,11 @@ typedef struct {
   f32 tone_volume;
   f32 wave_period;
 
-  Audio music_audio;
-  u32 music_audio_sample_index;
+#define ASSET_SOUND(var, file) \
+  Audio var; \
+  u32 var##_sample_index;
+  ASSET_SOUND_LIST
+#undef ASSET_SOUND
 } Game_State;
 
 /////////////////////////
@@ -2650,21 +2664,29 @@ GAME_FRAME_PROC(frame) {
 
     uxx half_memory_size = memory->size/2;
     uxx perm_memory_size = half_memory_size - sizeof(Game_State);
-    uxx temp_memory_size = half_memory_size;
+    uxx tran_memory_size = half_memory_size;
 
     u8 *perm_memory_ptr = (u8 *)memory->ptr + sizeof(Game_State);
-    u8 *temp_memory_ptr = memory->ptr + half_memory_size;
+    u8 *tran_memory_ptr = memory->ptr + half_memory_size;
 
-    state->main_arena = arena_alloc(.base = perm_memory_ptr, .res_size = perm_memory_size);
-    state->temp_arena = arena_alloc(.base = temp_memory_ptr, .res_size = temp_memory_size);
+    state->perm_arena = arena_alloc(.base = perm_memory_ptr, .res_size = perm_memory_size);
+    state->tran_arena = arena_alloc(.base = tran_memory_ptr, .res_size = tran_memory_size);
 
     Temp scratch = scratch_begin(0, 0);
-    String8 path0 = str8_cat(scratch.arena, memory->res_path, str8_lit("pico8_font.bmp"));
-    String8 path1 = str8_cat(scratch.arena, memory->res_path, str8_lit("sprites.bmp"));
-    String8 path2 = str8_cat(scratch.arena, memory->res_path, str8_lit("fireflies.wav"));
-    state->font_image = load_bmp(state->main_arena, path0);
-    state->sprites_image = load_bmp(state->main_arena, path1);
-    state->music_audio = load_wav(state->main_arena, path2);
+#define ASSET_IMAGE(var, file) \
+  do { \
+    String8 file_path = str8_cat(scratch.arena, memory->res_path, str8_lit(file)); \
+    state->var = load_bmp(state->perm_arena, file_path); \
+  } while (0);
+    ASSET_IMAGE_LIST;
+#undef ASSET_IMAGE
+#define ASSET_SOUND(var, file) \
+  do { \
+    String8 file_path = str8_cat(scratch.arena, memory->res_path, str8_lit(file)); \
+    state->var = load_wav(state->perm_arena, file_path); \
+  } while (0);
+    ASSET_SOUND_LIST;
+#undef ASSET_SOUND
     scratch_end(scratch);
 
     state->font_tilemap = make_tilemap(state->font_image, 4, 6, 16, 6);
@@ -2679,7 +2701,7 @@ GAME_FRAME_PROC(frame) {
       "pqrstuvwxyz{|}~ "
     );
 
-    chars = str8_copy(state->main_arena, chars);
+    chars = str8_copy(state->perm_arena, chars);
     state->font = make_font(chars, state->font_tilemap);
 
     state->draw_buffer = image_alloc(back_buffer->width, back_buffer->height);
@@ -2706,9 +2728,9 @@ GAME_FRAME_PROC(frame) {
     state->blink_frequency = 12.0f;
     state->lock_input_cooldown = 1.0f;
     state->lock_input_time = state->lock_input_cooldown;
-    state->player = push_array(state->main_arena, Entity, 1);
-    state->enemy_manager = entity_manager_alloc(state->main_arena, MAX_ENEMY_PER_WAVE);
-    state->bullet_manager = entity_manager_alloc(state->main_arena, 512);
+    state->player = push_array(state->perm_arena, Entity, 1);
+    state->enemy_manager = entity_manager_alloc(state->perm_arena, MAX_ENEMY_PER_WAVE);
+    state->bullet_manager = entity_manager_alloc(state->perm_arena, 512);
 
     f32 min_star_speed = 32.0f;
     f32 max_star_speed = 64.0f;

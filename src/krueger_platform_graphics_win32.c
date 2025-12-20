@@ -263,12 +263,12 @@ platform_window_is_fullscreen(Platform_Handle handle) {
 }
 
 internal void
-platform_window_toggle_fullscreen(Platform_Handle handle) {
+platform_window_set_fullscreen(Platform_Handle handle, b32 fullscreen) {
   Win32_Window *window = win32_window_from_handle(handle);
   if (window != 0) {
     DWORD window_style = GetWindowLongW(window->hwnd, GWL_STYLE);
     b32 is_fullscreen_already = platform_window_is_fullscreen(handle);
-    if (!is_fullscreen_already) {
+    if (fullscreen && !is_fullscreen_already) {
       MONITORINFO monitor_info = {.cbSize = sizeof(monitor_info)};
       if (GetWindowPlacement(window->hwnd, &window->last_placement) &&
         GetMonitorInfoW(MonitorFromWindow(window->hwnd, MONITOR_DEFAULTTOPRIMARY), &monitor_info)) {
@@ -280,7 +280,7 @@ platform_window_toggle_fullscreen(Platform_Handle handle) {
                      monitor_info.rcMonitor.bottom - monitor_info.rcMonitor.top,
                      SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
       }
-    } else {
+    } else if (!fullscreen && is_fullscreen_already) {
       SetWindowLongPtrW(window->hwnd, GWL_STYLE, window_style | WS_OVERLAPPEDWINDOW);
       SetWindowPlacement(window->hwnd, &window->last_placement);
       SetWindowPos(window->hwnd, 0, 0, 0, 0, 0,
