@@ -30,7 +30,8 @@
   ASSET_IMAGE(sprites_image, "sprites.bmp")
 
 #define ASSET_SOUND_LIST \
-  ASSET_SOUND(music_audio, "fireflies.wav")
+  ASSET_SOUND(music_audio, "fireflies.wav") \
+  ASSET_SOUND(noise, "noise.wav")
 
 ////////////////
 // NOTE: Globals
@@ -253,8 +254,8 @@ typedef struct {
   u32 sample_rate;
   u32 num_channels;
   u32 bits_per_sample;
-  u32 num_samples;
-  void *samples;
+  u32 data_size;
+  void *data;
 } Audio;
 
 #define wave_code(a, b, c, d) (((u32)(a)<<0)|((u32)(b)<<8)|((u32)(c)<<16)|((u32)(d)<<24))
@@ -352,8 +353,8 @@ load_wav(Arena *arena, String8 file_path) {
     u32 sample_rate = 0;
     u32 num_channels = 0;
     u32 bits_per_sample = 0;
-    u32 num_samples = 0;
-    void *samples = 0;
+    u32 data_size = 0;
+    void *data = 0;
 
     for (Riff_Iterator iter = riff_parse_chunk_at(at, stop);
          riff_is_valid(iter);
@@ -371,18 +372,24 @@ load_wav(Arena *arena, String8 file_path) {
           bits_per_sample = format->bits_per_sample;
         } break;
         case WAVE_CHUNK_DATA: {
-          num_samples = riff_get_chunk_data_size(iter);
-          samples = riff_get_chunk_data(iter);
+          data_size = riff_get_chunk_data_size(iter);
+          data = riff_get_chunk_data(iter);
         } break;
       }
     }
 
-    assert(num_samples);
-    assert(samples);
-    
-    result.num_samples = num_samples;
-    result.samples = arena_push(arena, result.num_samples);
-    mem_copy(result.samples, samples, num_samples);
+    assert(sample_rate);
+    assert(num_channels);
+    assert(bits_per_sample);
+    assert(data_size);
+    assert(data);
+   
+    result.sample_rate = sample_rate;
+    result.num_channels = num_channels;
+    result.bits_per_sample = bits_per_sample;
+    result.data_size = data_size;
+    result.data = arena_push(arena, result.data_size);
+    mem_copy(result.data, data, data_size);
   } else {
     log_error("%s: failed to read file: %s", __func__, file_path);
   }
@@ -601,6 +608,15 @@ typedef enum {
   SCREEN_WIN,
 } Screen_State;
 
+typedef struct Playing_Sound Playing_Sound;
+struct Playing_Sound {
+  Playing_Sound *next;
+  Playing_Sound *prev;
+  Audio *audio;
+  f32 volume[2];
+  s32 frames_played;
+};
+
 typedef struct {
   Random_Series general_entropy;
   Random_Series effects_entropy;
@@ -636,6 +652,7 @@ typedef struct {
   u32 player_shoot_side;
   f32 player_win_position_t;
 
+  u32 max_bomb_count;
   u32 bomb_count;
   f32 player_power;
   f32 player_power_max;
@@ -678,11 +695,14 @@ typedef struct {
   f32 tone_volume;
   f32 wave_period;
 
-#define ASSET_SOUND(var, file) \
-  Audio var; \
-  u32 var##_sample_index;
+#define ASSET_SOUND(var, file) Audio var;
   ASSET_SOUND_LIST
 #undef ASSET_SOUND
+
+  Playing_Sound *first_playing_sound;
+  Playing_Sound *last_playing_sound;
+  Playing_Sound *first_free_playing_sound;
+  u32 playing_sound_count;
 } Game_State;
 
 /////////////////////////
@@ -1148,6 +1168,25 @@ linear_move(Entity *entity) {
   entity->position = vector2_add(entity->position, velocity);
 }
 
+internal Playing_Sound *
+play_sound(Game_State *state, Audio *audio) {
+  Playing_Sound *playing_sound = state->first_free_playing_sound;
+  if (playing_sound) {
+    stack_pop(state->first_free_playing_sound);
+  } else {
+    playing_sound = push_struct(state->perm_arena, Playing_Sound);
+  }
+  mem_zero_struct(playing_sound);
+  playing_sound->audio = audio;
+  playing_sound->volume[0] = 1.0f;
+  playing_sound->volume[1] = 1.0f;
+  dll_push_back(state->first_playing_sound,
+                state->last_playing_sound,
+                playing_sound);
+  state->playing_sound_count += 1;
+  return(playing_sound);
+}
+
 //////////////////////
 
 internal void
@@ -1292,6 +1331,8 @@ simulate_player(Game_State *state, Input *input) {
     countdown(&player->shoot_cooldown);
     if (input->shoot.is_down) {
       if (player->shoot_cooldown <= 0.0f) {
+        play_sound(state, &state->noise);
+
         f32 gate = state->player_power_max/3.0f;
         if (state->player_power < gate) {
           local f32 sign = 1.0f;
@@ -1305,7 +1346,7 @@ simulate_player(Game_State *state, Input *input) {
           local f32 offset = 1.0f;
           for (u32 i = 0; i < 2; ++i) {
             Entity *bullet = player_shoot(state);
-            bullet->damage = 0.9f;
+            bullet->damage = 1.0f;
             bullet->position.x += 3.0f*sign;
             bullet->position.x += offset;
             sign *= -1.0f;
@@ -1317,7 +1358,7 @@ simulate_player(Game_State *state, Input *input) {
           f32 offset = 5.0f;
           for (u32 i = 0; i < 3; ++i) {
             Entity *bullet = player_shoot(state);
-            bullet->damage = 0.8f;
+            bullet->damage = 1.0f;
             bullet->position.x = player->position.x - offset;
             bullet->position.x += offset*i;
             bullet->position.x += sign;
@@ -1328,7 +1369,7 @@ simulate_player(Game_State *state, Input *input) {
           f32 offset = 5.0f;
           for (u32 i = 0; i < 3; ++i) {
             Entity *bullet = player_shoot(state);
-            bullet->damage = 0.8f;
+            bullet->damage = 1.0f;
             bullet->position.x = player->position.x - offset;
             bullet->position.x += offset*i;
             bullet->position.x += sign;
@@ -1354,7 +1395,7 @@ simulate_player(Game_State *state, Input *input) {
 
             Entity *target_enemy = 0;
             Vector2 target_delta = {0};
-            f32 target_length = 128.0f;
+            f32 target_length = 128.0f*2.0f;
 
             for (Entity *enemy = state->enemy_manager->list.first;
                  enemy != 0;
@@ -1368,7 +1409,8 @@ simulate_player(Game_State *state, Input *input) {
               }
             }
 
-            if (target_enemy && target_enemy->position.y < player->position.y) {
+            if (target_enemy &&
+                target_enemy->position.y < (player->position.y - TILE_SIZE*2.0f)) {
               f32 theta_radians = atan2f(target_delta.y, target_delta.x);
               bullet->dposition.x = cos_f32(theta_radians);
               bullet->dposition.y = sin_f32(theta_radians);
@@ -1685,11 +1727,12 @@ keep_point_between_range(Vector2 *point, Vector2 min, Vector2 max) {
 }
 
 internal Entity *
-init_player(Game_State *state) {
+player_init(Game_State *state) {
   state->player_max_shoot_r = 5.0f;
   state->player_shoot_r = 0.0f;
   state->player_dshoot_r = -80.0f;
-  state->bomb_count = 2;
+  state->max_bomb_count = 3;
+  state->bomb_count = state->max_bomb_count;
   
   state->player_power = 0.0f;
   state->player_power_max = 100.0f;
@@ -1697,8 +1740,9 @@ init_player(Game_State *state) {
   Entity *player = state->player;
   player->is_alive = true;
   player->is_player_friendly = true;
-
-  player->hp = 3;
+  
+  player->max_hp = 3;
+  player->hp = player->max_hp;
   player->speed = 70.0f;
   player->dposition = make_vector2(0.0f, 0.0f);
   player->position.x = state->draw_buffer.width*0.5f;
@@ -2179,29 +2223,36 @@ draw_wave_ui(Image draw_buffer, Game_State *state) {
   if (state->wave_index == LAST_WAVE) {
     Entity *boss = state->enemy_manager->list.first;
     if (boss) {
+      s32 padding = 1;
+      s32 length = (s32)(bw/TILE_SIZE) - padding*2;
+
+      s32 p = (s32)(padding*TILE_SIZE);
+      s32 w = (s32)(length*TILE_SIZE);
+
       s32 x0 = 0;
       s32 y0 = 0;
-      s32 x1 = draw_buffer.width;
-      s32 y1 = y0 + 8;
+      s32 x1 = bw;
+      s32 y1 = (s32)TILE_SIZE;
+
       draw_rect_fill(draw_buffer, x0, y0, x1, y1, CP_BLACK);
 
-      s32 mx = 2;
-      s32 my = 2;
-
-      s32 w = draw_buffer.width - mx*2;
-      s32 h = 8 - my*2;
-
-      x0 = mx;
-      y0 = my;
-      x1 = mx + w;
-      y1 = my + h;
-
-      draw_rect_fill(draw_buffer, x0, y0, x1, y1, CP_DARK_BLUE);
-
       f32 t = boss->hp/boss->max_hp;
+      x0 = p;
       x1 = (s32)(x0 + w*t);
-
       draw_rect_fill(draw_buffer, x0, y0, x1, y1, CP_RED);
+
+      for (s32 i = 0; i < length; ++i) {
+        u32 sprite_index = 30;
+        if (i == 0) {
+          sprite_index = 29;
+        } else if (i == (length - 1)) {
+          sprite_index = 31;
+        }
+        Vector2 position = make_vector2(p + i*TILE_SIZE, 0.0f);
+        draw_sprite(draw_buffer, state->sprites_tilemap,
+                    sprite_index, 1, 1,
+                    position, vec2(0.0f, 0.0f), vec2(0.0f, 0.0f));
+      }
     }
   }
 }
@@ -2226,18 +2277,18 @@ draw_player_ui(Image draw_buffer, Game_State *state) {
   }
 
   { // NOTE: draw player power
-    s32 mx = 2;
-    s32 my = 2;
+    s32 padding = 3;
+    s32 length = (s32)(draw_buffer.width/TILE_SIZE) - padding*2;
 
-    s32 w = bw - 8*3 - 8*2 - mx*2;
-    s32 h = 8 - my*2;
+    s32 p = (s32)(padding*TILE_SIZE);
+    s32 w = (s32)(length*TILE_SIZE);
 
-    s32 x0 = 8*3 + mx;
-    s32 y0 = my;
+    s32 x0 = p;
+    s32 y0 = 0;
     s32 x1 = x0 + w;
-    s32 y1 = h;
+    s32 y1 = (s32)TILE_SIZE;
 
-    draw_rect_fill(draw_buffer, x0, y0, x1, y1, CP_DARK_BLUE);
+    // draw_rect_fill(draw_buffer, x0, y0, x1, y1, CP_DARK_BLUE);
 
     f32 t = state->player_power/state->player_power_max;
     x1 = (s32)(x0 + w*t);
@@ -2250,6 +2301,19 @@ draw_player_ui(Image draw_buffer, Game_State *state) {
       } else {
         draw_rect_fill(draw_buffer, x0, y0, x1, y1, CP_BLUE);
       }
+    }
+
+    for (s32 i = 0; i < length; ++i) {
+      u32 sprite_index = 14;
+      if (i == 0) {
+        sprite_index = 13;
+      } else if (i == (length - 1)) {
+        sprite_index = 15;
+      }
+      Vector2 position = make_vector2(p + i*TILE_SIZE, 0.0f);
+      draw_sprite(draw_buffer, state->sprites_tilemap,
+                  sprite_index, 1, 1,
+                  position, vec2(0.0f, 0.0f), vec2(0.0f, 0.0f));
     }
   }
 
@@ -2316,7 +2380,7 @@ change_screen(Game_State *state, Screen_State screen) {
       state->next_flash_particle = 0;
       mem_zero_array(state->explosion_particles);
       mem_zero_array(state->flash_particles);
-      init_player(state);
+      player_init(state);
       wave_init(state);
     } break;
     case SCREEN_MENU:
@@ -2599,6 +2663,8 @@ draw_debug_info(Image draw_buffer, Clock *time, Game_State *state) {
     String8_List *list = &state->debug_string_list;
     mem_zero_struct(list);
 
+    str8_list_push_fmt(scratch.arena, list, "sound count:%d", state->playing_sound_count);
+
     if (state->godmode) {
       str8_list_push_copy(scratch.arena, list, str8_lit("godmode: true"));
     } else {
@@ -2688,6 +2754,8 @@ GAME_FRAME_PROC(frame) {
     ASSET_SOUND_LIST;
 #undef ASSET_SOUND
     scratch_end(scratch);
+
+    play_sound(state, &state->music_audio);
 
     state->font_tilemap = make_tilemap(state->font_image, 4, 6, 16, 6);
     state->sprites_tilemap = make_tilemap(state->sprites_image, 8, 8, 16, 16);
@@ -2916,16 +2984,17 @@ GAME_FRAME_PROC(frame) {
 }
 
 internal void
-output_sine_wave(Game_State *state, s16 *samples, u32 num_samples, u32 sample_rate) {
+output_sine_wave(Game_State *state, Sound_Buffer *sound_buffer) {
   state->tone_volume = 4000.0f;
-  state->wave_period = sample_rate/256.0f;
-  for (u32 sample_index = 0;
-       sample_index < num_samples;
-       sample_index += 2) {
+  state->wave_period = sound_buffer->sample_rate/256.0f;
+  s16 *dst = sound_buffer->frames;
+  for (u32 frame_index = 0;
+       frame_index < sound_buffer->num_frames;
+       ++frame_index) {
     f32 sine_value = sin_f32(state->t_sine);
     s16 sample_value = (s16)(sine_value*state->tone_volume);
-    samples[sample_index + 0] = sample_value;
-    samples[sample_index + 1] = sample_value;
+    dst[2*frame_index + 0] = sample_value;
+    dst[2*frame_index + 1] = sample_value;
     state->t_sine += tau32/state->wave_period;
     if (state->t_sine > tau32) state->t_sine -= tau32;
   }
@@ -2933,16 +3002,16 @@ output_sine_wave(Game_State *state, s16 *samples, u32 num_samples, u32 sample_ra
 
 internal void
 output_test_music(Game_State *state, Sound_Buffer *sound_buffer) {
-  u32 num_samples = sound_buffer->num_frames*sound_buffer->num_channels;
-  u32 source_sample_count = state->music_audio.num_samples/2;
-  s16 *src = (s16 *)state->music_audio.samples;
-  s16 *dst = sound_buffer->frames;
-  for (u32 sample_index = 0;
-       sample_index < num_samples;
-       ++sample_index) {
-    u32 source_index = state->music_audio_sample_index++ % source_sample_count;
-    dst[sample_index] = src[source_index];
-  }
+  // u32 num_samples = sound_buffer->num_frames*sound_buffer->num_channels;
+  // u32 source_sample_count = state->music_audio.num_samples/2;
+  // s16 *src = (s16 *)state->music_audio.samples;
+  // s16 *dst = sound_buffer->frames;
+  // for (u32 sample_index = 0;
+  //      sample_index < num_samples;
+  //      ++sample_index) {
+  //   u32 source_index = state->music_audio_sample_index++ % source_sample_count;
+  //   dst[sample_index] = src[source_index];
+  // }
 }
 
 shared_function
@@ -2950,6 +3019,69 @@ GAME_OUTPUT_SOUND_PROC(output_sound) {
   if (memory->is_initialized) {
     Game_State *state = (Game_State *)memory->ptr;
     // output_sine_wave(state, sound_buffer);
-    output_test_music(state, sound_buffer);
+    // output_test_music(state, sound_buffer);
+
+    Temp mixer_memory = temp_begin(state->tran_arena);
+    f32 *channel0 = push_array(mixer_memory.arena, f32, sound_buffer->num_frames);
+    f32 *channel1 = push_array(mixer_memory.arena, f32, sound_buffer->num_frames);
+    mem_zero_typed(channel0, sound_buffer->num_frames);
+    mem_zero_typed(channel1, sound_buffer->num_frames);
+
+    // NOTE: Sum all sounds
+    for (Playing_Sound *playing_sound = state->first_playing_sound;
+         playing_sound != 0;
+         ) {
+      Playing_Sound *next_playing_sound = playing_sound->next;
+
+      f32 volume0 = playing_sound->volume[0];
+      f32 volume1 = playing_sound->volume[1];
+      f32 *dst0 = channel0;
+      f32 *dst1 = channel1;
+      assert(playing_sound->frames_played >= 0);
+
+      Audio *audio = playing_sound->audio;
+      u32 src_bytes_per_frame = (audio->num_channels*audio->bits_per_sample)/8;
+      u32 src_num_frames = audio->data_size/src_bytes_per_frame;
+      s16 *src_frames = (s16 *)audio->data;
+
+      u32 frames_to_play = sound_buffer->num_frames;
+      u32 frames_to_consume = src_num_frames - playing_sound->frames_played;
+      if (frames_to_play > frames_to_consume) {
+        frames_to_play = frames_to_consume;
+      }
+
+      for (u32 frame_index = playing_sound->frames_played;
+           frame_index < (playing_sound->frames_played + frames_to_play);
+           ++frame_index) {
+        s16 sample0 = src_frames[2*frame_index + 0];
+        s16 sample1 = src_frames[2*frame_index + 1];
+        *dst0++ += volume0*sample0;
+        *dst1++ += volume1*sample1;
+      }
+
+      playing_sound->frames_played += frames_to_play;
+      if ((u32)playing_sound->frames_played == src_num_frames) {
+        dll_remove(state->first_playing_sound,
+                   state->last_playing_sound,
+                   playing_sound);
+        stack_push(state->first_free_playing_sound, playing_sound);
+        state->playing_sound_count -= 1;
+      }
+
+      playing_sound = next_playing_sound;
+    }
+
+    // NOTE: Convert to 16-bit
+    f32 *src0 = channel0;
+    f32 *src1 = channel1;
+    s16 *dst = sound_buffer->frames;
+    for (u32 frame_index = 0;
+         frame_index < sound_buffer->num_frames;
+         ++frame_index) {
+      dst[2*frame_index + 0] = (s16)(*src0++ + 0.5f);
+      dst[2*frame_index + 1] = (s16)(*src1++ + 0.5f);
+    }
+
+    temp_end(mixer_memory);
   }
 }
