@@ -4,18 +4,21 @@
 //////////////
 // NOTE: Types
 
-#define BITS_PER_SAMPLE 16
+#define PLATFORM_AUDIO_CALLBACK(x) void x(s16 *frames, u32 num_frames, void *user_data)
+typedef PLATFORM_AUDIO_CALLBACK(Platform_Audio_Callback);
 
 typedef struct {
   u32 sample_rate;
   u32 num_channels;
-  void (*callback)(s16 *buffer, u32 num_frames, u32 num_samples, u32 num_channels, void *user_data);
+  Platform_Audio_Callback *callback;
   void *user_data;
 } Platform_Audio_Desc;
 
-global Platform_Audio_Desc _audio_desc;
-global const u32 audio_default_sample_rate = 44100;
-global const u16 audio_default_num_channels = 1;
+#define PLATFORM_AUDIO_BITS_PER_SAMPLE 16
+
+global Platform_Audio_Desc _platform_audio_desc;
+global const u32 _audio_default_sample_rate = 44100;
+global const u16 _audio_default_num_channels = 1;
 
 //////////////////////////////////
 // NOTE: Helpers, Implemented Once

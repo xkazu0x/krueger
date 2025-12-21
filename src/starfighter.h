@@ -69,11 +69,18 @@ typedef struct {
   u8 *ptr; // NOTE: REQUIRED to be cleared at startup
 } Memory;
 
-#define GAME_FRAME_PROC(x) b32 x(Thread_Context *thread_context, Memory *memory, Image *back_buffer, Input *input, Clock *time)
-#define GAME_OUTPUT_SOUND_PROC(x) void x(s16 *buffer, u32 num_frames, u32 sample_rate, u32 num_channels, void *user_data)
+typedef struct {
+  u32 sample_rate;
+  u32 num_channels;
+  u32 num_frames;
+  s16 *frames;
+} Sound_Buffer;
 
-typedef GAME_FRAME_PROC(frame_proc);
-typedef GAME_OUTPUT_SOUND_PROC(output_sound_proc);
+#define GAME_FRAME_PROC(x) b32 x(Thread_Context *thread_context, Memory *memory, Image *back_buffer, Input *input, Clock *time)
+#define GAME_OUTPUT_SOUND_PROC(x) void x(Sound_Buffer *sound_buffer, Memory *memory)
+
+typedef GAME_FRAME_PROC(game_frame_proc);
+typedef GAME_OUTPUT_SOUND_PROC(game_output_sound_proc);
 
 #define GAME_PROC_LIST \
   GAME_PROC(frame) \

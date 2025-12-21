@@ -2932,10 +2932,11 @@ output_sine_wave(Game_State *state, s16 *samples, u32 num_samples, u32 sample_ra
 }
 
 internal void
-output_test_music(Game_State *state, s16 *samples, u32 num_samples) {
+output_test_music(Game_State *state, Sound_Buffer *sound_buffer) {
+  u32 num_samples = sound_buffer->num_frames*sound_buffer->num_channels;
   u32 source_sample_count = state->music_audio.num_samples/2;
   s16 *src = (s16 *)state->music_audio.samples;
-  s16 *dst = samples;
+  s16 *dst = sound_buffer->frames;
   for (u32 sample_index = 0;
        sample_index < num_samples;
        ++sample_index) {
@@ -2946,11 +2947,9 @@ output_test_music(Game_State *state, s16 *samples, u32 num_samples) {
 
 shared_function
 GAME_OUTPUT_SOUND_PROC(output_sound) {
-  Memory *memory = (Memory *)user_data;
   if (memory->is_initialized) {
     Game_State *state = (Game_State *)memory->ptr;
-    u32 num_samples = num_frames*num_channels;
-    // output_sine_wave(state, buffer, num_samples, sample_rate);
-    output_test_music(state, buffer, num_samples);
+    // output_sine_wave(state, sound_buffer);
+    output_test_music(state, sound_buffer);
   }
 }

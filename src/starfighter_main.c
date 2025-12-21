@@ -33,7 +33,7 @@ global xinput_set_state_proc *xinput_set_state = xinput_set_state_stub;
 
 typedef struct {
   Platform_Handle h;
-  #define GAME_PROC(x) x##_proc *x;
+  #define GAME_PROC(x) game_##x##_proc *x;
   GAME_PROC_LIST
   #undef GAME_PROC
 } Game_Library;
@@ -45,7 +45,7 @@ game_library_open(String8 dst_path, String8 src_path) {
     lib.h = platform_library_open(dst_path);
     if (platform_handle_is_valid(lib.h)) {
       #define GAME_PROC(x) \
-        lib.x = (x##_proc *)platform_library_load_proc(lib.h, str8_lit(#x));
+        lib.x = (game_##x##_proc *)platform_library_load_proc(lib.h, str8_lit(#x));
       GAME_PROC_LIST
       #undef GAME_PROC
     } else {
@@ -246,6 +246,25 @@ path_find_sub_directory(Arena *arena, String8 path, String8 sub) {
   return(result);
 }
 
+typedef struct {
+  Memory *memory;
+  game_output_sound_proc *game_output_sound;
+} Audio_Callback_Data;
+
+internal
+PLATFORM_AUDIO_CALLBACK(audio_cb) {
+  Audio_Callback_Data *data = (Audio_Callback_Data *)user_data;
+  Sound_Buffer sound_buffer = {
+    .sample_rate = _platform_audio_desc.sample_rate,
+    .num_channels = _platform_audio_desc.num_channels,
+    .num_frames = num_frames,
+    .frames = frames,
+  };
+  if (data->game_output_sound) {
+    data->game_output_sound(&sound_buffer, data->memory);
+  }
+}
+
 internal void
 entry_point(int argc, char **argv) {
   platform_gamepad_init();
@@ -277,9 +296,7 @@ entry_point(int argc, char **argv) {
     Image back_buffer = image_alloc(render_w, render_h);
 
     Platform_Graphics_Info graphics_info = platform_get_graphics_info();
-    Clock time = { .dt_sec = 1.0f/graphics_info.refresh_rate };
-    // Clock time = { .dt_sec = 1.0f/60.0f };
-    // Clock time = { .dt_sec = 1.0f/30.0f };
+    Clock time = {.dt_sec = 1.0f/graphics_info.refresh_rate};
     Input input = {0};
 
     Thread_Context *thread_context = thread_context_selected();
@@ -289,11 +306,16 @@ entry_point(int argc, char **argv) {
     PLATFORM_API_LIST
 #undef PLATFORM_API
 
+    Audio_Callback_Data audio_cb_data = {
+      .memory = &memory,
+      .game_output_sound = game.output_sound,
+    };
+
     platform_audio_init(&(Platform_Audio_Desc){
       .sample_rate = 48000,
       .num_channels = 2,
-      .callback = game.output_sound,
-      .user_data = &memory,
+      .callback = audio_cb,
+      .user_data = &audio_cb_data,
     });
 
     platform_window_set_fullscreen(window, false);
@@ -318,14 +340,16 @@ entry_point(int argc, char **argv) {
           } break;
         }
       }
-
+      scratch_end(scratch);
       if (quit) break;
-      platform_gamepad_update();
 
+      platform_gamepad_update();
 #if BUILD_DEBUG
       if (keys[KEY_R].pressed) {
+        audio_cb_data.game_output_sound = 0;
         game_library_close(game);
         game = game_library_open(dst_lib_path, src_lib_path);
+        audio_cb_data.game_output_sound = game.output_sound;
       }
 #endif
 
@@ -350,9 +374,8 @@ entry_point(int argc, char **argv) {
       }
 
       if (game.frame) {
-        if (game.frame(thread_context, &memory, &back_buffer, &input, &time)) {
-          break;
-        }
+        quit = game.frame(thread_context, &memory, &back_buffer, &input, &time);
+        if (quit) break;
       }
       wait_to_flip(time.dt_sec, time_start);
 
@@ -370,8 +393,6 @@ entry_point(int argc, char **argv) {
         keys[key].pressed = false;
         keys[key].released = false;
       }
-
-      scratch_end(scratch);
     }
   }
 }
