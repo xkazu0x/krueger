@@ -2714,7 +2714,7 @@ draw_debug_info(Image draw_buffer, Clock *time, Game_State *state) {
 
 shared_function
 GAME_FRAME_PROC(frame) {
-  thread_context_select(thread_context);
+  thread_context_select(tctx);
 #define PLATFORM_API(name, ret, ...) name = memory->name;
   PLATFORM_API_LIST
 #undef PLATFORM_API

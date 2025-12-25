@@ -8,7 +8,7 @@ internal void
 platform_core_init(void) {
   LARGE_INTEGER large_integer;
   QueryPerformanceFrequency(&large_integer);
-  _win32_core_state.us_res = large_integer.QuadPart;
+  _win32_us_res = large_integer.QuadPart;
   timeBeginPeriod(1);
 }
 
@@ -165,7 +165,7 @@ internal u64
 platform_get_time_us(void) {
   LARGE_INTEGER large_integer;
   QueryPerformanceCounter(&large_integer);
-  u64 result = large_integer.QuadPart*million(1)/_win32_core_state.us_res;
+  u64 result = large_integer.QuadPart*million(1)/_win32_us_res;
   return(result);
 }
 

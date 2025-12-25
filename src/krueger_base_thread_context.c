@@ -1,7 +1,7 @@
 #ifndef KRUEGER_BASE_THREAD_CONTEXT_C
 #define KRUEGER_BASE_THREAD_CONTEXT_C
 
-thread_static Thread_Context *thread_context_thread_local;
+thread_static Thread_Context *tctx_thread_local;
 
 internal Thread_Context *
 thread_context_alloc(void) {
@@ -13,27 +13,27 @@ thread_context_alloc(void) {
 }
 
 internal void
-thread_context_release(Thread_Context *context) {
-  arena_release(context->arenas[1]);
-  arena_release(context->arenas[0]);
+thread_context_release(Thread_Context *tctx) {
+  arena_release(tctx->arenas[1]);
+  arena_release(tctx->arenas[0]);
 }
 
 internal void
-thread_context_select(Thread_Context *context) {
-  thread_context_thread_local = context;
+thread_context_select(Thread_Context *tctx) {
+  tctx_thread_local = tctx;
 }
 
 internal Thread_Context *
 thread_context_selected(void) {
-  return(thread_context_thread_local);
+  return(tctx_thread_local);
 }
 
 internal Arena *
 thread_context_get_scratch(Arena **conflicts, u32 count) {
   Arena *result = 0;
-  Thread_Context *context = thread_context_selected();
-  Arena **arena_ptr = context->arenas;
-  for (u32 i = 0; i < array_count(context->arenas); ++i, ++arena_ptr) {
+  Thread_Context *tctx = thread_context_selected();
+  Arena **arena_ptr = tctx->arenas;
+  for (u32 i = 0; i < array_count(tctx->arenas); ++i, ++arena_ptr) {
     Arena **conflict_ptr = conflicts;
     b32 has_conflict = false;
     for (u32 j = 0; j < count; ++j, ++conflict_ptr) {

@@ -3,13 +3,18 @@
 #define PLATFORM_FEATURE_GRAPHICS 1
 #define PLATFORM_FEATURE_AUDIO 1
 
+#define OPENGL_MAJOR_VERSION 3
+#define OPENGL_MINOR_VERSION 1
+
 #include "krueger_base.h"
 #include "krueger_platform.h"
+#include "krueger_opengl.h"
 #include "krueger_image.h"
 #include "starfighter.h"
 
 #include "krueger_base.c"
 #include "krueger_platform.c"
+#include "krueger_opengl.c"
 #include "krueger_image.c"
 
 #include <xinput.h>
@@ -266,6 +271,55 @@ PLATFORM_AUDIO_CALLBACK(audio_cb) {
 }
 
 internal void
+render_image_to_window(Platform_Handle window, Image image) {
+  Rect2 client_rect = platform_get_window_client_rect(window);
+  Vector2 window_size = vector2_sub(client_rect.max, client_rect.min);
+  glViewport(0, 0, (s32)window_size.x, (s32)window_size.y);
+
+  glClearColor(1.0f, 0.0f, 1.0f, 0.0f);
+  glClear(GL_COLOR_BUFFER_BIT);
+
+  glBindTexture(GL_TEXTURE_2D, 0);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.width, image.height, 0, GL_BGRA_EXT, GL_UNSIGNED_BYTE, image.pixels);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+  glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+  glEnable(GL_TEXTURE_2D);
+
+  f32 display_w = image.width*(window_size.y/image.height);
+  f32 display_h = image.height*(window_size.x/image.width);
+
+  if (window_size.x >= display_w) {
+    display_h = window_size.y;
+  } else if (window_size.y >= display_h) {
+    display_w = window_size.x;
+  }
+
+  f32 x = display_w/window_size.x;
+  f32 y = display_h/window_size.y;
+
+  glBegin(GL_TRIANGLES); {
+    glTexCoord2f(0.0f, 0.0f);
+    glVertex2f(-x, y);
+    glTexCoord2f(1.0f, 0.0f);
+    glVertex2f(x, y);
+    glTexCoord2f(1.0f, 1.0f);
+    glVertex2f(x, -y);
+
+    glTexCoord2f(0.0f, 0.0f);
+    glVertex2f(-x, y);
+    glTexCoord2f(1.0f, 1.0f);
+    glVertex2f(x, -y);
+    glTexCoord2f(0.0f, 1.0f);
+    glVertex2f(-x, -y);
+  } glEnd();
+
+  gl_window_swap(window);
+}
+
+internal void
 entry_point(int argc, char **argv) {
   platform_gamepad_init();
 
@@ -293,13 +347,15 @@ entry_point(int argc, char **argv) {
     u32 window_h = window_scale*render_h;
 
     Platform_Handle window = platform_window_open(window_name, window_w, window_h);
+    gl_window_equip(window);
+
     Image back_buffer = image_alloc(render_w, render_h);
 
     Platform_Graphics_Info graphics_info = platform_get_graphics_info();
     Clock time = {.dt_sec = 1.0f/graphics_info.refresh_rate};
     Input input = {0};
 
-    Thread_Context *thread_context = thread_context_selected();
+    Thread_Context *tctx = thread_context_selected();
     Memory memory = memory_alloc(GB(1));
     memory.res_path = res_path;
 #define PLATFORM_API(name, ret, ...) memory.name = name;
@@ -374,7 +430,7 @@ entry_point(int argc, char **argv) {
       }
 
       if (game.frame) {
-        quit = game.frame(thread_context, &memory, &back_buffer, &input, &time);
+        quit = game.frame(tctx, &memory, &back_buffer, &input, &time);
         if (quit) break;
       }
       wait_to_flip(time.dt_sec, time_start);
@@ -384,10 +440,7 @@ entry_point(int argc, char **argv) {
       time._dt_ms = time._dt_us/thousand(1.0f);
       time_start = time_end;
 
-      s32 width = back_buffer.width;
-      s32 height = back_buffer.height;
-      u32 *pixels = back_buffer.pixels;
-      platform_window_blit(window, pixels, width, height);
+      render_image_to_window(window, back_buffer);
 
       for (u32 key = 0; key < KEY_MAX; ++key) {
         keys[key].pressed = false;

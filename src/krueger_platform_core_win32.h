@@ -17,16 +17,9 @@
 #include <timeapi.h>
 #pragma comment(lib, "winmm")
 
-//////////////
-// NOTE: Types
-
-typedef struct {
-  u64 us_res;
-} _Win32_Core_State;
-
 ////////////////////////
 // NOTE: Windows Globals
 
-global _Win32_Core_State _win32_core_state;
+global u64 _win32_us_res;
 
 #endif // KRUEGER_PLATFORM_CORE_WIN32_H
