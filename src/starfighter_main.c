@@ -19,28 +19,30 @@
 
 #include <xinput.h>
 
-#define XINPUT_GET_STATE(x) DWORD x(DWORD dwUserIndex, XINPUT_STATE *pState)
-#define XINPUT_SET_STATE(x) DWORD x(DWORD dwUserIndex, XINPUT_VIBRATION *pVibration)
+#define XINPUT_PROC_LIST \
+  XINPUT_PROC(xinput_get_state, DWORD, (DWORD dwUserIndex, XINPUT_STATE *pState)) \
+  XINPUT_PROC(xinput_set_state, DWORD, (DWORD dwUserIndex, XINPUT_VIBRATION *pVibration))
 
-typedef XINPUT_GET_STATE(xinput_get_state_proc);
-typedef XINPUT_SET_STATE(xinput_set_state_proc);
+#define XINPUT_PROC(name, r, p) typedef r name##_proc p;
+XINPUT_PROC_LIST
+#undef XINPUT_PROC
 
-XINPUT_GET_STATE(xinput_get_state_stub) {
-  return(ERROR_DEVICE_NOT_CONNECTED);
-}
+#define XINPUT_PROC(name, r, p) internal r name##_stub p {return(ERROR_DEVICE_NOT_CONNECTED);};
+XINPUT_PROC_LIST
+#undef XINPUT_PROC
 
-XINPUT_SET_STATE(xinput_set_state_stub) {
-  return(ERROR_DEVICE_NOT_CONNECTED);
-}
+#define XINPUT_PROC(name, r, p) global name##_proc *name = name##_stub;
+XINPUT_PROC_LIST
+#undef XINPUT_PROC
 
-global xinput_get_state_proc *xinput_get_state = xinput_get_state_stub;
-global xinput_set_state_proc *xinput_set_state = xinput_set_state_stub;
+/////////////////////
+// NOTE: Game Library
 
 typedef struct {
   Platform_Handle h;
-  #define GAME_PROC(x) game_##x##_proc *x;
+#define GAME_PROC(name) game_##name##_proc *name;
   GAME_PROC_LIST
-  #undef GAME_PROC
+#undef GAME_PROC
 } Game_Library;
 
 internal Game_Library
@@ -49,10 +51,10 @@ game_library_open(String8 dst_path, String8 src_path) {
   if (platform_copy_file_path(dst_path, src_path)) {
     lib.h = platform_library_open(dst_path);
     if (platform_handle_is_valid(lib.h)) {
-      #define GAME_PROC(x) \
-        lib.x = (game_##x##_proc *)platform_library_load_proc(lib.h, str8_lit(#x));
+#define GAME_PROC(name) \
+      lib.name = (game_##name##_proc *)platform_library_load_proc(lib.h, str8_lit(#name));
       GAME_PROC_LIST
-      #undef GAME_PROC
+#undef GAME_PROC
     } else {
       log_error("%s: failed to open library: [%s]", __func__, dst_path.str);
     }
@@ -69,58 +71,8 @@ game_library_close(Game_Library lib) {
   }
 }
 
-internal void
-process_digital_button(Digital_Button *button, b32 is_down) {
-  b32 was_down = button->is_down;
-  button->pressed = !was_down && is_down; 
-  button->released = was_down && !is_down;
-  button->is_down = is_down;
-}
-
-internal void
-process_analog_button(Analog_Button *button, f32 threshold, f32 value) {
-  b32 was_down = button->is_down;
-  button->is_down = (value >= threshold);
-  button->pressed = !was_down && button->is_down;
-  button->released = was_down && !button->is_down;
-}
-
-internal void
-process_stick(Stick *stick, f32 threshold, f32 x, f32 y) {
-  if (abs_t(f32, x) <= threshold) x = 0.0f;
-  if (abs_t(f32, y) <= threshold) y = 0.0f;
-  stick->x = x;
-  stick->y = y;
-}
-
-internal f32
-get_seconds_elapsed(u64 start, u64 end) {
-  f32 result = (end - start)/million(1.0f);
-  return(result);
-}
-
-internal void
-wait_to_flip(f32 target_sec_per_frame, u64 time_start) {
-  u64 time_end = platform_get_time_us();
-  f32 sec_per_frame = get_seconds_elapsed(time_start, time_end);
-  if (sec_per_frame < target_sec_per_frame) {
-    u32 sleep_ms = (u32)((target_sec_per_frame - sec_per_frame)*thousand(1.0f));
-    if (sleep_ms > 0) platform_sleep_ms(sleep_ms);
-    while (sec_per_frame < target_sec_per_frame) {
-      time_end = platform_get_time_us();
-      sec_per_frame = get_seconds_elapsed(time_start, time_end);
-    }
-  }
-}
-
-internal Memory
-memory_alloc(uxx size) {
-  Memory result = {0};
-  result.size = size;
-  result.ptr = platform_reserve(size);
-  platform_commit(result.ptr, size);
-  return(result);
-}
+//////////////
+// NOTE: Input
 
 #define GAMEPAD_MAX 4
 
@@ -153,6 +105,30 @@ typedef struct {
 
 global Digital_Button keys[KEY_MAX];
 global Gamepad gamepads[GAMEPAD_MAX];
+
+internal void
+process_digital_button(Digital_Button *button, b32 is_down) {
+  b32 was_down = button->is_down;
+  button->pressed = !was_down && is_down; 
+  button->released = was_down && !is_down;
+  button->is_down = is_down;
+}
+
+internal void
+process_analog_button(Analog_Button *button, f32 threshold, f32 value) {
+  b32 was_down = button->is_down;
+  button->is_down = (value >= threshold);
+  button->pressed = !was_down && button->is_down;
+  button->released = was_down && !button->is_down;
+}
+
+internal void
+process_stick(Stick *stick, f32 threshold, f32 x, f32 y) {
+  if (abs_t(f32, x) <= threshold) x = 0.0f;
+  if (abs_t(f32, y) <= threshold) y = 0.0f;
+  stick->x = x;
+  stick->y = y;
+}
 
 internal void
 platform_gamepad_init(void) {
@@ -231,6 +207,89 @@ platform_gamepad_update(void) {
   }
 }
 
+internal void
+input_update(Input *input) {
+  platform_gamepad_update();
+#if BUILD_DEBUG
+  input->keys       = keys;
+#endif
+  Gamepad *pad     = gamepads;
+  input->confirm   = (pad->a.is_down)     ? pad->a     : keys[KEY_Z];
+  input->pause     = (pad->back.is_down)  ? pad->back  : keys[KEY_P];
+  input->quit      = (pad->start.is_down) ? pad->start : keys[KEY_Q];
+  input->up        = (pad->up.is_down)    ? pad->up    : keys[KEY_UP];
+  input->down      = (pad->down.is_down)  ? pad->down  : keys[KEY_DOWN];
+  input->left      = (pad->left.is_down)  ? pad->left  : keys[KEY_LEFT];
+  input->right     = (pad->right.is_down) ? pad->right : keys[KEY_RIGHT];
+  input->shoot     = (pad->x.is_down)     ? pad->x     : keys[KEY_Z];
+  input->bomb      = (pad->b.is_down)     ? pad->b     : keys[KEY_X];
+  input->direction = pad->left_stick;
+}
+
+internal void
+input_reset(void) {
+  for (u32 key = 0; key < KEY_MAX; ++key) {
+    keys[key].pressed = false;
+    keys[key].released = false;
+  }
+}
+
+//////////////
+// NOTE: Audio
+
+typedef struct {
+  Memory *memory;
+  game_output_sound_proc *game_output_sound;
+} Audio_Callback_Data;
+
+internal
+PLATFORM_AUDIO_CALLBACK(audio_cb) {
+  Audio_Callback_Data *data = (Audio_Callback_Data *)user_data;
+  Sound_Buffer sound_buffer = {
+    .sample_rate = _platform_audio_desc.sample_rate,
+    .num_channels = _platform_audio_desc.num_channels,
+    .num_frames = num_frames,
+    .frames = frames,
+  };
+  if (data->game_output_sound) {
+    data->game_output_sound(&sound_buffer, data->memory);
+  } else {
+    mem_zero_typed(frames, num_frames*sound_buffer.num_channels);
+  }
+}
+
+//////////////
+// NOTE: Misc.
+
+internal Memory
+memory_alloc(uxx size) {
+  Memory result = {0};
+  result.size = size;
+  result.ptr = platform_reserve(size);
+  platform_commit(result.ptr, size);
+  return(result);
+}
+
+internal f32
+get_seconds_elapsed(u64 start, u64 end) {
+  f32 result = (end - start)/million(1.0f);
+  return(result);
+}
+
+internal void
+wait_to_flip(f32 target_sec_per_frame, u64 time_start) {
+  u64 time_end = platform_get_time_us();
+  f32 sec_per_frame = get_seconds_elapsed(time_start, time_end);
+  if (sec_per_frame < target_sec_per_frame) {
+    u32 sleep_ms = (u32)((target_sec_per_frame - sec_per_frame)*thousand(1.0f));
+    if (sleep_ms > 0) platform_sleep_ms(sleep_ms);
+    while (sec_per_frame < target_sec_per_frame) {
+      time_end = platform_get_time_us();
+      sec_per_frame = get_seconds_elapsed(time_start, time_end);
+    }
+  }
+}
+
 internal String8
 path_find_sub_directory(Arena *arena, String8 path, String8 sub) {
   Temp scratch = scratch_begin(&arena, 1);
@@ -251,32 +310,13 @@ path_find_sub_directory(Arena *arena, String8 path, String8 sub) {
   return(result);
 }
 
-typedef struct {
-  Memory *memory;
-  game_output_sound_proc *game_output_sound;
-} Audio_Callback_Data;
-
-internal
-PLATFORM_AUDIO_CALLBACK(audio_cb) {
-  Audio_Callback_Data *data = (Audio_Callback_Data *)user_data;
-  Sound_Buffer sound_buffer = {
-    .sample_rate = _platform_audio_desc.sample_rate,
-    .num_channels = _platform_audio_desc.num_channels,
-    .num_frames = num_frames,
-    .frames = frames,
-  };
-  if (data->game_output_sound) {
-    data->game_output_sound(&sound_buffer, data->memory);
-  }
-}
-
 internal void
 render_image_to_window(Platform_Handle window, Image image) {
   Rect2 client_rect = platform_get_window_client_rect(window);
   Vector2 window_size = vector2_sub(client_rect.max, client_rect.min);
   glViewport(0, 0, (s32)window_size.x, (s32)window_size.y);
 
-  glClearColor(1.0f, 0.0f, 1.0f, 0.0f);
+  glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
   glClear(GL_COLOR_BUFFER_BIT);
 
   glBindTexture(GL_TEXTURE_2D, 0);
@@ -399,7 +439,6 @@ entry_point(int argc, char **argv) {
       scratch_end(scratch);
       if (quit) break;
 
-      platform_gamepad_update();
 #if BUILD_DEBUG
       if (keys[KEY_R].pressed) {
         audio_cb_data.game_output_sound = 0;
@@ -409,43 +448,25 @@ entry_point(int argc, char **argv) {
       }
 #endif
 
-#if BUILD_DEBUG
-      input.keys      = keys;
-#endif
-      Gamepad *pad    = gamepads;
-      input.confirm   = (pad->a.is_down)     ? pad->a     : keys[KEY_Z];
-      input.pause     = (pad->back.is_down)  ? pad->back  : keys[KEY_P];
-      input.quit      = (pad->start.is_down) ? pad->start : keys[KEY_Q];
-      input.up        = (pad->up.is_down)    ? pad->up    : keys[KEY_UP];
-      input.down      = (pad->down.is_down)  ? pad->down  : keys[KEY_DOWN];
-      input.left      = (pad->left.is_down)  ? pad->left  : keys[KEY_LEFT];
-      input.right     = (pad->right.is_down) ? pad->right : keys[KEY_RIGHT];
-      input.shoot     = (pad->x.is_down)     ? pad->x     : keys[KEY_Z];
-      input.bomb      = (pad->b.is_down)     ? pad->b     : keys[KEY_X];
-      input.direction = pad->left_stick;
-
       if (keys[KEY_F11].pressed) {
         b32 fullscreen = platform_window_is_fullscreen(window);
         platform_window_set_fullscreen(window, !fullscreen);
       }
 
+      input_update(&input);
       if (game.frame) {
         quit = game.frame(tctx, &memory, &back_buffer, &input, &time);
         if (quit) break;
       }
-      wait_to_flip(time.dt_sec, time_start);
 
+      wait_to_flip(time.dt_sec, time_start);
       u64 time_end = platform_get_time_us();
       time._dt_us = time_end - time_start;
       time._dt_ms = time._dt_us/thousand(1.0f);
       time_start = time_end;
 
       render_image_to_window(window, back_buffer);
-
-      for (u32 key = 0; key < KEY_MAX; ++key) {
-        keys[key].pressed = false;
-        keys[key].released = false;
-      }
+      input_reset();
     }
   }
 }

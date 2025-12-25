@@ -76,14 +76,14 @@ typedef struct {
   s16 *frames;
 } Sound_Buffer;
 
+#define GAME_PROC_LIST \
+  GAME_PROC(frame) \
+  GAME_PROC(output_sound)
+
 #define GAME_FRAME_PROC(x) b32 x(Thread_Context *tctx, Memory *memory, Image *back_buffer, Input *input, Clock *time)
 #define GAME_OUTPUT_SOUND_PROC(x) void x(Sound_Buffer *sound_buffer, Memory *memory)
 
 typedef GAME_FRAME_PROC(game_frame_proc);
 typedef GAME_OUTPUT_SOUND_PROC(game_output_sound_proc);
-
-#define GAME_PROC_LIST \
-  GAME_PROC(frame) \
-  GAME_PROC(output_sound)
 
 #endif // KRUEGER_SHARED_H

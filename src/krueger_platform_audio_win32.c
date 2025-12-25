@@ -14,9 +14,9 @@ _win32_wasapi_thread_proc(LPVOID param) {
     u32 padding_frame_count;
     IAudioClient_GetCurrentPadding(_win32_audio_state.audio_client, &padding_frame_count);
     u32 num_frames = buffer_frame_count - padding_frame_count;
-    s16 *buffer;
-    IAudioRenderClient_GetBuffer(_win32_audio_state.render_client, num_frames, (BYTE **)&buffer);
-    _platform_audio_desc.callback(buffer, num_frames, _platform_audio_desc.user_data);
+    s16 *frames;
+    IAudioRenderClient_GetBuffer(_win32_audio_state.render_client, num_frames, (BYTE **)&frames);
+    _platform_audio_desc.callback(frames, num_frames, _platform_audio_desc.user_data);
     IAudioRenderClient_ReleaseBuffer(_win32_audio_state.render_client, num_frames, 0);
   }
   return(0);
