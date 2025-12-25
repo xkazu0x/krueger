@@ -1,10 +1,6 @@
 #ifndef KRUEGER_BASE_H
 #define KRUEGER_BASE_H
 
-// TODO:
-// - Hash Maps
-// - Dynamic Arrays
-
 #include "krueger_base_context.h"
 
 #include "krueger_base_core.h"

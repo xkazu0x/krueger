@@ -101,4 +101,11 @@ internal Matrix4x4 matrix4x4_rotate(Vector3 axis, f32 t);
 internal Matrix4x4 matrix4x4_mul(Matrix4x4 a, Matrix4x4 b);
 internal Vector4 matrix4x4_mul_vector4(Matrix4x4 m, Vector4 v);
 
+//////////////
+// NOTE: Rect2
+
+typedef struct {
+  Vector2 min, max;
+} Rect2;
+
 #endif // KRUEGER_BASE_MATH_H

@@ -4,7 +4,6 @@
 #if !defined(PLATFORM_FEATURE_GRAPHICS)
 #define PLATFORM_FEATURE_GRAPHICS 0
 #endif
-
 #if !defined(PLATFORM_FEATURE_AUDIO)
 #define PLATFORM_FEATURE_AUDIO 0
 #endif

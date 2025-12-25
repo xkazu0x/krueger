@@ -111,7 +111,7 @@ platform_graphics_init(void) {
 
   _win32_graphics_state->instance = GetModuleHandleW(0);
 
-  WNDCLASSEXW window_class = { .cbSize = sizeof(window_class) };
+  WNDCLASSEXW window_class = {.cbSize = sizeof(window_class)};
   window_class.style = CS_VREDRAW | CS_HREDRAW;
   window_class.lpfnWndProc = win32_window_proc;
   window_class.hInstance = _win32_graphics_state->instance;
@@ -119,6 +119,7 @@ platform_graphics_init(void) {
   window_class.hCursor = LoadCursorW(0, IDC_ARROW);
   window_class.hbrBackground = CreateSolidBrush(RGB(0, 0, 0));
   window_class.lpszClassName = L"krueger_graphical_window";
+
   _win32_graphics_state->atom = RegisterClassExW(&window_class);
 
   DEVMODEW devmode = {.dmSize = sizeof(devmode)};
@@ -288,6 +289,21 @@ platform_window_set_fullscreen(Platform_Handle handle, b32 fullscreen) {
                    SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
     }
   }
+}
+
+internal Rect2
+platform_get_window_client_rect(Platform_Handle handle) {
+  Rect2 result = {0};
+  if (platform_handle_is_valid(handle)) {
+    Win32_Window *window = win32_window_from_handle(handle);
+    RECT client_rect;
+    GetClientRect(window->hwnd, &client_rect);
+    result.min.x = (f32)client_rect.left;
+    result.min.y = (f32)client_rect.top;
+    result.max.x = (f32)client_rect.right;
+    result.max.y = (f32)client_rect.bottom;
+  }
+  return(result);
 }
 
 internal Platform_Event_List
