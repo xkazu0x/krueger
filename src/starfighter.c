@@ -2677,7 +2677,7 @@ draw_debug_info(Image draw_buffer, Clock *time, Game_State *state) {
       u32 total_count = manager->list.total_count;
       str8_list_push_fmt(scratch.arena, list, "ent. list:%d/%d", count, total_count);
       str8_list_push_fmt(scratch.arena, list, "ent. manager: %zu/%zu",
-                         manager->arena->cmt_size/sizeof(Entity),
+                         (manager->arena->pos - ARENA_HEADER_SIZE)/sizeof(Entity),
                          manager->arena->res_size/sizeof(Entity));
     }
 
@@ -2687,7 +2687,7 @@ draw_debug_info(Image draw_buffer, Clock *time, Game_State *state) {
       u32 total_count = manager->list.total_count;
       str8_list_push_fmt(scratch.arena, list, "bul. list:%d/%d", count, total_count);
       str8_list_push_fmt(scratch.arena, list, "bul. manager: %zu/%zu",
-                         manager->arena->cmt_size/sizeof(Entity),
+                         (manager->arena->pos - ARENA_HEADER_SIZE)/sizeof(Entity),
                          manager->arena->res_size/sizeof(Entity));
     }
 
