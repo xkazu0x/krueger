@@ -50,18 +50,18 @@ typedef struct {
 } Clock;
 
 #define PLATFORM_API_LIST \
-  PLATFORM_API(platform_reserve, void *, uxx) \
-  PLATFORM_API(platform_commit, b32, void *, uxx) \
-  PLATFORM_API(platform_decommit, void, void *, uxx) \
-  PLATFORM_API(platform_release, void, void *, uxx) \
-  PLATFORM_API(platform_read_entire_file, void *, Arena *, String8) \
-  PLATFORM_API(platform_get_date_time, Date_Time, void)
+  PLATFORM_API(platform_reserve, void *, (uxx size)) \
+  PLATFORM_API(platform_commit, b32, (void *ptr, uxx size)) \
+  PLATFORM_API(platform_decommit, void, (void *ptr, uxx size)) \
+  PLATFORM_API(platform_release, void, (void *ptr, uxx size)) \
+  PLATFORM_API(platform_read_entire_file, void *, (Arena *arena, String8 file_path)) \
+  PLATFORM_API(platform_get_date_time, Date_Time, (void))
 
 typedef struct {
   b32 is_initialized;
   String8 res_path;
 
-#define PLATFORM_API(name, ret, ...) ret (*name)(__VA_ARGS__);
+#define PLATFORM_API(name, r, p) r (*name) p;
   PLATFORM_API_LIST
 #undef PLATFORM_API
 

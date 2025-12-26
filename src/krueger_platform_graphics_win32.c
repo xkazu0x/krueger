@@ -19,9 +19,7 @@ win32_window_from_handle(Platform_Handle handle) {
 internal Win32_Window *
 win32_window_from_hwnd(HWND hwnd) {
   Win32_Window *result = 0;
-  for (Win32_Window *window = _win32_graphics_state->first_window;
-       window != 0;
-       window = window->next) {
+  for (each_node(Win32_Window, window, _win32_graphics_state->first_window)) {
     if (window->hwnd == hwnd) {
       result = window;
       break;

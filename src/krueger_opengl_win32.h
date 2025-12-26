@@ -16,11 +16,17 @@
 #define WGL_CONTEXT_MAJOR_VERSION_ARB     0x2091
 #define WGL_CONTEXT_MINOR_VERSION_ARB     0x2092
 
-typedef BOOL WINAPI FNWGLCHOOSEPIXELFORMATARBPROC(HDC hdc, const int *piAttribIList, const FLOAT *pfAttribFList, UINT nMaxFormats, int *piFormats, UINT *nNumFormats);
-typedef HGLRC WINAPI FNWGLCREATECONTEXTATTRIBSARBPROC(HDC hDC, HGLRC hShareContext, const int *attribList);
+#define WGL_PROC_LIST \
+  WGL_PROC(wglChoosePixelFormatARB, BOOL, (HDC hDC, const int *piAttribIList, const FLOAT *pfAttribFList, UINT nMaxFormats, int *piFormats, UINT *nNumFormats)) \
+  WGL_PROC(wglCreateContextAttribsARB, HGLRC, (HDC hDC, HGLRC hShareContext, const int *attribList))
 
-global FNWGLCHOOSEPIXELFORMATARBPROC *wglChoosePixelFormatARB;
-global FNWGLCREATECONTEXTATTRIBSARBPROC *wglCreateContextAttribsARB;
+#define WGL_PROC(name, r, p) typedef r name##_proc p;
+WGL_PROC_LIST
+#undef WGL_PROC
+
+#define WGL_PROC(name, r, p) global name##_proc *name;
+WGL_PROC_LIST
+#undef WGL_PROC
 
 global const int _wgl_pf_attribs[] = {
   WGL_DRAW_TO_WINDOW_ARB, GL_TRUE,
@@ -30,12 +36,6 @@ global const int _wgl_pf_attribs[] = {
   WGL_COLOR_BITS_ARB, 32,
   WGL_DEPTH_BITS_ARB, 24,
   WGL_STENCIL_BITS_ARB, 8,
-  0
-};
-
-global const int _wgl_ctx_attribs[] = {
-  WGL_CONTEXT_MAJOR_VERSION_ARB, OPENGL_MAJOR_VERSION,
-  WGL_CONTEXT_MINOR_VERSION_ARB, OPENGL_MINOR_VERSION,
   0
 };
 

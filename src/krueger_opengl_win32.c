@@ -1,6 +1,12 @@
 #ifndef KRUEGER_OPENGL_WIN32_C
 #define KRUEGER_OPENGL_WIN32_C
 
+internal void *
+gl_load_proc(char *name) {
+  void *result = (void *)wglGetProcAddress(name);
+  return(result);
+}
+
 internal void
 gl_init(void) {
   WNDCLASSEXW wndclass = {.cbSize = sizeof(wndclass)};
@@ -32,13 +38,20 @@ gl_init(void) {
   HGLRC hglrc = wglCreateContext(hdc);
   wglMakeCurrent(hdc, hglrc);
 
-  wglChoosePixelFormatARB = (FNWGLCHOOSEPIXELFORMATARBPROC *)wglGetProcAddress("wglChoosePixelFormatARB");
-  wglCreateContextAttribsARB = (FNWGLCREATECONTEXTATTRIBSARBPROC *)wglGetProcAddress("wglCreateContextAttribsARB");
+#define WGL_PROC(name, r, p) name = (name##_proc *)gl_load_proc(#name);
+  WGL_PROC_LIST
+#undef WGL_PROC
 
   UINT num_formats = 0;
   wglChoosePixelFormatARB(hdc, _wgl_pf_attribs, 0, 1, &pf, &num_formats);
 
-  _win32_gl_ctx = wglCreateContextAttribsARB(hdc, hglrc, _wgl_ctx_attribs);
+  int ctx_attribs[] = {
+    WGL_CONTEXT_MAJOR_VERSION_ARB, OPENGL_MAJOR_VERSION,
+    WGL_CONTEXT_MINOR_VERSION_ARB, OPENGL_MINOR_VERSION,
+    0
+  };
+
+  _win32_gl_ctx = wglCreateContextAttribsARB(hdc, hglrc, ctx_attribs);
 
   wglMakeCurrent(hdc, 0);
   wglDeleteContext(hglrc);

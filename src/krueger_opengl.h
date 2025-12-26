@@ -8,6 +8,7 @@
 #error opengl minor version must be defined.
 #endif
 
+internal void *gl_load_proc(char *name);
 internal void gl_init(void);
 internal void gl_window_equip(Platform_Handle handle);
 internal void gl_window_select(Platform_Handle handle);

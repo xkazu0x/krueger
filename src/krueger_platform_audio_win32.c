@@ -66,7 +66,7 @@ _win32_wasapi_backend_shutdown(void) {
 
 internal void
 platform_audio_init(Platform_Audio_Desc *desc) {
-  _platform_setup_audio_desc(desc);
+  _platform_audio_setup(desc);
   _win32_wasapi_backend_init();
 }
 

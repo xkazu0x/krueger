@@ -6,7 +6,7 @@
 #include "krueger_keycode.h"
 #include "starfighter.h"
 
-#define PLATFORM_API(name, ret, ...) global ret (*name)(__VA_ARGS__);
+#define PLATFORM_API(name, r, p) global r (*name) p;
   PLATFORM_API_LIST
 #undef PLATFORM_API
 
@@ -16,11 +16,9 @@
 
 // TODO:
 // pickups
-// more enemies/levels
 // asset manager:
-// - sprite group
-// - sprite animation system
-// audio
+// sprite group
+// sprite animation system
 
 ///////////////////
 // NOTE: Asset List
@@ -443,12 +441,19 @@ typedef struct {
   Vector2 ddposition;
 } Particle0;
 
+#define EMITTER_PARTICLES_MAX 256
+
+typedef struct {
+  u32 len;
+  Particle0 *items[EMITTER_PARTICLES_MAX];
+} Particle_Array;
+
 typedef struct {
   f32 emission_time;
   f32 emission_countdown;
   u32 particles_per_emission;
   u32 next_particle;
-  Particle0 particles[256];
+  Particle0 particles[EMITTER_PARTICLES_MAX];
 } Particle_Emitter;
 
 typedef enum {
@@ -530,12 +535,13 @@ struct Entity {
   u32 sprite_w;
   u32 sprite_h;
 
-  u32 flame_sprite_index;
-  u32 flame_sprite_frame_count;
-  f32 flame_sprite_frame_frequency;
   u32 next_flame_sprite_frame;
   Vector2 flame_sprite_offset;
+
+  u32 flame_sprite_index;
+  u32 flame_sprite_frame_count;
   f32 flame_sprite_frame_time;
+  f32 flame_sprite_frame_frequency;
 
   Particle_Emitter emitter;
 };
@@ -1189,6 +1195,66 @@ play_sound(Game_State *state, Audio *audio) {
 
 //////////////////////
 
+internal Particle_Array
+emit_particles(Particle_Emitter *emitter) {
+  Particle_Array result = {0};
+  if (countdown(&emitter->emission_countdown) <= 0.0f) {
+    for (u32 particle_index = 0;
+         particle_index < emitter->particles_per_emission;
+         ++particle_index) {
+      Particle0 *particle = emitter->particles + emitter->next_particle++;
+      if (emitter->next_particle >= array_count(emitter->particles)) {
+        emitter->next_particle = 0;
+      }
+      emitter->emission_countdown = emitter->emission_time;
+      mem_zero_struct(particle);
+      particle->life = 1.0f;
+      result.items[result.len++] = particle;
+    }
+  }
+  return(result);
+}
+
+internal void
+player_emit_flame_particles(Entity *player, Game_State *state) {
+  Particle_Array arr = emit_particles(&player->emitter);
+  for (u32 i = 0; i < arr.len; ++i) {
+    Particle0 *particle = arr.items[i];
+    particle->color = CP_BLUE;
+
+    particle->radius = 2.5f;
+    particle->dradius = -9.0f;
+
+    particle->speed = 50.0f;
+
+    particle->position = player->position;
+    particle->position.y += TILE_SIZE*0.7f;
+
+    particle->dposition.x = random_range(&state->effects_entropy, -0.2f, 0.2f);
+    particle->dposition.y = 1.0f;
+  }
+}
+
+internal void
+enemy_emit_flame_particles(Entity *enemy, Game_State *state) {
+  Particle_Array arr = emit_particles(&enemy->emitter);
+  for (u32 i = 0; i < arr.len; ++i) {
+    Particle0 *particle = arr.items[i];
+    particle->color = CP_RED;
+
+    particle->radius = 2.5f;
+    particle->dradius = -9.0f;
+
+    particle->speed = 25.0f;
+
+    particle->position = enemy->position;
+    particle->position.y -= enemy->sprite_h*TILE_SIZE*0.5f + 1.0f;
+
+    particle->dposition.x = random_range(&state->effects_entropy, -0.2f, 0.2f);
+    particle->dposition.y = -1.0f;
+  }
+}
+
 internal void
 simulate_flame_particles(Particle_Emitter *emitter) {
   for (u32 particle_index = 0;
@@ -1210,56 +1276,6 @@ draw_flame_particles(Image draw_buffer, Particle_Emitter *emitter) {
        ++particle_index) {
     Particle0 *particle = emitter->particles + particle_index;
     draw_circle_fill2(draw_buffer, particle->position, particle->radius, particle->color);
-  }
-}
-
-internal void
-player_emit_flame_particles(Entity *player, Game_State *state) {
-  Particle_Emitter *emitter = &player->emitter;
-  if (countdown(&emitter->emission_countdown) <= 0.0f) {
-    Particle0 *particle = emitter->particles + emitter->next_particle++;
-    mem_zero_struct(particle);
-    if (emitter->next_particle >= array_count(emitter->particles)) {
-      emitter->next_particle = 0;
-    }
-
-    particle->color = CP_BLUE;
-    particle->radius = 2.5f;
-    particle->dradius = -9.0f;
-    particle->speed = 50.0f;
-
-    particle->position = player->position;
-    particle->position.y += TILE_SIZE*0.7f;
-
-    particle->dposition.x = random_range(&state->effects_entropy, -0.2f, 0.2f);
-    particle->dposition.y = 1.0f;
-
-    emitter->emission_countdown = emitter->emission_time;
-  }
-}
-
-internal void
-enemy_emit_flame_particles(Entity *enemy, Game_State *state) {
-  Particle_Emitter *emitter = &enemy->emitter;
-  if (countdown(&emitter->emission_countdown) <= 0.0f) {
-    Particle0 *particle = emitter->particles + emitter->next_particle++;
-    mem_zero_struct(particle);
-    if (emitter->next_particle >= array_count(emitter->particles)) {
-      emitter->next_particle = 0;
-    }
-
-    particle->color = CP_RED;
-    particle->radius = 2.5f;
-    particle->dradius = -9.0f;
-    particle->speed = 25.0f;
-
-    particle->position = enemy->position;
-    particle->position.y -= enemy->sprite_h*TILE_SIZE*0.5f + 1.0f;
-
-    particle->dposition.x = random_range(&state->effects_entropy, -0.2f, 0.2f);
-    particle->dposition.y = -1.0f;
-
-    emitter->emission_countdown = emitter->emission_time;
   }
 }
 
@@ -1442,7 +1458,7 @@ simulate_player(Game_State *state, Input *input) {
          bullet != 0;
          bullet = bullet->next) {
       if (bullet->is_alive &&
-        !bullet->is_player_friendly) {
+          !bullet->is_player_friendly) {
         bullet->is_alive = false;
         emit_explosion(state, bullet->position);
       }
@@ -1553,7 +1569,7 @@ draw_enemies(Image draw_buffer, Entity_Manager *manager, Tilemap tilemap) {
                   enemy->next_flame_sprite_frame, 1, 1,
                   enemy->position,
                   vec2(0.5f, 0.0f),
-                  vec2(0.0f, -1.0f*TILE_SIZE - enemy->sprite_h*TILE_SIZE*0.5f));
+                  vec2(0.0f, -1.0f*TILE_SIZE - 0.5f*enemy->sprite_h*TILE_SIZE));
       draw_sprite_shader(draw_buffer, tilemap,
                          enemy->sprite_index, enemy->sprite_w, enemy->sprite_h,
                          enemy->position, vec2(0.5f, 0.5f), vec2(0.0f, 0.0f),
@@ -2181,9 +2197,14 @@ update_flame_animation(Entity *entity) {
   if (entity->flame_sprite_frame_time >= entity->flame_sprite_frame_frequency) {
     entity->next_flame_sprite_frame += 1;
     if (entity->next_flame_sprite_frame >
-        (entity->flame_sprite_index + entity->flame_sprite_frame_count - 1)) {
-      entity->next_flame_sprite_frame = entity->flame_sprite_index;
+      (entity->flame_sprite_index + entity->flame_sprite_frame_count - 1)) {
+      entity->next_flame_sprite_frame -= entity->flame_sprite_frame_count;
     }
+    // entity->next_flame_sprite_frame += 1;
+    // if (entity->next_flame_sprite_frame >
+    //     (entity->flame_sprite_index + entity->flame_sprite_frame_count - 1)) {
+    //   entity->next_flame_sprite_frame = entity->flame_sprite_index;
+    // }
     entity->flame_sprite_frame_time = 0.0f;
   }
 }
@@ -2663,20 +2684,25 @@ draw_debug_info(Image draw_buffer, Clock *time, Game_State *state) {
     String8_List *list = &state->debug_string_list;
     mem_zero_struct(list);
 
-    str8_list_push_fmt(scratch.arena, list, "sound count:%d", state->playing_sound_count);
+    str8_list_push_fmt(scratch.arena, list, "perm.arena:%d/%d",
+                       state->perm_arena->pos,
+                       state->perm_arena->res_size);
+    str8_list_push_fmt(scratch.arena, list, "tran.arena:%d/%d",
+                       state->tran_arena->pos,
+                       state->tran_arena->res_size);
 
     if (state->godmode) {
-      str8_list_push_copy(scratch.arena, list, str8_lit("godmode: true"));
+      str8_list_push_copy(scratch.arena, list, str8_lit("godmode:true"));
     } else {
-      str8_list_push_copy(scratch.arena, list, str8_lit("godmode: false"));
+      str8_list_push_copy(scratch.arena, list, str8_lit("godmode:false"));
     }
 
     {
       Entity_Manager *manager = state->enemy_manager;
       u32 count = manager->list.count;
       u32 total_count = manager->list.total_count;
-      str8_list_push_fmt(scratch.arena, list, "ent. list:%d/%d", count, total_count);
-      str8_list_push_fmt(scratch.arena, list, "ent. manager: %zu/%zu",
+      str8_list_push_fmt(scratch.arena, list, "ent.list:%d/%d", count, total_count);
+      str8_list_push_fmt(scratch.arena, list, "ent.manager:%zu/%zu",
                          (manager->arena->pos - ARENA_HEADER_SIZE)/sizeof(Entity),
                          manager->arena->res_size/sizeof(Entity));
     }
@@ -2685,8 +2711,8 @@ draw_debug_info(Image draw_buffer, Clock *time, Game_State *state) {
       Entity_Manager *manager = state->bullet_manager;
       u32 count = manager->list.count;
       u32 total_count = manager->list.total_count;
-      str8_list_push_fmt(scratch.arena, list, "bul. list:%d/%d", count, total_count);
-      str8_list_push_fmt(scratch.arena, list, "bul. manager: %zu/%zu",
+      str8_list_push_fmt(scratch.arena, list, "bul.list:%d/%d", count, total_count);
+      str8_list_push_fmt(scratch.arena, list, "bul.manager:%zu/%zu",
                          (manager->arena->pos - ARENA_HEADER_SIZE)/sizeof(Entity),
                          manager->arena->res_size/sizeof(Entity));
     }
@@ -2920,8 +2946,7 @@ GAME_FRAME_PROC(frame) {
         state->enemy_attack_time += dt;
         if (state->enemy_attack_time > state->enemy_attack_cooldown) {
           if (state->enemy_manager->list.count > 0) {
-            u32 enemy_index = random_choice(&state->general_entropy,
-                                            state->enemy_manager->list.count);
+            u32 enemy_index = random_choice(&state->general_entropy, state->enemy_manager->list.count);
             Entity *enemy = state->enemy_manager->list.first;
             for (u32 j = 0; j < enemy_index; ++j) {
               enemy = enemy->next;

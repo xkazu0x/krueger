@@ -136,9 +136,7 @@ platform_gamepad_init(void) {
   libs[0] = str8_lit("xinput1_4.dll");
   libs[1] = str8_lit("xinput1_3.dll");
   libs[2] = str8_lit("xinput9_1_0.dll");
-  for (u32 lib_index = 0;
-       lib_index < array_count(libs);
-       ++lib_index) {
+  for (each_item(u32, lib_index, libs)) {
     String8 lib_name = libs[lib_index];
     Platform_Handle h = platform_library_open(lib_name);
     if (platform_handle_is_valid(h)) {
@@ -154,9 +152,7 @@ platform_gamepad_init(void) {
 internal void
 platform_gamepad_update(void) {
   u32 gamepad_count = min(GAMEPAD_MAX, XUSER_MAX_COUNT);
-  for (u32 gamepad_index = 0;
-       gamepad_index < gamepad_count;
-       ++gamepad_index) {
+  for (each_index(u32, gamepad_index, gamepad_count)) {
     XINPUT_STATE xinput_state;
     if (xinput_get_state(gamepad_index, &xinput_state) == ERROR_SUCCESS) {
       XINPUT_GAMEPAD *xpad = &xinput_state.Gamepad;
@@ -295,9 +291,7 @@ path_find_sub_directory(Arena *arena, String8 path, String8 sub) {
   Temp scratch = scratch_begin(&arena, 1);
   String8_List path_list = str8_split_path(scratch.arena, path);
   String8_List sub_list = {0};
-  for (String8_Node *node = path_list.first;
-       node != 0;
-       node = node->next) {
+  for (each_node(String8_Node, node, path_list.first)) {
     str8_list_push(scratch.arena, &sub_list, node->string);
     if (str8_match(node->string, sub)) {
       break;
@@ -422,7 +416,7 @@ entry_point(int argc, char **argv) {
     for (b32 quit = false; !quit;) {
       Temp scratch = scratch_begin(0, 0);
       Platform_Event_List event_list = platform_get_event_list(scratch.arena);
-      for (Platform_Event *event = event_list.first; event != 0; event = event->next) {
+      for (each_node(Platform_Event, event, event_list.first)) {
         switch (event->type) {
           case PLATFORM_EVENT_WINDOW_CLOSE: {
             quit = true;
