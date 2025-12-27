@@ -1,24 +1,38 @@
 #ifndef KRUEGER_PLATFORM_CORE_LINUX_C
 #define KRUEGER_PLATFORM_CORE_LINUX_C
 
+///////////////////////////
+// NOTE: Platform Functions
+
 internal void
-platform_init_core(void) {
+platform_core_init(void) {
+}
+
+internal void
+platform_core_shutdown(void) {
+}
+
+internal void
+platform_abort(s32 exit_code) {
+  exit(exit_code);
+}
+
+internal Date_Time
+platform_get_date_time(void) {
+  Date_Time result = {0};
+  return(result);
 }
 
 internal String8
 platform_get_exec_file_path(Arena *arena) {
-  char *path = push_array(arena, char, PATH_MAX);
-  ssize_t length = readlink("/proc/self/exe", path, PATH_MAX);
-  if (length != -1) path[length] = 0;
-  String8 result = str8_cstr(path);
-  return(result);
-}
-
-internal u64
-platform_get_time_us(void) {
-  struct timespec clock;
-  clock_gettime(CLOCK_MONOTONIC, &clock);
-  u64 result = clock.tv_sec*million(1) + clock.tv_nsec/thousand(1); 
+  Temp scratch = scratch_begin(&arena, 1);
+  u8 *tmp = push_array(scratch.arena, u8, PATH_MAX);
+  ssize_t len = readlink("/proc/self/exe", (char *)tmp, PATH_MAX);
+  u8 *str = push_array(arena, u8, len + 1);
+  mem_copy(str, tmp, len);
+  str[len] = 0;
+  String8 result = str8(str, len);
+  scratch_end(scratch);
   return(result);
 }
 
@@ -47,8 +61,10 @@ platform_release(void *ptr, uxx size) {
 }
 
 internal Platform_Handle
-platform_file_open(char *filepath, Platform_File_Flags flags) {
+platform_file_open(String8 path, Platform_File_Flags flags) {
   Platform_Handle result = {0};
+  Temp scratch = scratch_begin(0, 0);
+  path = str8_copy(scratch.arena, path);
   int linux_flags = 0;
   if ((flags & PLATFORM_FILE_READ) && (flags & PLATFORM_FILE_WRITE)) {
     linux_flags = O_RDWR;
@@ -60,10 +76,11 @@ platform_file_open(char *filepath, Platform_File_Flags flags) {
   if(flags & PLATFORM_FILE_WRITE) {
     linux_flags |= O_CREAT;
   }
-  int fd = open(filepath, linux_flags, S_IRUSR | S_IWUSR);
+  int fd = open((char *)path.str, linux_flags, S_IRUSR | S_IWUSR);
   if (fd != -1) {
     result.ptr[0] = fd;
   }
+  scratch_end(scratch);
   return(result);
 }
 
@@ -73,14 +90,14 @@ platform_file_close(Platform_Handle file) {
   close(fd);
 }
 
-internal u64
+internal u32
 platform_file_read(Platform_Handle file, void *buffer, u64 size) {
   int fd = (int)file.ptr[0];
   u64 read_size = read(fd, buffer, size);
   return(read_size);
 }
 
-internal u64
+internal u32
 platform_file_write(Platform_Handle file, void *buffer, u64 size) {
   int fd = (int)file.ptr[0];
   u64 write_size = write(fd, buffer, size);
@@ -99,7 +116,7 @@ platform_get_file_size(Platform_Handle file) {
 }
 
 internal b32
-platform_copy_file_path(char *dst, char *src) {
+platform_copy_file_path(String8 dst, String8 src) {
   b32 result = false;
   Platform_Handle src_h = platform_file_open(src, PLATFORM_FILE_READ);
   Platform_Handle dst_h = platform_file_open(dst, PLATFORM_FILE_WRITE);
@@ -120,16 +137,22 @@ platform_copy_file_path(char *dst, char *src) {
 }
 
 internal Platform_Handle
-platform_library_open(char *filepath) {
+platform_library_open(String8 path) {
   Platform_Handle result = {0};
-  result.ptr[0] = (u64)dlopen(filepath, RTLD_LAZY | RTLD_LOCAL);
+  Temp scratch = scratch_begin(0, 0);
+  path = str8_copy(scratch.arena, path);
+  result.ptr[0] = (uxx)dlopen((char *)path.str, RTLD_LAZY | RTLD_LOCAL);
+  scratch_end(scratch);
   return(result);
 }
 
 internal void *
-platform_library_load_proc(Platform_Handle lib, char *name) {
+platform_library_load_proc(Platform_Handle lib, String8 name) {
+  Temp scratch = scratch_begin(0, 0);
+  name = str8_copy(scratch.arena, name);
   void *so = (void *)lib.ptr[0];
-  void *result = (void *)dlsym(so, name);
+  void *result = (void *)dlsym(so, (char *)name.str);
+  scratch_end(scratch);
   return(result);
 }
 
@@ -138,5 +161,29 @@ platform_library_close(Platform_Handle lib) {
   void *so = (void *)lib.ptr[0];
   dlclose(so);
 }
+
+internal u64
+platform_get_time_us(void) {
+  struct timespec clock;
+  clock_gettime(CLOCK_MONOTONIC, &clock);
+  u64 result = clock.tv_sec*million(1) + clock.tv_nsec/thousand(1); 
+  return(result);
+}
+
+internal void
+platform_sleep_ms(u32 ms) {
+  usleep(ms*thousand(1));
+}
+
+/////////////////////////////
+// NOTE: Platform Entry Point
+
+#if BUILD_ENTRY_POINT
+int
+main(int argc, char **argv) {
+  base_entry_point(argc, argv);
+  return(0);
+}
+#endif
 
 #endif // KRUEGER_PLATFORM_CORE_LINUX_C
