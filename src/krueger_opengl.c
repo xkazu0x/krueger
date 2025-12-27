@@ -3,6 +3,8 @@
 
 #if PLATFORM_WINDOWS
 #include "krueger_opengl_win32.c"
+#elif PLATFORM_LINUX
+#include "krueger_opengl_linux.c"
 #else
 #error opengl layer not implemented for the current platform.
 #endif
