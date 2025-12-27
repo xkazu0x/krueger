@@ -14,7 +14,7 @@ ogl_init(void) {
   if(!glXQueryVersion(_lnx_gfx_state->display, &glx_version_major, &glx_version_minor) ||
      (glx_version_major == 1 && glx_version_minor < 3) ||
      glx_version_major < 1) {
-    log_error("OpenGL: Unsupported GLX version (%i.%i, need at least 1.3)", glx_version_major, glx_version_minor);
+    log_fatal("fn %s: unsupported GLX version (%i.%i, need at least 1.3)", __func__, glx_version_major, glx_version_minor);
     platform_abort(1);
   }
   
@@ -36,7 +36,7 @@ ogl_init(void) {
   int fb_cfg_count = 0;
   GLXFBConfig *fb_cfgs = glXChooseFBConfig(_lnx_gfx_state->display, DefaultScreen(_lnx_gfx_state->display), fb_cfg_attribs, &fb_cfg_count);
   if(!fb_cfgs) {
-    log_error("OpenGL: Could not find a suitable framebuffer configuration.");
+    log_fatal("fn %s: could not find a suitable framebuffer configuration", __func__);
     platform_abort(1);
   }
 

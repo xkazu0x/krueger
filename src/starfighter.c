@@ -2798,7 +2798,7 @@ GAME_FRAME_PROC(frame) {
     chars = str8_copy(state->perm_arena, chars);
     state->font = make_font(chars, state->font_tilemap);
 
-    state->draw_buffer = image_alloc(back_buffer->width, back_buffer->height);
+    state->draw_buffer = image_alloc(image->width, image->height);
     {
       s32 x = 0;
       s32 y = 0;
@@ -2842,8 +2842,8 @@ GAME_FRAME_PROC(frame) {
         particle->color = CP_DARK_BLUE;
       }
 
-      particle->position.x = random_unilateral(&state->effects_entropy)*back_buffer->width;
-      particle->position.y = random_unilateral(&state->effects_entropy)*back_buffer->height;
+      particle->position.x = random_unilateral(&state->effects_entropy)*image->width;
+      particle->position.y = random_unilateral(&state->effects_entropy)*image->height;
       particle->dposition = make_vector2(0.0f, -1.0f);
     }
 
@@ -2869,10 +2869,10 @@ GAME_FRAME_PROC(frame) {
   if (input->pause.pressed) state->pause = !state->pause;
   if (state->pause) {
     String8 text = str8_lit("PAUSED");
-    Vector2 size = make_vector2((f32)back_buffer->width, (f32)back_buffer->height);
+    Vector2 size = make_vector2((f32)image->width, (f32)image->height);
     Vector2 position = vector2_mul(size, 0.5f);
     Vector2 alignment = make_vector2(0.5f, 0.5f);
-    draw_text2(*back_buffer, state->font, text, position, alignment, CP_WHITE);
+    draw_text2(*image, state->font, text, position, alignment, CP_WHITE);
     return(state->quit);
   }
 
@@ -3002,8 +3002,8 @@ GAME_FRAME_PROC(frame) {
     state->shake_oscillation = 0.0f;
   }
   
-  image_fill(*back_buffer, CP_BLACK);
-  draw_texture_f32(*back_buffer, state->draw_buffer, x, y);
+  image_fill(*image, CP_BLACK);
+  draw_texture_f32(*image, state->draw_buffer, x, y);
 
   return(state->quit);
 }

@@ -4,7 +4,7 @@
 #define PLATFORM_FEATURE_AUDIO 0
 
 #define OGL_MAJOR_VER 3
-#define OGL_MINOR_VER 1
+#define OGL_MINOR_VER 0
 
 #include "krueger_base.h"
 #include "krueger_platform.h"
@@ -58,10 +58,10 @@ game_library_open(String8 dst_path, String8 src_path) {
       GAME_PROC_LIST
 #undef GAME_PROC
     } else {
-      log_error("%s: failed to open library: [%s]", __func__, dst_path.str);
+      log_error("fn %s: failed to open library:\n\t > %s", __func__, dst_path.str);
     }
   } else {
-    log_error("%s: failed to copy file path: from [%s] to [%s]", __func__, src_path.str, dst_path.str);
+    log_error("fn %s: failed to copy file path:\n\t > src: %s\n\t > dst: %s", __func__, src_path.str, dst_path.str);
   }
   return(lib);
 }
@@ -396,97 +396,99 @@ entry_point(int argc, char **argv) {
   String8 dst_lib_path = str8_cat(arena, build_path, dst_lib_name);
 
   Game_Library game = game_library_open(dst_lib_path, src_lib_path);
-  if (platform_handle_is_valid(game.h)) {
-    u32 window_scale = 5;
-    u32 render_w = 128;
-    u32 render_h = 128;
+  if (!platform_handle_is_valid(game.h)) {
+    log_fatal("fn %s: failed to open game library", __func__);
+    platform_abort(1);
+  }
 
-    String8 window_name = str8_lit("STARFIGHTER");
-    u32 window_w = window_scale*render_w;
-    u32 window_h = window_scale*render_h;
+  u32 window_scale = 5;
+  u32 render_w = 128;
+  u32 render_h = 128;
 
-    Platform_Handle window = platform_window_open(window_name, window_w, window_h);
-    ogl_window_equip(window);
-    ogl_window_select(window);
+  String8 window_name = str8_lit("STARFIGHTER");
+  u32 window_w = window_scale*render_w;
+  u32 window_h = window_scale*render_h;
 
-    Image back_buffer = image_alloc(render_w, render_h);
+  Platform_Handle window = platform_window_open(window_name, window_w, window_h);
+  Image image = image_alloc(render_w, render_h);
 
-    Platform_Graphics_Info graphics_info = platform_get_graphics_info();
-    Clock time = {.dt_sec = 1.0f/graphics_info.refresh_rate};
-    Input input = {0};
+  Platform_Graphics_Info gfx_info = platform_get_graphics_info();
+  Clock time = {.dt_sec = 1.0f/gfx_info.refresh_rate};
+  Input input = {0};
 
-    Thread_Context *tctx = thread_context_selected();
-    Memory memory = memory_alloc(GB(1));
-    memory.res_path = res_path;
+  Thread_Context *tctx = thread_context_selected();
+  Memory memory = memory_alloc(GB(1));
+  memory.res_path = res_path;
 #define PLATFORM_API(name, ret, ...) memory.name = name;
-    PLATFORM_API_LIST
-#undef PLATFORM_API
+  PLATFORM_API_LIST
+  #undef PLATFORM_API
 
-    // Audio_Callback_Data audio_cb_data = {
-    //   .memory = &memory,
-    //   .game_output_sound = game.output_sound,
-    // };
+  // Audio_Callback_Data audio_cb_data = {
+  //   .memory = &memory,
+  //   .game_output_sound = game.output_sound,
+  // };
 
-    // platform_audio_init(&(Platform_Audio_Desc){
-    //   .sample_rate = 48000,
-    //   .num_channels = 2,
-    //   .callback = audio_cb,
-    //   .user_data = &audio_cb_data,
-    // });
+  // platform_audio_init(&(Platform_Audio_Desc){
+  //   .sample_rate = 48000,
+  //   .num_channels = 2,
+  //   .callback = audio_cb,
+  //   .user_data = &audio_cb_data,
+  // });
 
-    platform_window_set_fullscreen(window, false);
-    platform_window_show(window);
+  ogl_window_equip(window);
+  ogl_window_select(window);
 
-    u64 time_start = platform_get_time_us();
+  platform_window_set_fullscreen(window, false);
+  platform_window_show(window);
 
-    for (b32 quit = false; !quit;) {
-      Temp scratch = scratch_begin(0, 0);
-      Platform_Event_List event_list = platform_get_event_list(scratch.arena);
-      for (each_node(Platform_Event, event, event_list.first)) {
-        switch (event->type) {
-          case PLATFORM_EVENT_WINDOW_CLOSE: {
-            quit = true;
-            break;
-          } break;
-          case PLATFORM_EVENT_KEY_PRESS:
-          case PLATFORM_EVENT_KEY_RELEASE: {
-            Keycode keycode = event->keycode;
-            b32 is_down = (event->type == PLATFORM_EVENT_KEY_PRESS);
-            process_digital_button(keys + keycode, is_down);
-          } break;
-        }
+  u64 time_start = platform_get_time_us();
+
+  for (b32 quit = false; !quit;) {
+    Temp scratch = scratch_begin(0, 0);
+    Platform_Event_List event_list = platform_get_event_list(scratch.arena);
+    for (each_node(Platform_Event, event, event_list.first)) {
+      switch (event->type) {
+        case PLATFORM_EVENT_WINDOW_CLOSE: {
+          quit = true; break;
+        } break;
+        case PLATFORM_EVENT_KEY_PRESS:
+        case PLATFORM_EVENT_KEY_RELEASE: {
+          Keycode keycode = event->keycode;
+          b32 is_down = (event->type == PLATFORM_EVENT_KEY_PRESS);
+          process_digital_button(keys + keycode, is_down);
+        } break;
       }
-      scratch_end(scratch);
-      if (quit) break;
+    }
+    scratch_end(scratch);
+    if (quit) break;
 
 #if BUILD_DEBUG
-      if (keys[KEY_R].pressed) {
-        // audio_cb_data.game_output_sound = 0;
-        game_library_close(game);
-        game = game_library_open(dst_lib_path, src_lib_path);
-        // audio_cb_data.game_output_sound = game.output_sound;
-      }
+    if (keys[KEY_R].pressed) {
+      // audio_cb_data.game_output_sound = 0;
+      game_library_close(game);
+      game = game_library_open(dst_lib_path, src_lib_path);
+      // audio_cb_data.game_output_sound = game.output_sound;
+    }
 #endif
 
-      if (keys[KEY_F11].pressed) {
-        b32 fullscreen = platform_window_is_fullscreen(window);
-        platform_window_set_fullscreen(window, !fullscreen);
-      }
-
-      input_update(&input);
-      if (game.frame) {
-        quit = game.frame(tctx, &memory, &back_buffer, &input, &time);
-        if (quit) break;
-      }
-
-      wait_to_flip(time.dt_sec, time_start);
-      u64 time_end = platform_get_time_us();
-      time._dt_us = time_end - time_start;
-      time._dt_ms = time._dt_us/thousand(1.0f);
-      time_start = time_end;
-
-      render_image_to_window(window, back_buffer);
-      input_reset();
+    if (keys[KEY_F11].pressed) {
+      b32 fullscreen = platform_window_is_fullscreen(window);
+      platform_window_set_fullscreen(window, !fullscreen);
     }
+
+    input_update(&input);
+    if (game.frame) {
+      quit = game.frame(tctx, &memory, &image, &input, &time);
+      if (quit) break;
+    }
+
+    wait_to_flip(time.dt_sec, time_start);
+    u64 time_end = platform_get_time_us();
+    time._dt_us = time_end - time_start;
+    time._dt_ms = time._dt_us/thousand(1.0f);
+    time_start = time_end;
+
+    render_image_to_window(window, image);
+    input_reset();
   }
 }

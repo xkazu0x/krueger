@@ -80,7 +80,7 @@ typedef struct {
   GAME_PROC(frame) \
   GAME_PROC(output_sound)
 
-#define GAME_FRAME_PROC(x) b32 x(Thread_Context *tctx, Memory *memory, Image *back_buffer, Input *input, Clock *time)
+#define GAME_FRAME_PROC(x) b32 x(Thread_Context *tctx, Memory *memory, Image *image, Input *input, Clock *time)
 #define GAME_OUTPUT_SOUND_PROC(x) void x(Sound_Buffer *sound_buffer, Memory *memory)
 
 typedef GAME_FRAME_PROC(game_frame_proc);
