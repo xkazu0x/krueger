@@ -2,13 +2,13 @@
 #define KRUEGER_OPENGL_WIN32_C
 
 internal void *
-gl_load_proc(char *name) {
+ogl_load_proc(char *name) {
   void *result = (void *)wglGetProcAddress(name);
   return(result);
 }
 
 internal void
-gl_init(void) {
+ogl_init(void) {
   WNDCLASSEXW wndclass = {.cbSize = sizeof(wndclass)};
   wndclass.lpfnWndProc = DefWindowProcW;
   wndclass.hInstance = GetModuleHandleW(0);
@@ -38,7 +38,7 @@ gl_init(void) {
   HGLRC hglrc = wglCreateContext(hdc);
   wglMakeCurrent(hdc, hglrc);
 
-#define WGL_PROC(name, r, p) name = (name##_proc *)gl_load_proc(#name);
+#define WGL_PROC(name, r, p) name = (name##_proc *)ogl_load_proc(#name);
   WGL_PROC_LIST
 #undef WGL_PROC
 
@@ -46,12 +46,12 @@ gl_init(void) {
   wglChoosePixelFormatARB(hdc, _wgl_pf_attribs, 0, 1, &pf, &num_formats);
 
   int ctx_attribs[] = {
-    WGL_CONTEXT_MAJOR_VERSION_ARB, OPENGL_MAJOR_VERSION,
-    WGL_CONTEXT_MINOR_VERSION_ARB, OPENGL_MINOR_VERSION,
+    WGL_CONTEXT_MAJOR_VERSION_ARB, OGL_MAJOR_VER,
+    WGL_CONTEXT_MINOR_VERSION_ARB, OGL_MINOR_VER,
     0
   };
 
-  _win32_gl_ctx = wglCreateContextAttribsARB(hdc, hglrc, ctx_attribs);
+  _gl_win32_ctx = wglCreateContextAttribsARB(hdc, hglrc, ctx_attribs);
 
   wglMakeCurrent(hdc, 0);
   wglDeleteContext(hglrc);
@@ -60,9 +60,9 @@ gl_init(void) {
 }
 
 internal void
-gl_window_equip(Platform_Handle handle) {
+ogl_window_equip(Platform_Handle handle) {
   if (platform_handle_is_valid(handle)) {
-    Win32_Window *window = win32_window_from_handle(handle);
+    _Win32_Window *window = _win32_window_from_handle(handle);
 
     int pf = 0;
     UINT num_formats = 0;
@@ -71,23 +71,21 @@ gl_window_equip(Platform_Handle handle) {
     PIXELFORMATDESCRIPTOR pfd;
     DescribePixelFormat(window->hdc, pf, sizeof(pfd), &pfd);
     SetPixelFormat(window->hdc, pf, &pfd);
-
-    wglMakeCurrent(window->hdc, _win32_gl_ctx);
   }
 }
 
 internal void
-gl_window_select(Platform_Handle handle) {
+ogl_window_select(Platform_Handle handle) {
   if (platform_handle_is_valid(handle)) {
-    Win32_Window *window = win32_window_from_handle(handle);
-    wglMakeCurrent(window->hdc, _win32_gl_ctx);
+    _Win32_Window *window = _win32_window_from_handle(handle);
+    wglMakeCurrent(window->hdc, _gl_win32_ctx);
   }
 }
 
 internal void
-gl_window_swap(Platform_Handle handle) {
+ogl_window_swap(Platform_Handle handle) {
   if (platform_handle_is_valid(handle)) {
-    Win32_Window *window = win32_window_from_handle(handle);
+    _Win32_Window *window = _win32_window_from_handle(handle);
     SwapBuffers(window->hdc);
   }
 }

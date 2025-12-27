@@ -39,6 +39,6 @@ global const int _wgl_pf_attribs[] = {
   0
 };
 
-global HGLRC _win32_gl_ctx;
+global HGLRC _gl_win32_ctx;
 
 #endif // KRUEGER_OPENGL_WIN32_H

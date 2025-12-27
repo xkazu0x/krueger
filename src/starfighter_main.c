@@ -155,7 +155,7 @@ platform_gamepad_init(void) {
 internal void
 platform_gamepad_update(void) {
   u32 gamepad_count = min(GAMEPAD_MAX, XUSER_MAX_COUNT);
-  for (each_node(u32, gamepad_index, gamepad_count)) {
+  for (each_index(u32, gamepad_index, gamepad_count)) {
     XINPUT_STATE xinput_state;;;
     if (xinput_get_state(gamepad_index, &xinput_state) == ERROR_SUCCESS) {
       XINPUT_GAMEPAD *xpad = &xinput_state.Gamepad;
