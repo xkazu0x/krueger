@@ -10,7 +10,7 @@ if [ -v release ];   then echo "[release mode]"; fi
 if [ -v gcc ];       then compiler="${CC:-gcc}"; echo "[gcc compiler]"; fi
 if [ -v clang ];     then compiler="${CC:-clang}"; echo "[clang compiler]"; fi
 
-gcc_common="-I../src/ -std=gnu11 -Wall -Wextra -Wno-unused-function -Wno-unused-variable -Wno-unused-parameter"
+gcc_common="-I../src/ -std=gnu11 -Wall -Wextra -Wno-unused-function -Wno-unused-variable -Wno-unused-parameter -Wno-type-limits -Wno-override-init -Wno-missing-braces -Wno-switch"
 gcc_debug="$compiler -O0 -g -DBUILD_DEBUG=1 ${gcc_common}"
 gcc_release="$compiler -O2 -DBUILD_DEBUG=0 ${gcc_common}"
 gcc_shared="-fPIC -shared"
@@ -24,7 +24,7 @@ clang_shared="-fPIC -shared"
 clang_link="-lm"
 clang_out="-o"
 
-link_platform="-lX11"
+link_plat="-lX11 -lGL"
 
 if [ -v gcc ]; then compile_debug="$gcc_debug"; fi
 if [ -v gcc ]; then compile_release="$gcc_release"; fi
@@ -41,10 +41,14 @@ if [ -v clang ]; then out="$clang_out"; fi
 if [ -v debug ]; then compile="$compile_debug"; fi
 if [ -v release ]; then compile="$compile_release"; fi
 
+if [ -v clean ]; then rm -rf build; fi
 mkdir -p build
 
 cd build
-$compile $shared ../src/krueger.c $link $out libkrueger.so
-$compile ../src/krueger_main.c $link $link_platform $out krueger 
-if [ -v run ]; then ./krueger; fi
+# $compile ../src/test_linux_main.c $link $link_plat $out krueger 
+# if [ -v run ]; then ./krueger; fi
+
+$compile $shared ../src/starfighter.c      $link            $out libstarfighter.so
+$compile         ../src/starfighter_main.c $link $link_plat $out starfighter 
+if [ -v run ]; then ./starfighter; fi
 cd ..

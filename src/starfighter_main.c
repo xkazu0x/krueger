@@ -1,10 +1,10 @@
 #define BUILD_CONSOLE_INTERFACE 1
 
 #define PLATFORM_FEATURE_GRAPHICS 1
-#define PLATFORM_FEATURE_AUDIO 1
+#define PLATFORM_FEATURE_AUDIO 0
 
-#define OPENGL_MAJOR_VERSION 3
-#define OPENGL_MINOR_VERSION 1
+#define OGL_MAJOR_VER 3
+#define OGL_MINOR_VER 1
 
 #include "krueger_base.h"
 #include "krueger_platform.h"
@@ -17,6 +17,7 @@
 #include "krueger_opengl.c"
 #include "krueger_image.c"
 
+#if PLATFORM_WINDOWS
 #include <xinput.h>
 
 #define XINPUT_PROC_LIST \
@@ -34,6 +35,7 @@ XINPUT_PROC_LIST
 #define XINPUT_PROC(name, r, p) global name##_proc *name = name##_stub;
 XINPUT_PROC_LIST
 #undef XINPUT_PROC
+#endif
 
 /////////////////////
 // NOTE: Game Library
@@ -130,6 +132,7 @@ process_stick(Stick *stick, f32 threshold, f32 x, f32 y) {
   stick->y = y;
 }
 
+#if PLATFORM_WINDOWS
 internal void
 platform_gamepad_init(void) {
   String8 libs[3];
@@ -152,8 +155,8 @@ platform_gamepad_init(void) {
 internal void
 platform_gamepad_update(void) {
   u32 gamepad_count = min(GAMEPAD_MAX, XUSER_MAX_COUNT);
-  for (each_index(u32, gamepad_index, gamepad_count)) {
-    XINPUT_STATE xinput_state;
+  for (each_node(u32, gamepad_index, gamepad_count)) {
+    XINPUT_STATE xinput_state;;;
     if (xinput_get_state(gamepad_index, &xinput_state) == ERROR_SUCCESS) {
       XINPUT_GAMEPAD *xpad = &xinput_state.Gamepad;
       Gamepad *pad = gamepads + gamepad_index;
@@ -197,11 +200,20 @@ platform_gamepad_update(void) {
         process_stick(&pad->left_stick, threshold, x, y);
       }
 #undef NORMALIZE
-    } else {
-      break;
+  } else {
+    break;
     }
   }
 }
+#else
+internal void
+platform_gamepad_init(void) {
+}
+
+internal void
+platform_gamepad_update(void) {
+}
+#endif
 
 internal void
 input_update(Input *input) {
@@ -233,26 +245,26 @@ input_reset(void) {
 //////////////
 // NOTE: Audio
 
-typedef struct {
-  Memory *memory;
-  game_output_sound_proc *game_output_sound;
-} Audio_Callback_Data;
+// typedef struct {
+//   Memory *memory;
+//   game_output_sound_proc *game_output_sound;
+// } Audio_Callback_Data;
 
-internal
-PLATFORM_AUDIO_CALLBACK(audio_cb) {
-  Audio_Callback_Data *data = (Audio_Callback_Data *)user_data;
-  Sound_Buffer sound_buffer = {
-    .sample_rate = _platform_audio_desc.sample_rate,
-    .num_channels = _platform_audio_desc.num_channels,
-    .num_frames = num_frames,
-    .frames = frames,
-  };
-  if (data->game_output_sound) {
-    data->game_output_sound(&sound_buffer, data->memory);
-  } else {
-    mem_zero_typed(frames, num_frames*sound_buffer.num_channels);
-  }
-}
+// internal
+// PLATFORM_AUDIO_CALLBACK(audio_cb) {
+//   Audio_Callback_Data *data = (Audio_Callback_Data *)user_data;
+//   Sound_Buffer sound_buffer = {
+//     .sample_rate = _platform_audio_desc.sample_rate,
+//     .num_channels = _platform_audio_desc.num_channels,
+//     .num_frames = num_frames,
+//     .frames = frames,
+//   };
+//   if (data->game_output_sound) {
+//     data->game_output_sound(&sound_buffer, data->memory);
+//   } else {
+//     mem_zero_typed(frames, num_frames*sound_buffer.num_channels);
+//   }
+// }
 
 //////////////
 // NOTE: Misc.
@@ -297,11 +309,18 @@ path_find_sub_directory(Arena *arena, String8 path, String8 sub) {
       break;
     }
   }
+#if PLATFORM_WINDOWS
   String8 result = str8_list_join(arena, &sub_list, &(String_Join){
     .sep = str8_lit("\\"),
     .post = str8_lit("\\"),
   });
-  return(result);
+#elif PLATFORM_LINUX
+  String8 result = str8_list_join(arena, &sub_list, &(String_Join){
+    .sep = str8_lit("/"),
+    .post = str8_lit("/"),
+  });
+#endif
+    return(result);
 }
 
 internal void
@@ -350,7 +369,7 @@ render_image_to_window(Platform_Handle window, Image image) {
     glVertex2f(-x, -y);
   } glEnd();
 
-  gl_window_swap(window);
+  ogl_window_swap(window);
 }
 
 internal void
@@ -361,11 +380,17 @@ entry_point(int argc, char **argv) {
   String8 exec_file_path = platform_get_exec_file_path(arena);
   String8 root_path = path_find_sub_directory(arena, exec_file_path, str8_lit("krueger"));
 
+#if PLATFORM_WINDOWS
   String8 build_path   = str8_cat(arena, root_path, str8_lit("build\\"));
   String8 res_path     = str8_cat(arena, root_path, str8_lit("res\\"));
-
   String8 src_lib_name = str8_lit("libstarfighter.dll");
   String8 dst_lib_name = str8_lit("libstarfighterx.dll");
+#elif PLATFORM_LINUX
+  String8 build_path   = str8_cat(arena, root_path, str8_lit("build/"));
+  String8 res_path     = str8_cat(arena, root_path, str8_lit("res/"));
+  String8 src_lib_name = str8_lit("libstarfighter.so");
+  String8 dst_lib_name = str8_lit("libstarfighterx.so");
+#endif
 
   String8 src_lib_path = str8_cat(arena, build_path, src_lib_name);
   String8 dst_lib_path = str8_cat(arena, build_path, dst_lib_name);
@@ -381,7 +406,8 @@ entry_point(int argc, char **argv) {
     u32 window_h = window_scale*render_h;
 
     Platform_Handle window = platform_window_open(window_name, window_w, window_h);
-    gl_window_equip(window);
+    ogl_window_equip(window);
+    ogl_window_select(window);
 
     Image back_buffer = image_alloc(render_w, render_h);
 
@@ -396,17 +422,17 @@ entry_point(int argc, char **argv) {
     PLATFORM_API_LIST
 #undef PLATFORM_API
 
-    Audio_Callback_Data audio_cb_data = {
-      .memory = &memory,
-      .game_output_sound = game.output_sound,
-    };
+    // Audio_Callback_Data audio_cb_data = {
+    //   .memory = &memory,
+    //   .game_output_sound = game.output_sound,
+    // };
 
-    platform_audio_init(&(Platform_Audio_Desc){
-      .sample_rate = 48000,
-      .num_channels = 2,
-      .callback = audio_cb,
-      .user_data = &audio_cb_data,
-    });
+    // platform_audio_init(&(Platform_Audio_Desc){
+    //   .sample_rate = 48000,
+    //   .num_channels = 2,
+    //   .callback = audio_cb,
+    //   .user_data = &audio_cb_data,
+    // });
 
     platform_window_set_fullscreen(window, false);
     platform_window_show(window);
@@ -435,10 +461,10 @@ entry_point(int argc, char **argv) {
 
 #if BUILD_DEBUG
       if (keys[KEY_R].pressed) {
-        audio_cb_data.game_output_sound = 0;
+        // audio_cb_data.game_output_sound = 0;
         game_library_close(game);
         game = game_library_open(dst_lib_path, src_lib_path);
-        audio_cb_data.game_output_sound = game.output_sound;
+        // audio_cb_data.game_output_sound = game.output_sound;
       }
 #endif
 

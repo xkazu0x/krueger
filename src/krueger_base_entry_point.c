@@ -8,7 +8,7 @@ base_entry_point(int argc, char **argv) {
   platform_graphics_init();
 #endif
 #if defined(KRUEGER_OPENGL_H)
-  gl_init();
+  ogl_init();
 #endif
   Thread_Context *tctx = thread_context_alloc();
   thread_context_select(tctx);

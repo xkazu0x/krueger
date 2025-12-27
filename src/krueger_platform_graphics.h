@@ -27,6 +27,11 @@ typedef struct {
   Platform_Event *last;
 } Platform_Event_List;
 
+//////////////////////////////////
+// NOTE: Helpers, Implemented Once
+
+internal Platform_Event *platform_event_list_push(Arena *arena, Platform_Event_List *list, Platform_Event_Type type);
+
 /////////////////////////////////
 // NOTE: Implemented Per-Platform
 

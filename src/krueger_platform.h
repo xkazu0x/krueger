@@ -11,6 +11,8 @@
 #include "krueger_platform_core.h"
 #if PLATFORM_WINDOWS
 #include "krueger_platform_core_win32.h"
+#elif PLATFORM_LINUX
+#include "krueger_platform_core_linux.h"
 #else
 #error platform core not implemented for the current platform.
 #endif
@@ -20,6 +22,8 @@
 #include "krueger_platform_graphics.h"
 #if PLATFORM_WINDOWS
 #include "krueger_platform_graphics_win32.h"
+#elif PLATFORM_LINUX
+#include "krueger_platform_graphics_linux.h"
 #else
 #error platform graphics not implemented for the current platform.
 #endif
@@ -29,6 +33,8 @@
 #include "krueger_platform_audio.h"
 #if PLATFORM_WINDOWS
 #include "krueger_platform_audio_win32.h"
+#elif PLATFORM_LINUX
+// TODO: implement linux audio layer
 #else
 #error platform audio not implemented for the current platform.
 #endif
